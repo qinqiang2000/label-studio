@@ -80,3 +80,15 @@ docker-compose.override.yml
 
 # Local Netlify folder
 .netlify
+
+# Company customization - build artifacts
+label_studio/core/static/css/*.css
+label_studio/core/static/css/*.css.map
+label_studio/core/static/js/*.js
+label_studio/core/static/js/*.js.map
+!label_studio/core/static/css/main.css
+!label_studio/core/static/js/main.js
+
+# Temporary files
+**/.*copy*.jsx
+**/.*copy*.tsx

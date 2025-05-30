@@ -612,6 +612,7 @@ export class LSFWrapper {
       false,
       loadNext,
     );
+    if (result === false) return; // 校验失败，彻底阻止后续界面变化
     const status = result?.$meta?.status;
 
     if (status === 200 || status === 201)
@@ -903,6 +904,32 @@ export class LSFWrapper {
     const { taskID, currentAnnotation } = this;
     const unique_id = this.task.unique_lock_id;
     const serializedAnnotation = this.prepareData(currentAnnotation, { includeId });
+
+    // 新增：校验 textarea 类型的 JSON 合法性
+    if (serializedAnnotation && Array.isArray(serializedAnnotation.result)) {
+      for (const item of serializedAnnotation.result) {
+        const fromName = (item.from_name || "").toLowerCase();
+        if (
+          item.type === "textarea" &&
+          fromName.includes("json") &&
+          item.value && Array.isArray(item.value.text)
+        ) {
+          for (const text of item.value.text) {
+            console.log('[调试] 即将POST的annotation.result:', text);
+            try {
+              JSON.parse(text);
+            } catch (e) {
+              // eslint-disable-next-line no-alert
+              alert(
+                `JSON不合法！\n\n字段: ${item.from_name || item.id || "(未知)"}\n内容片段: ${text.slice(0, 100)}...\n错误: ${e.message}`
+              );
+              this.setLoading(false);
+              return false; // 阻止POST和后续流程
+            }
+          }
+        }
+      }
+    }
 
     if (unique_id) {
       serializedAnnotation.unique_id = unique_id;

@@ -372,7 +372,8 @@ def get_app_version():
 
 def get_latest_version():
     """Get version from pypi"""
-    pypi_url = 'https://pypi.org/pypi/%s/json' % label_studio.package_name
+    # pypi_url = 'https://pypi.org/pypi/%s/json' % label_studio.package_name
+    pypi_url = 'https://pypi.tuna.tsinghua.edu.cn/pypi/%s/json' % label_studio.package_name
     try:
         response = requests.get(pypi_url, timeout=10).text
         data = json.loads(response)

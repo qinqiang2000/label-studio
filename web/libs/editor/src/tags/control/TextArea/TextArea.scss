@@ -99,3 +99,25 @@
     box-shadow: 0 0 0 4px var(--color-primary-focus-outline);
   }
 }
+
+/* 所有内容默认黑色 */
+:global(.token.property),
+:global(.token.string),
+:global(.token.number),
+:global(.token.boolean),
+:global(.token.null) {
+  color: #000 !important;
+}
+
+/* 必填字段恢复原有配色 */
+:global(.token.property.required-field) {
+  color: #905 !important; /* Prism 默认的 property 颜色 */
+}
+
+/* 必填字段的值也恢复原有配色 */
+:global(.required-field-value .token.string) {
+  color: #690 !important; /* Prism 默认的 string 颜色 */
+}
+:global(.required-field-value .token.number) {
+  color: #905 !important; /* Prism 默认的 number 颜色 */
+}
