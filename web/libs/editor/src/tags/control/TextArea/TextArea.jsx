@@ -8,6 +8,8 @@ import ReactSimpleCodeEditor from "react-simple-code-editor";
 import Prism from "prismjs";
 import "prismjs/components/prism-json";
 import "prismjs/themes/prism.css";
+import Tooltip from "antd/lib/tooltip";
+import { InfoCircleOutlined } from "@ant-design/icons";
 
 import InfoModal from "../../../components/Infomodal/Infomodal";
 import Registry from "../../../core/Registry";
@@ -392,6 +394,53 @@ const HtxTextArea = observer(({ item }) => {
     [item],
   );
 
+  // 新增：自动填充按钮逻辑
+  const [autoFillLoading, setAutoFillLoading] = useState(false);
+  // 仅当当前值为空时显示按钮
+  const showAutoFill = !item._value && item.displaymode === PER_REGION_MODES.TAG;
+
+  // 自动填充处理
+  const handleAutoFill = async () => {
+    setAutoFillLoading(true);
+    try {
+      // 优先annotation结果
+      if (item.result && item.result.mainValue && item.result.mainValue.length > 0) {
+        const value = Array.isArray(item.result.mainValue)
+          ? item.result.mainValue[0]
+          : item.result.mainValue;
+        item.setValue(value);
+        validateJsonAndFields(value);
+        setAutoFillLoading(false);
+        return;
+      }
+      // 否则查找prediction
+      const store = item.annotation?.store;
+      const annotationStore = store?.annotationStore;
+      if (annotationStore && Array.isArray(annotationStore.predictions)) {
+        // 找到与本TextArea匹配的prediction result
+        for (const pred of annotationStore.predictions) {
+          if (!pred.result) continue;
+          for (const r of pred.result) {
+            if (
+              r.from_name === item.name &&
+              r.to_name === item.toname &&
+              r.type === "textarea" &&
+              r.value && r.value.text && r.value.text.length > 0
+            ) {
+              const value = Array.isArray(r.value.text) ? r.value.text[0] : r.value.text;
+              item.setValue(value);
+              validateJsonAndFields(value);
+              setAutoFillLoading(false);
+              return;
+            }
+          }
+        }
+      }
+    } finally {
+      setAutoFillLoading(false);
+    }
+  };
+
   // 校验JSON和必填字段的复用函数
   const validateJsonAndFields = useCallback(
     (value) => {
@@ -604,6 +653,22 @@ const HtxTextArea = observer(({ item }) => {
 
   return item.displaymode === PER_REGION_MODES.TAG ? (
     <div className={textareaClassName} style={visibleStyle} ref={item.elementRef}>
+      {/* 自动填充按钮 */}
+      {showAutoFill && (
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+          <Tooltip title="如果有annotation或prediction结果，点击自动填充到文本框">
+            <Button
+              size="small"
+              icon={<InfoCircleOutlined />}
+              loading={autoFillLoading}
+              onClick={handleAutoFill}
+              style={{ marginRight: 8 }}
+            >
+              自动填充
+            </Button>
+          </Tooltip>
+        </div>
+      )}
       {pageStats && <div style={{ color: "blue", marginBottom: 4, fontWeight: "normal" }}>{pageStats}</div>}
       {jsonError && <div style={{ color: "red", marginBottom: 4, fontWeight: "bold" }}>{jsonError}</div>}
       {jsonFieldError && <div style={{ color: "green", marginBottom: 4, fontWeight: "normal" }}>{jsonFieldError}</div>}
