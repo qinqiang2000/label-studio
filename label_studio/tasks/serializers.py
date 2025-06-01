@@ -4,7 +4,7 @@ import logging
 
 import ujson as json
 from core.feature_flags import flag_set
-from core.label_config import replace_task_data_undefined_with_config_field
+from core.label_config import replace_task_data_undefined_with_config_field, parse_config
 from core.utils.common import load_func, retry_database_locked
 from core.utils.db import fast_first
 from django.conf import settings
@@ -688,6 +688,56 @@ class TaskWithAnnotationsAndPredictionsAndDraftsSerializer(TaskSerializer):
             drafts = drafts.filter(user=user)
 
         return AnnotationDraftSerializer(drafts, many=True, read_only=True, default=[], context=self.context).data
+
+    def to_representation(self, instance):
+        # 自动填充 prediction 到 data
+        try:
+            project = instance.project
+            if project and hasattr(project, 'label_config'):
+                config = project.label_config
+                parsed = project.get_parsed_config() if hasattr(project, 'get_parsed_config') else parse_config(config)
+                # 收集所有 TextArea 控件
+                textarea_controls = []
+                for control_name, info in parsed.items():
+                    if info.get('type', '').lower() == 'textarea':
+                        to_names = info.get('to_name', [])
+                        if isinstance(to_names, str):
+                            to_names = [to_names]
+                        textarea_controls.append({
+                            'name': control_name,
+                            'to_names': to_names,
+                            'value': info.get('value', ''),
+                        })
+                logger.debug(f'[AutoFill] Parsed TextArea controls: {textarea_controls}')
+                # 只取最新 prediction
+                predictions = instance.predictions.order_by('-created_at')
+                if predictions.exists():
+                    prediction = predictions.first()
+                    results = prediction.result or []
+                    logger.debug(f'[AutoFill] Latest prediction id={prediction.id}, results={results}')
+                    for result in results:
+                        if result.get('type', '').lower() != 'textarea':
+                            continue
+                        from_name = result.get('from_name')
+                        to_name = result.get('to_name')
+                        matched = False
+                        for ta in textarea_controls:
+                            if from_name == ta['name'] and to_name in ta['to_names']:
+                                data_key = ta['value'].lstrip('$')
+                                text_value = result.get('value', {}).get('text', '')
+                                if isinstance(text_value, list):
+                                    text_value = '\n'.join(text_value)
+                                if data_key:
+                                    instance.data[data_key] = text_value
+                                    logger.debug(f'[AutoFill] Filled data["{data_key}"] with prediction text: {text_value}')
+                                matched = True
+                        if not matched:
+                            logger.debug(f'[AutoFill] No match for result: from_name={from_name}, to_name={to_name}, type={result.get("type")}')
+                else:
+                    logger.debug('[AutoFill] No predictions found for this task.')
+        except Exception as e:
+            logger.exception(f'[AutoFill] Exception occurred: {type(e).__name__}: {e}')
+        return super().to_representation(instance)
 
 
 class NextTaskSerializer(TaskWithAnnotationsAndPredictionsAndDraftsSerializer):

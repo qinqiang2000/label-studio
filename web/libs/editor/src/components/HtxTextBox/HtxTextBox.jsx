@@ -212,17 +212,6 @@ export class HtxTextBox extends React.Component {
   }
 
   render() {
-    // Debug: Log HtxTextBox render details
-    console.log(`[Label Studio Debug] HtxTextBox render:`, {
-      text: this.props.text,
-      textType: typeof this.props.text,
-      textLength: this.props.text?.length,
-      stateValue: this.state.value,
-      editing: this.state.editing,
-      isEditable: this.props.isEditable,
-      name: this.props.name
-    });
-    
     return (this.state.editing || this.props.onlyEdit) && this.props.isEditable ? this.renderEdit() : this.renderView();
   }
 }

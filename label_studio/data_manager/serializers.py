@@ -366,13 +366,41 @@ class DataManagerTaskSerializer(TaskSerializer):
         expandable_fields = {'annotations': (AnnotationSerializer, {'many': True})}
 
     def to_representation(self, obj):
-        """Dynamically manage including of some fields in the API result"""
-        ret = super(DataManagerTaskSerializer, self).to_representation(obj)
-        if not self.context.get('annotations'):
-            ret.pop('annotations', None)
-        if not self.context.get('predictions'):
-            ret.pop('predictions', None)
-        return ret
+        # 只打印日志，不再自动填充 prediction 到 data
+        try:
+            project = obj.project
+            if project and hasattr(project, 'label_config'):
+                import logging
+                logging.info(f'[AutoFill] [DM] Raw label_config: {project.label_config}')
+                from core.label_config import parse_config
+                config = project.label_config
+                parsed = project.get_parsed_config() if hasattr(project, 'get_parsed_config') else parse_config(config)
+                logging.info(f'[AutoFill] [DM] Parsed config: {parsed}')
+                # 收集所有 TextArea 控件
+                textarea_controls = []
+                for control_name, info in parsed.items():
+                    if info.get('type', '').lower() == 'textarea':
+                        to_names = info.get('to_name', [])
+                        if isinstance(to_names, str):
+                            to_names = [to_names]
+                        textarea_controls.append({
+                            'name': control_name,
+                            'to_names': to_names,
+                            'value': info.get('value', ''),
+                        })
+                logging.info(f'[AutoFill] [DM] Parsed TextArea controls: {textarea_controls}')
+                # 只做日志，不再填充 obj.data
+                if hasattr(obj, 'predictions') and obj.predictions:
+                    pred_list = list(obj.predictions.all())
+                    latest_pred = pred_list[-1] if pred_list else None
+                    logging.info(f'[AutoFill] [DM] Latest prediction: {latest_pred}')
+                    for result in getattr(latest_pred, 'result', []) or []:
+                        logging.info(f'[AutoFill] [DM] Prediction result: {result}')
+        except Exception as e:
+            import traceback
+            logging.error(f'[AutoFill] [DM] Exception: {type(e)} {e}\n{traceback.format_exc()}')
+        # 调用原始序列化逻辑
+        return super().to_representation(obj)
 
     def _pretty_results(self, task, field, unique=False):
         if not hasattr(task, field) or getattr(task, field) is None:

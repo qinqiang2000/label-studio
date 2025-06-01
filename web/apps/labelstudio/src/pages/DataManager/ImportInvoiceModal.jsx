@@ -384,18 +384,27 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
     }
   };
 
+  // 新增 handleClose，统一关闭逻辑
+  const handleClose = () => {
+    if (success) {
+      window.location.reload();
+    } else {
+      onClose();
+    }
+  };
+
   return (
     <Modal
       title="Import Invoice Data"
       visible
-      onHide={onClose}
+      onHide={handleClose}
       closeOnClickOutside
       bare
       style={{ minWidth: 500, maxWidth: 600 }}
     >
       <Modal.Header divided>
         <span>Import Invoice Data</span>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={handleClose}>Close</Button>
       </Modal.Header>
       <div style={{ padding: 24 }}>
         <input

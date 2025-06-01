@@ -231,29 +231,12 @@ const Model = types
       },
 
       setResult(value) {
-        // Debug: Log TextArea setResult
-        console.log(`[Label Studio Debug] TextArea "${self.name}" setResult called:`, {
-          value: value,
-          isArray: Array.isArray(value),
-          controlName: self.name,
-          toName: self.toname
-        });
-        
         const values = Array.isArray(value) ? value : [value];
 
         values.forEach((v) => self.createRegion(v));
       },
 
       updateFromResult(value) {
-        // Debug: Log TextArea updateFromResult
-        console.log(`[Label Studio Debug] TextArea "${self.name}" updateFromResult called:`, {
-          value: value,
-          hasValue: !!value,
-          controlName: self.name,
-          toName: self.toname,
-          currentRegions: self.regions.length
-        });
-        
         self.regions = [];
         value && self.setResult(value);
       },
@@ -276,17 +259,6 @@ const Model = types
       },
 
       createRegion(text, pid, leadTime) {
-        // Debug: Log region creation details
-        console.log(`[Label Studio Debug] TextArea "${self.name}" createRegion called:`, {
-          text: text,
-          textType: typeof text,
-          textValue: text?._value || text?.value || text,
-          isScalarNode: text?.constructor?.name,
-          pid: pid,
-          leadTime: leadTime,
-          stringified: JSON.stringify(text)
-        });
-        
         const r = TextAreaRegionModel.create({ pid, leadTime, _value: text });
 
         self.regions.push(r);
