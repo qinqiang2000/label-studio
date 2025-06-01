@@ -17,6 +17,7 @@ import "./Table.scss";
 import { Button } from "../../Common/Button/Button";
 import { useState } from "react";
 import { useEffect } from "react";
+import { ImportInvoiceModal } from "../../../../../../apps/labelstudio/src/pages/DataManager/ImportInvoiceModal";
 
 const injector = inject(({ store }) => {
   const { dataStore, currentView } = store;
@@ -60,6 +61,7 @@ export const DataView = injector(
     ...props
   }) => {
     const [datasetStatusID, setDatasetStatusID] = useState(store.SDK.dataset?.status?.id);
+    const [showImportInvoiceModal, setShowImportInvoiceModal] = useState(false);
     const focusedItem = useMemo(() => {
       return props.focusedItem;
     }, [props.focusedItem]);
@@ -192,11 +194,27 @@ export const DataView = injector(
                 )}
               </Elem>
               {!hasData && !!store.interfaces.get("import") && (
-                <Elem name="navigation">
-                  <ImportButton look="primary" href="./import">
-                    Go to import
-                  </ImportButton>
+                <Elem name="navigation" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <ImportButton look="primary" href="./import">
+                      Go to import
+                    </ImportButton>
+                    <span style={{ color: "#888", fontSize: "14px" }}>or</span>
+                    <Button
+                      look="primary"
+                      onClick={() => setShowImportInvoiceModal(true)}
+                    >
+                      Import Invoice
+                    </Button>
+                  </div>
                 </Elem>
+              )}
+              {showImportInvoiceModal && (
+                <ImportInvoiceModal
+                  project={store.project}
+                  onClose={() => setShowImportInvoiceModal(false)}
+                  dataManager={store}
+                />
               )}
             </Block>
           );
@@ -204,7 +222,7 @@ export const DataView = injector(
 
         return content;
       },
-      [hasData, isLabeling, isLoading, total, datasetStatusID],
+      [hasData, isLabeling, isLoading, total, datasetStatusID, showImportInvoiceModal],
     );
 
     const decorationContent = (col) => {

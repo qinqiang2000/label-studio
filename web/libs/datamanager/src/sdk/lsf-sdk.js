@@ -909,19 +909,15 @@ export class LSFWrapper {
     if (serializedAnnotation && Array.isArray(serializedAnnotation.result)) {
       for (const item of serializedAnnotation.result) {
         const fromName = (item.from_name || "").toLowerCase();
-        if (
-          item.type === "textarea" &&
-          fromName.includes("json") &&
-          item.value && Array.isArray(item.value.text)
-        ) {
+        if (item.type === "textarea" && fromName.includes("json") && item.value && Array.isArray(item.value.text)) {
           for (const text of item.value.text) {
-            console.log('[调试] 即将POST的annotation.result:', text);
+            console.log("[调试] 即将POST的annotation.result:", text);
             try {
               JSON.parse(text);
             } catch (e) {
               // eslint-disable-next-line no-alert
               alert(
-                `JSON不合法！\n\n字段: ${item.from_name || item.id || "(未知)"}\n内容片段: ${text.slice(0, 100)}...\n错误: ${e.message}`
+                `JSON不合法！\n\n字段: ${item.from_name || item.id || "(未知)"}\n内容片段: ${text.slice(0, 100)}...\n错误: ${e.message}`,
               );
               this.setLoading(false);
               return false; // 阻止POST和后续流程

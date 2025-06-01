@@ -7,6 +7,7 @@ import { FiltersPane } from "../../Common/FiltersPane";
 import { Icon } from "../../Common/Icon/Icon";
 import { Interface } from "../../Common/Interface";
 import { ExportButton, ImportButton } from "../../Common/SDKButtons";
+import { ImportInvoiceButton } from "../../Common/ImportInvoiceButton";
 import { Tooltip } from "@humansignal/ui";
 import { ActionsButton } from "./ActionsButton";
 import { GridWidthButton } from "./GridWidthButton";
@@ -122,6 +123,13 @@ export const instruments = {
     return (
       <Interface name="export">
         <ExportButton size={size}>Export</ExportButton>
+      </Interface>
+    );
+  },
+  "import-invoice-button": ({ size }) => {
+    return (
+      <Interface name="import-invoice">
+        <ImportInvoiceButton size={size} />
       </Interface>
     );
   },

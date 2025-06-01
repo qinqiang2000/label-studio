@@ -55,7 +55,7 @@ import { LSFWrapper } from "./lsf-sdk";
 import { taskToLSFormat } from "./lsf-utils";
 
 const DEFAULT_TOOLBAR =
-  "actions columns filters ordering label-button loading-possum error-box | refresh import-button export-button view-toggle";
+  "actions columns filters ordering label-button loading-possum error-box | refresh import-button export-button import-invoice-button view-toggle";
 
 const prepareInstruments = (instruments) => {
   const result = Object.entries(instruments).map(([name, builder]) => [name, builder({ inject, observer })]);
@@ -455,7 +455,15 @@ export class DataManager {
     unmountComponentAtNode(this.root);
 
     if (this.store) {
-      destroy(this.store);
+      try {
+        // 检查store是否仍然有效
+        if (this.store.isAlive !== false) {
+          destroy(this.store);
+        }
+      } catch (error) {
+        console.warn('Store already destroyed:', error);
+      }
+      this.store = null;
     }
 
     if (detachCallbacks) {
@@ -486,7 +494,7 @@ export class DataManager {
     const sections = this.toolbar.split("|").map((s) => s.trim());
 
     const instrumentsList = sections.map((section) => {
-      return section.split(" ").filter((instrument) => {
+      const sectionInstruments = section.split(" ").filter((instrument) => {
         const nativeInstrument = !!instruments[instrument];
         const customInstrument = !!this.instruments.has(instrument);
 
@@ -496,8 +504,10 @@ export class DataManager {
 
         return nativeInstrument || customInstrument;
       });
+      
+      return sectionInstruments;
     });
-
+    
     return instrumentsList;
   }
   static urlJSON = { serializeJsonForUrl, deserializeJsonFromUrl };

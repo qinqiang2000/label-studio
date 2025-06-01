@@ -1085,6 +1085,18 @@ const _Annotation = types
 
         if (tagNames.has(obj.from_name) && tagNames.has(obj.to_name)) {
           res.push(obj);
+        } else {
+          // Debug: Log prediction matching failures
+          console.warn("[Label Studio Debug] Prediction result not matched:", {
+            from_name: obj.from_name,
+            to_name: obj.to_name,
+            type: obj.type,
+            from_name_exists: tagNames.has(obj.from_name),
+            to_name_exists: tagNames.has(obj.to_name),
+            available_tag_names: Array.from(tagNames.keys()),
+            available_to_names: Array.from(self.toNames.keys()),
+            prediction_result: obj
+          });
         }
 
         // Insert image dimensions from result
@@ -1180,7 +1192,19 @@ const _Annotation = types
      */
     deserializeResults(json, { suggestions = false, hidden = false } = {}) {
       try {
+        // Debug: Log incoming prediction results
+        console.log("[Label Studio Debug] Deserializing results:", {
+          raw_json: json,
+          suggestions: suggestions,
+          hidden: hidden,
+          available_controls: Array.from(self.names.keys()),
+          available_objects: Array.from(self.toNames.keys())
+        });
+        
         const objAnnotation = self.prepareAnnotation(json);
+        
+        // Debug: Log prepared annotation objects
+        console.log("[Label Studio Debug] Prepared annotation objects:", objAnnotation);
         const areas = suggestions ? self.suggestions : self.areas;
 
         self._initialAnnotationObj = objAnnotation;

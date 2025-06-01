@@ -38,7 +38,28 @@ const Model = types
     },
   }))
   .actions((self) => ({
+    afterCreate() {
+      // Debug: Log region creation
+      console.log(`[Label Studio Debug] TextAreaRegionModel created:`, {
+        id: self.id,
+        _value: self._value,
+        _valueType: typeof self._value
+      });
+    },
+    
     setValue(val) {
+      // Debug: Log setValue details
+      console.log(`[Label Studio Debug] TextAreaRegion setValue called:`, {
+        val: val,
+        valType: typeof val,
+        valConstructor: val?.constructor?.name,
+        valValue: val?.value,
+        val_value: val?._value,
+        valToString: val?.toString?.(),
+        currentValue: self._value,
+        stringified: JSON.stringify(val)
+      });
+      
       if (self._value === val || !self.parent.validateText(val)) return;
 
       self._value = val;

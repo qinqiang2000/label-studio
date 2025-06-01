@@ -3,6 +3,7 @@
 from django.urls import include, path
 
 from . import api
+from .local_upload_api import LocalFileUploadAPI
 
 app_name = 'data_import'
 
@@ -23,4 +24,6 @@ urlpatterns = [
     # special endpoints for serving imported files
     path('data/upload/<path:filename>', api.UploadedFileResponse.as_view(), name='data-upload'),
     path('storage-data/uploaded/', api.DownloadStorageData.as_view(), name='storage-data-upload'),
+    # 新增本地文件上传API
+    path('api/projects/<int:project_id>/local-upload/', LocalFileUploadAPI.as_view(), name='project-local-upload'),
 ]

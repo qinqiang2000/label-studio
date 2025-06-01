@@ -33,39 +33,37 @@ const { TextArea } = Input;
 
 // 票据类型配置
 const DOC_TYPES = {
-  RECEIPT: 'receipt',
-  INVOICE: 'invoice'
+  RECEIPT: "receipt",
+  INVOICE: "invoice",
 };
 
 const VALID_DOC_TYPES = Object.values(DOC_TYPES);
 
 // 必填字段列表
 const REQUIRED_FIELDS = [
-  '序号', 'docType', 'totalAmount', 'totalTaxAmount', 'invoiceNumber', 'billToName', 'invoiceDate', 'currency'
+  "序号",
+  "docType",
+  "totalAmount",
+  "totalTaxAmount",
+  "invoiceNumber",
+  "billToName",
+  "invoiceDate",
+  "currency",
 ];
 // 高亮函数：高亮必填字段
 function highlightWithRequiredFields(code) {
-  let html = Prism.highlight(code, Prism.languages.json, 'json');
-  REQUIRED_FIELDS.forEach(field => {
+  let html = Prism.highlight(code, Prism.languages.json, "json");
+  REQUIRED_FIELDS.forEach((field) => {
     // 给必填字段名添加 required-field class
-    const fieldRegex = new RegExp(
-      `<span class=\"token property\">(\\"${field}\\")<\/span>`,
-      "g"
-    );
-    html = html.replace(
-      fieldRegex,
-      `<span class=\"token property required-field\">$1</span>`
-    );
-    
+    const fieldRegex = new RegExp(`<span class=\"token property\">(\\"${field}\\")<\/span>`, "g");
+    html = html.replace(fieldRegex, `<span class=\"token property required-field\">$1</span>`);
+
     // 给必填字段的值也添加 required-field class
     const valueRegex = new RegExp(
       `(<span class=\"token property required-field\">\\"${field}\\"<\/span><span class=\"token operator\">:<\/span>\\s*)(<span class=\"token (?:string|number|boolean|null)\">.*?<\/span>)`,
-      "g"
+      "g",
     );
-    html = html.replace(
-      valueRegex,
-      `$1<span class=\"token string required-field-value\">$2</span>`
-    );
+    html = html.replace(valueRegex, `$1<span class=\"token string required-field-value\">$2</span>`);
   });
   return html;
 }
@@ -233,12 +231,29 @@ const Model = types
       },
 
       setResult(value) {
+        // Debug: Log TextArea setResult
+        console.log(`[Label Studio Debug] TextArea "${self.name}" setResult called:`, {
+          value: value,
+          isArray: Array.isArray(value),
+          controlName: self.name,
+          toName: self.toname
+        });
+        
         const values = Array.isArray(value) ? value : [value];
 
         values.forEach((v) => self.createRegion(v));
       },
 
       updateFromResult(value) {
+        // Debug: Log TextArea updateFromResult
+        console.log(`[Label Studio Debug] TextArea "${self.name}" updateFromResult called:`, {
+          value: value,
+          hasValue: !!value,
+          controlName: self.name,
+          toName: self.toname,
+          currentRegions: self.regions.length
+        });
+        
         self.regions = [];
         value && self.setResult(value);
       },
@@ -261,6 +276,17 @@ const Model = types
       },
 
       createRegion(text, pid, leadTime) {
+        // Debug: Log region creation details
+        console.log(`[Label Studio Debug] TextArea "${self.name}" createRegion called:`, {
+          text: text,
+          textType: typeof text,
+          textValue: text?._value || text?.value || text,
+          isScalarNode: text?.constructor?.name,
+          pid: pid,
+          leadTime: leadTime,
+          stringified: JSON.stringify(text)
+        });
+        
         const r = TextAreaRegionModel.create({ pid, leadTime, _value: text });
 
         self.regions.push(r);
@@ -395,151 +421,160 @@ const HtxTextArea = observer(({ item }) => {
   );
 
   // 校验JSON和必填字段的复用函数
-  const validateJsonAndFields = useCallback((value) => {
-    if (item.name && item.name.toLowerCase().includes('json')) {
-      if (value) {
-        try {
-          const parsed = JSON.parse(value);
-          setJsonError("");
-          // 检查是否为数组
-          if (Array.isArray(parsed)) {
-            // 为每个元素添加序号字段
-            let needsUpdate = false;
-            const updatedArray = parsed.map((item, index) => {
-              const serialNumber = index + 1;
-              if (!item.hasOwnProperty('序号') || item['序号'] !== serialNumber) {
-                needsUpdate = true;
-                // 创建新对象，序号在前
-                const newItem = { '序号': serialNumber };
-                // 复制其他属性（排除已存在的序号）
-                Object.keys(item).forEach(key => {
-                  if (key !== '序号') {
-                    newItem[key] = item[key];
-                  }
-                });
-                return newItem;
-              }
-              return item;
-            });
-            
-            // 如果需要更新，更新JSON值
-            if (needsUpdate) {
-              const updatedJson = JSON.stringify(updatedArray, null, 2);
-              item.setValue(updatedJson);
-              return; // 退出，等待下次调用来验证更新后的值
-            }
-            
-            // 统计每页票据数量
-            const pageCount = {};
-            const multiPageTickets = []; // 存储跨多页的票据信息
-            let hasFieldErrors = false;
-            let firstErrorMessage = "";
-            
-            for (let i = 0; i < parsed.length; i++) {
-              const x = parsed[i];
-              const missing = [];
-              
-              // 获取页码，默认为第1页
-              const pages = x.page && Array.isArray(x.page) ? x.page : [1];
-              
-              // 只统计有效的票据类型
-              if (!VALID_DOC_TYPES.includes(x.docType?.toLowerCase())) {
-                continue; // 跳过无效票据类型
-              }
-              
-              // 如果是跨多页的票据，记录范围信息
-              if (pages.length > 1) {
-                const sortedPages = [...pages].sort((a, b) => a - b);
-                // 检查是否为连续页码
-                let isConsecutive = true;
-                for (let j = 1; j < sortedPages.length; j++) {
-                  if (sortedPages[j] !== sortedPages[j-1] + 1) {
-                    isConsecutive = false;
-                    break;
-                  }
-                }
-                if (isConsecutive) {
-                  multiPageTickets.push({
-                    range: `p${sortedPages[0]}-p${sortedPages[sortedPages.length-1]}`,
-                    pages: sortedPages,
-                    startPage: sortedPages[0]
-                  });
-                } else {
-                  // 非连续页码，按单页处理
-                  sortedPages.forEach(page => {
-                    if (!pageCount[page]) {
-                      pageCount[page] = 0;
+  const validateJsonAndFields = useCallback(
+    (value) => {
+      if (item.name && item.name.toLowerCase().includes("json")) {
+        if (value) {
+          try {
+            const parsed = JSON.parse(value);
+            setJsonError("");
+            // 检查是否为数组
+            if (Array.isArray(parsed)) {
+              // 为每个元素添加序号字段
+              let needsUpdate = false;
+              const updatedArray = parsed.map((item, index) => {
+                const serialNumber = index + 1;
+                if (!item.hasOwnProperty("序号") || item["序号"] !== serialNumber) {
+                  needsUpdate = true;
+                  // 创建新对象，序号在前
+                  const newItem = { 序号: serialNumber };
+                  // 复制其他属性（排除已存在的序号）
+                  Object.keys(item).forEach((key) => {
+                    if (key !== "序号") {
+                      newItem[key] = item[key];
                     }
-                    pageCount[page]++;
+                  });
+                  return newItem;
+                }
+                return item;
+              });
+
+              // 如果需要更新，更新JSON值
+              if (needsUpdate) {
+                const updatedJson = JSON.stringify(updatedArray, null, 2);
+                item.setValue(updatedJson);
+                return; // 退出，等待下次调用来验证更新后的值
+              }
+
+              // 统计每页票据数量
+              const pageCount = {};
+              const multiPageTickets = []; // 存储跨多页的票据信息
+              let hasFieldErrors = false;
+              let firstErrorMessage = "";
+
+              for (let i = 0; i < parsed.length; i++) {
+                const x = parsed[i];
+                const missing = [];
+
+                // 获取页码，默认为第1页
+                const pages = x.page && Array.isArray(x.page) ? x.page : [1];
+
+                // 只统计有效的票据类型
+                if (!VALID_DOC_TYPES.includes(x.docType?.toLowerCase())) {
+                  continue; // 跳过无效票据类型
+                }
+
+                // 如果是跨多页的票据，记录范围信息
+                if (pages.length > 1) {
+                  const sortedPages = [...pages].sort((a, b) => a - b);
+                  // 检查是否为连续页码
+                  let isConsecutive = true;
+                  for (let j = 1; j < sortedPages.length; j++) {
+                    if (sortedPages[j] !== sortedPages[j - 1] + 1) {
+                      isConsecutive = false;
+                      break;
+                    }
+                  }
+                  if (isConsecutive) {
+                    multiPageTickets.push({
+                      range: `p${sortedPages[0]}-p${sortedPages[sortedPages.length - 1]}`,
+                      pages: sortedPages,
+                      startPage: sortedPages[0],
+                    });
+                  } else {
+                    // 非连续页码，按单页处理
+                    sortedPages.forEach((page) => {
+                      if (!pageCount[page]) {
+                        pageCount[page] = 0;
+                      }
+                      pageCount[page]++;
+                    });
+                  }
+                } else {
+                  // 单页票据
+                  const page = pages[0];
+                  if (!pageCount[page]) {
+                    pageCount[page] = 0;
+                  }
+                  pageCount[page]++;
+                }
+
+                // 字段验证逻辑保持不变
+                if (!x.hasOwnProperty("docType")) {
+                  missing.push("docType");
+                }
+                if (x.docType?.toLowerCase() === DOC_TYPES.INVOICE) {
+                  // 'invoice'
+                  ["billToName", "totalAmount", "totalTaxAmount", "invoiceNumber", "invoiceDate", "currency"].forEach(
+                    (f) => {
+                      if (!x.hasOwnProperty(f)) missing.push(f);
+                    },
+                  );
+                } else if (x.docType?.toLowerCase() === DOC_TYPES.RECEIPT) {
+                  // 'receipt'
+                  ["totalAmount", "invoiceDate", "currency"].forEach((f) => {
+                    if (!x.hasOwnProperty(f)) missing.push(f);
                   });
                 }
-              } else {
-                // 单页票据
-                const page = pages[0];
-                if (!pageCount[page]) {
-                  pageCount[page] = 0;
+                if (missing.length > 0 && !hasFieldErrors) {
+                  hasFieldErrors = true;
+                  firstErrorMessage = `${x.docType?.toLowerCase() === DOC_TYPES.INVOICE ? "发票" : x.docType?.toLowerCase() === DOC_TYPES.RECEIPT ? "收据" : ""}[${i + 1}]缺: ${missing.map((m) => `\"${m}\"`).join(", ")}`;
                 }
-                pageCount[page]++;
               }
-              
-              // 字段验证逻辑保持不变
-              if (!x.hasOwnProperty('docType')) {
-                missing.push('docType');
-              }
-              if (x.docType?.toLowerCase() === DOC_TYPES.INVOICE) { // 'invoice'
-                ['billToName', 'totalAmount', 'totalTaxAmount', 'invoiceNumber','invoiceDate', 'currency'].forEach(f => {
-                  if (!x.hasOwnProperty(f)) missing.push(f);
-                });
-              } else if (x.docType?.toLowerCase() === DOC_TYPES.RECEIPT) { // 'receipt'
-                ['totalAmount', 'invoiceDate', 'currency'].forEach(f => {
-                  if (!x.hasOwnProperty(f)) missing.push(f);
-                });
-              }
-              if (missing.length > 0 && !hasFieldErrors) {
-                hasFieldErrors = true;
-                firstErrorMessage = `${x.docType?.toLowerCase() === DOC_TYPES.INVOICE ? '发票' : (x.docType?.toLowerCase() === DOC_TYPES.RECEIPT ? '收据' : '')}[${i+1}]缺: ${missing.map(m => `\"${m}\"`).join(', ')}`;
-              }
+
+              // 生成显示结果
+              const statsArray = [];
+
+              // 添加单页统计
+              const pageNumbers = Object.keys(pageCount)
+                .map(Number)
+                .sort((a, b) => a - b);
+              pageNumbers.forEach((page) => {
+                statsArray.push({ text: `p${page}: ${pageCount[page]}票`, sortKey: page });
+              });
+
+              // 添加跨多页票据
+              multiPageTickets.forEach((ticket) => {
+                statsArray.push({ text: `${ticket.range}: 1票`, sortKey: ticket.startPage });
+              });
+
+              // 按页码排序
+              statsArray.sort((a, b) => a.sortKey - b.sortKey);
+
+              setPageStats(statsArray.length > 0 ? statsArray.map((item) => item.text).join(", ") : "暂无票据");
+              setJsonFieldError(hasFieldErrors ? firstErrorMessage : "");
+            } else {
+              setJsonFieldError("");
+              setPageStats("非数组格式");
             }
-            
-            // 生成显示结果
-            const statsArray = [];
-            
-            // 添加单页统计
-            const pageNumbers = Object.keys(pageCount).map(Number).sort((a, b) => a - b);
-            pageNumbers.forEach(page => {
-              statsArray.push({ text: `p${page}: ${pageCount[page]}票`, sortKey: page });
-            });
-            
-            // 添加跨多页票据
-            multiPageTickets.forEach(ticket => {
-              statsArray.push({ text: `${ticket.range}: 1票`, sortKey: ticket.startPage });
-            });
-            
-            // 按页码排序
-            statsArray.sort((a, b) => a.sortKey - b.sortKey);
-            
-            setPageStats(statsArray.length > 0 ? statsArray.map(item => item.text).join(', ') : "暂无票据");
-            setJsonFieldError(hasFieldErrors ? firstErrorMessage : "");
-          } else {
+          } catch (e) {
+            setJsonError(`JSON错: ${e.message}`);
             setJsonFieldError("");
-            setPageStats("非数组格式");
+            setPageStats("JSON格式错误");
           }
-        } catch (e) {
-          setJsonError(`JSON错: ${e.message}`);
+        } else {
+          setJsonError("");
           setJsonFieldError("");
-          setPageStats("JSON格式错误");
+          setPageStats("");
         }
       } else {
         setJsonError("");
         setJsonFieldError("");
         setPageStats("");
       }
-    } else {
-      setJsonError("");
-      setJsonFieldError("");
-      setPageStats("");
-    }
-  }, [item.name]);
+    },
+    [item.name],
+  );
 
   // 监听item._value和item.name，自动校验
   useEffect(() => {
@@ -597,15 +632,9 @@ const HtxTextArea = observer(({ item }) => {
 
   return item.displaymode === PER_REGION_MODES.TAG ? (
     <div className={textareaClassName} style={visibleStyle} ref={item.elementRef}>
-      {pageStats && (
-        <div style={{ color: 'blue', marginBottom: 4, fontWeight: 'normal' }}>{pageStats}</div>
-      )}
-      {jsonError && (
-        <div style={{ color: 'red', marginBottom: 4, fontWeight: 'bold' }}>{jsonError}</div>
-      )}
-      {jsonFieldError && (
-        <div style={{ color: 'green', marginBottom: 4, fontWeight: 'normal' }}>{jsonFieldError}</div>
-      )}
+      {pageStats && <div style={{ color: "blue", marginBottom: 4, fontWeight: "normal" }}>{pageStats}</div>}
+      {jsonError && <div style={{ color: "red", marginBottom: 4, fontWeight: "bold" }}>{jsonError}</div>}
+      {jsonFieldError && <div style={{ color: "green", marginBottom: 4, fontWeight: "normal" }}>{jsonFieldError}</div>}
       {Tree.renderChildren(item, item.annotation)}
 
       {item.showSubmit && (
@@ -620,15 +649,17 @@ const HtxTextArea = observer(({ item }) => {
           }}
         >
           <Form.Item style={itemStyle}>
-            <div style={{
-              maxHeight: '610px',
-              overflowY: 'auto',
-              border: '1px solid #d9d9d9',
-              borderRadius: 4,
-            }}>
+            <div
+              style={{
+                maxHeight: "610px",
+                overflowY: "auto",
+                border: "1px solid #d9d9d9",
+                borderRadius: 4,
+              }}
+            >
               <ReactSimpleCodeEditor
                 value={item._value}
-                onValueChange={value => {
+                onValueChange={(value) => {
                   if (!item.annotation.isReadOnly()) {
                     item.setValue(value);
                     validateJsonAndFields(value);
@@ -637,13 +668,13 @@ const HtxTextArea = observer(({ item }) => {
                 highlight={highlightWithRequiredFields}
                 padding={10}
                 style={{
-                  fontFamily: 'monospace',
+                  fontFamily: "monospace",
                   fontSize: 14,
                   minHeight: rows > 1 ? rows * 22 : 22,
-                  background: item.isReadOnly() ? '#f5f5f5' : 'white',
-                  outline: 'none',
-                  width: '100%',
-                  border: 'none',
+                  background: item.isReadOnly() ? "#f5f5f5" : "white",
+                  outline: "none",
+                  width: "100%",
+                  border: "none",
                   ...itemStyle,
                 }}
                 readOnly={item.isReadOnly()}

@@ -15,6 +15,7 @@ import { ImportModal } from "../CreateProject/Import/ImportModal";
 import { ExportPage } from "../ExportPage/ExportPage";
 import { APIConfig } from "./api-config";
 import { ToastContext, ToastType } from "@humansignal/ui";
+import { ImportInvoiceModal } from "./ImportInvoiceModal";
 
 import "./DataManager.scss";
 
@@ -37,9 +38,11 @@ const initializeDataManager = async (root, props, params) => {
     polling: !window.APP_SETTINGS,
     showPreviews: false,
     apiEndpoints: APIConfig.endpoints,
+    toolbar: "actions columns filters search ordering label-button loading-possum error-box | refresh import-button export-button import-invoice-button view-toggle",
     interfaces: {
       import: true,
       export: true,
+      "import-invoice": true,
       backButton: false,
       labelingHeader: false,
       autoAnnotation: params.autoAnnotation,
@@ -71,6 +74,7 @@ export const DataManagerPage = ({ ...props }) => {
   const [loading, setLoading] = useState(!window.DataManager || !window.LabelStudio);
   const dataManagerRef = useRef();
   const projectId = project?.id;
+  const [showImportInvoice, setShowImportInvoice] = useState(false);
 
   const init = useCallback(async () => {
     if (!window.LabelStudio) return;
@@ -94,6 +98,8 @@ export const DataManagerPage = ({ ...props }) => {
       })));
 
     Object.assign(window, { dataManager });
+
+    const { lsf } = dataManager.lsf || {};
 
     dataManager.on("crash", (details) => {
       const error = details?.error;
@@ -131,6 +137,10 @@ export const DataManagerPage = ({ ...props }) => {
       history.push(buildLink("/data/export", { id: params.id }));
     });
 
+    dataManager.on("importInvoiceClicked", () => {
+      setShowImportInvoice(true);
+    });
+
     dataManager.on("error", (response) => {
       api.handleError(response);
     });
@@ -147,39 +157,41 @@ export const DataManagerPage = ({ ...props }) => {
     });
 
     if (interactiveBacked) {
-      dataManager.on("lsf:regionFinishedDrawing", (reg, group) => {
-        const { lsf, task, currentAnnotation: annotation } = dataManager.lsf;
-        const ids = group.map((r) => r.cleanId);
-        const result = annotation.serializeAnnotation().filter((res) => ids.includes(res.id));
+      if (!dataManager.lsf) {
+        console.warn("dataManager.lsf is undefined when handling lsf:regionFinishedDrawing");
+        return;
+      }
+      const { lsf, task, currentAnnotation: annotation } = dataManager.lsf;
+      const ids = group.map((r) => r.cleanId);
+      const result = annotation.serializeAnnotation().filter((res) => ids.includes(res.id));
 
-        const suggestionsRequest = api.callApi("mlInteractive", {
-          params: { pk: interactiveBacked.id },
-          body: {
-            task: task.id,
-            context: { result },
-          },
-        });
+      const suggestionsRequest = api.callApi("mlInteractive", {
+        params: { pk: interactiveBacked.id },
+        body: {
+          task: task.id,
+          context: { result },
+        },
+      });
 
-        // we'll check that we are processing the same task
-        const wrappedRequest = new Promise(async (resolve, reject) => {
-          const response = await suggestionsRequest;
+      // we'll check that we are processing the same task
+      const wrappedRequest = new Promise(async (resolve, reject) => {
+        const response = await suggestionsRequest;
 
-          // right now task might be an old task,
-          // so in order to get a current one we need to get it from lsf
-          if (task.id === dataManager.lsf.task.id) {
-            resolve(response);
-          } else {
-            reject();
-          }
-        });
+        // right now task might be an old task,
+        // so in order to get a current one we need to get it from lsf
+        if (task.id === dataManager.lsf.task.id) {
+          resolve(response);
+        } else {
+          reject();
+        }
+      });
 
-        lsf.loadSuggestions(wrappedRequest, (response) => {
-          if (response.data) {
-            return response.data.result;
-          }
+      lsf.loadSuggestions(wrappedRequest, (response) => {
+        if (response.data) {
+          return response.data.result;
+        }
 
-          return null;
-        });
+        return null;
       });
     }
 
@@ -219,6 +231,14 @@ export const DataManagerPage = ({ ...props }) => {
       )}
       {/* Allow this to exist before the DataManager is initialized as the async app.fetchData call eventually calls startLabeling, and that requires the root element to exist */}
       <Block ref={root} name="datamanager" />
+      
+      {showImportInvoice && project && (
+        <ImportInvoiceModal
+          project={project}
+          dataManager={dataManagerRef.current}
+          onClose={() => setShowImportInvoice(false)}
+        />
+      )}
     </>
   );
 };
