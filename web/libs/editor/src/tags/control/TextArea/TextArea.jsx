@@ -396,8 +396,8 @@ const HtxTextArea = observer(({ item }) => {
 
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
-  // 仅当当前值为空时显示按钮
-  const showAutoFill = !item._value && item.displaymode === PER_REGION_MODES.TAG;
+  // 仅当当前值为空且 name 包含 json 时显示按钮
+  const showAutoFill = !item._value && item.name && item.name.toLowerCase().includes("json") && item.displaymode === PER_REGION_MODES.TAG;
 
   // 自动填充处理
   const handleAutoFill = async () => {
@@ -441,6 +441,13 @@ const HtxTextArea = observer(({ item }) => {
       setAutoFillLoading(false);
     }
   };
+
+  // 新增：labelstream/Label All Tasks模式下自动触发自动填充
+  useEffect(() => {
+    if (showAutoFill) {
+      handleAutoFill();
+    }
+  }, [showAutoFill]);
 
   // 校验JSON和必填字段的复用函数
   const validateJsonAndFields = useCallback(
