@@ -414,18 +414,11 @@ const HtxTextArea = observer(({ item }) => {
       const store = item.annotation?.store;
       const annotationStore = store?.annotationStore;
       const preds = annotationStore?.predictions?.toJSON ? annotationStore.predictions.toJSON() : annotationStore.predictions;
-      console.log('[AutoFill] preds:', preds);
-      console.log('[AutoFill] Array.isArray(preds):', Array.isArray(preds));
+      let filled = false;
       if (Array.isArray(preds)) {
         for (const pred of preds) {
-          console.log('[AutoFill] pred:', pred);
-          console.log('[AutoFill] pred.trackedState:', pred.trackedState);
-          console.log('[AutoFill] pred.trackedState.areas:', pred.trackedState && pred.trackedState.areas);
-          // 兼容 trackedState.areas 结构
           if (pred.trackedState && pred.trackedState.areas) {
             Array.from(pred.trackedState.areas.values()).forEach(area => {
-              console.log('[AutoFill] area:', area);
-              console.log('[AutoFill] area.results:', area.results);
               if (Array.isArray(area.results)) {
                 area.results.forEach(r => {
                   const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
@@ -440,12 +433,12 @@ const HtxTextArea = observer(({ item }) => {
                     const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
                     item.setValue(value);
                     validateJsonAndFields(value);
+                    filled = true;
                   }
                 });
               }
             });
           }
-          // 兼容原有 pred.result 结构
           if (pred.result) {
             for (const r of pred.result) {
               const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
@@ -460,9 +453,79 @@ const HtxTextArea = observer(({ item }) => {
                 const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
                 item.setValue(value);
                 validateJsonAndFields(value);
+                filled = true;
               }
             }
           }
+        }
+      }
+      // 新增：如果prediction未命中，尝试annotation自动填充
+      if (!filled && annotationStore?.annotations) {
+        console.log('[AutoFill] annotationStore?.annotations:', annotationStore?.annotations);
+        const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
+        console.log('[AutoFill] anns:', anns);
+        for (const ann of anns) {
+          console.log('[AutoFill] ann:', ann);
+          console.log('[AutoFill] ann keys:', Object.keys(ann));
+          console.log('[AutoFill] ann.resultSnapshot:', ann.resultSnapshot);
+          console.log('[AutoFill] ann._initialAnnotationObj:', ann._initialAnnotationObj);
+          if (ann._initialAnnotationObj) {
+            console.log('[AutoFill] ann._initialAnnotationObj[0]:', ann._initialAnnotationObj[0]);
+            if (ann._initialAnnotationObj[0] && ann._initialAnnotationObj[0].result) {
+              console.log('[AutoFill] ann._initialAnnotationObj[0].result:', ann._initialAnnotationObj[0].result);
+            }
+          }
+          if (ann.resultSnapshot && typeof ann.resultSnapshot.toJSON === 'function') {
+            console.log('[AutoFill] ann.resultSnapshot.toJSON():', ann.resultSnapshot.toJSON());
+          }
+          let results = ann.result;
+          if (!results && ann.resultSnapshot) results = ann.resultSnapshot;
+          if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result) results = ann._initialAnnotationObj.result;
+          // If still no results, treat _initialAnnotationObj as an array of result items
+          if (
+            !results &&
+            ann._initialAnnotationObj &&
+            (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === 'object')
+          ) {
+            // Convert to array if it's an object with numeric keys
+            const arr = Array.isArray(ann._initialAnnotationObj)
+              ? ann._initialAnnotationObj
+              : Object.values(ann._initialAnnotationObj).filter(v => v && typeof v === 'object' && v.type);
+            if (arr.length > 0) results = arr;
+          }
+          console.log('[AutoFill] resolved results:', results);
+          if (results && typeof results.toJSON === 'function') {
+            results = results.toJSON();
+          }
+          if (Array.isArray(results)) {
+            for (const r of results) {
+              console.log('[AutoFill] ann.result item:', r);
+              const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+              const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+              console.log('[AutoFill] 检查:', {
+                from_name: fromName,
+                to_name: toName,
+                type: r.type,
+                item_name: item.name,
+                item_toname: item.toname,
+                value: r.value && r.value.text,
+              });
+              if (
+                fromName === item.name &&
+                toName === item.toname &&
+                r.type === "textarea" &&
+                r.value && r.value.text && r.value.text.length > 0
+              ) {
+                console.log('[AutoFill] 命中 annotation 自动填充:', r.value.text);
+                const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                item.setValue(value);
+                validateJsonAndFields(value);
+                filled = true;
+                break;
+              }
+            }
+          }
+          if (filled) break;
         }
       }
     } finally {
