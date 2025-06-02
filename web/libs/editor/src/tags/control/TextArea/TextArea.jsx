@@ -396,43 +396,71 @@ const HtxTextArea = observer(({ item }) => {
 
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
-  // 仅当当前值为空且 name 包含 json 时显示按钮
-  const showAutoFill = !item._value && item.name && item.name.toLowerCase().includes("json") && item.displaymode === PER_REGION_MODES.TAG;
+  // 仅当当前值为空时显示按钮
+  const showAutoFill = !item._value && item.displaymode === PER_REGION_MODES.TAG;
+
+  // 辅助函数：提取(id: xxx)中的xxx
+  const extractName = (str) => {
+    if (typeof str !== 'string') return str;
+    const match = str.match(/\(id: ([^)]+)\)/);
+    return match ? match[1] : str;
+  };
 
   // 自动填充处理
   const handleAutoFill = async () => {
     setAutoFillLoading(true);
     try {
-      // 优先annotation结果
-      if (item.result && item.result.mainValue && item.result.mainValue.length > 0) {
-        const value = Array.isArray(item.result.mainValue)
-          ? item.result.mainValue[item.result.mainValue.length - 1]  // 取最后一个
-          : item.result.mainValue;
-        item.setValue(value);
-        validateJsonAndFields(value);
-        setAutoFillLoading(false);
-        return;
-      }
-      // 否则查找prediction
+      console.log('[AutoFill] handleAutoFill start');
       const store = item.annotation?.store;
       const annotationStore = store?.annotationStore;
-      if (annotationStore && Array.isArray(annotationStore.predictions)) {
-        // 找到与本TextArea匹配的prediction result
-        for (const pred of annotationStore.predictions) {
-          if (!pred.result) continue;
-          for (const r of pred.result) {
-            if (
-              r.from_name === item.name &&
-              r.to_name === item.toname &&
-              r.type === "textarea" &&
-              r.value && r.value.text && r.value.text.length > 0
-            ) {
-              // const value = Array.isArray(r.value.text) ? r.value.text[0] : r.value.text;
-              const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-              item.setValue(value);
-              validateJsonAndFields(value);
-              setAutoFillLoading(false);
-              return;
+      const preds = annotationStore?.predictions?.toJSON ? annotationStore.predictions.toJSON() : annotationStore.predictions;
+      console.log('[AutoFill] preds:', preds);
+      console.log('[AutoFill] Array.isArray(preds):', Array.isArray(preds));
+      if (Array.isArray(preds)) {
+        for (const pred of preds) {
+          console.log('[AutoFill] pred:', pred);
+          console.log('[AutoFill] pred.trackedState:', pred.trackedState);
+          console.log('[AutoFill] pred.trackedState.areas:', pred.trackedState && pred.trackedState.areas);
+          // 兼容 trackedState.areas 结构
+          if (pred.trackedState && pred.trackedState.areas) {
+            Array.from(pred.trackedState.areas.values()).forEach(area => {
+              console.log('[AutoFill] area:', area);
+              console.log('[AutoFill] area.results:', area.results);
+              if (Array.isArray(area.results)) {
+                area.results.forEach(r => {
+                  const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+                  const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                  if (
+                    fromName === item.name &&
+                    toName === item.toname &&
+                    r.type === "textarea" &&
+                    r.value && r.value.text && r.value.text.length > 0
+                  ) {
+                    console.log('[AutoFill] 命中自动填充:', r.value.text);
+                    const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                    item.setValue(value);
+                    validateJsonAndFields(value);
+                  }
+                });
+              }
+            });
+          }
+          // 兼容原有 pred.result 结构
+          if (pred.result) {
+            for (const r of pred.result) {
+              const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+              const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+              if (
+                fromName === item.name &&
+                toName === item.toname &&
+                r.type === "textarea" &&
+                r.value && r.value.text && r.value.text.length > 0
+              ) {
+                console.log('[AutoFill] 命中自动填充:', r.value.text);
+                const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                item.setValue(value);
+                validateJsonAndFields(value);
+              }
             }
           }
         }
@@ -444,6 +472,12 @@ const HtxTextArea = observer(({ item }) => {
 
   // 新增：labelstream/Label All Tasks模式下自动触发自动填充
   useEffect(() => {
+    console.log('[AutoFill] useEffect triggered');
+    console.log('[AutoFill] showAutoFill:', showAutoFill);
+    console.log('[AutoFill] item._value:', item._value);
+    const store = item.annotation?.store;
+    const annotationStore = store?.annotationStore;
+    console.log('[AutoFill] annotationStore?.predictions:', annotationStore?.predictions);
     if (showAutoFill) {
       handleAutoFill();
     }
