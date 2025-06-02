@@ -406,7 +406,7 @@ const HtxTextArea = observer(({ item }) => {
       // 优先annotation结果
       if (item.result && item.result.mainValue && item.result.mainValue.length > 0) {
         const value = Array.isArray(item.result.mainValue)
-          ? item.result.mainValue[0]
+          ? item.result.mainValue[item.result.mainValue.length - 1]  // 取最后一个
           : item.result.mainValue;
         item.setValue(value);
         validateJsonAndFields(value);
@@ -427,7 +427,8 @@ const HtxTextArea = observer(({ item }) => {
               r.type === "textarea" &&
               r.value && r.value.text && r.value.text.length > 0
             ) {
-              const value = Array.isArray(r.value.text) ? r.value.text[0] : r.value.text;
+              // const value = Array.isArray(r.value.text) ? r.value.text[0] : r.value.text;
+              const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
               item.setValue(value);
               validateJsonAndFields(value);
               setAutoFillLoading(false);
