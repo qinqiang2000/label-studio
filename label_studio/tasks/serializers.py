@@ -751,6 +751,7 @@ class NextTaskSerializer(TaskWithAnnotationsAndPredictionsAndDraftsSerializer):
 
     def get_predictions(self, task):
         predictions = task.get_predictions_for_prelabeling()
+        print(f'predictions: {len(predictions)}')
         return PredictionSerializer(predictions, many=True, read_only=True, default=[], context=self.context).data
 
     def get_annotations(self, task):

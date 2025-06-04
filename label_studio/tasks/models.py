@@ -219,6 +219,10 @@ class Task(TaskMixin, models.Model):
         project = self.project
         predictions = self.predictions
 
+        
+        """qinqiang：始终返回所有 predictions，不做任何过滤。"""
+        return self.predictions.all()
+    
         # TODO if we use live_model on project then we will need to check for it here
         if project.show_collab_predictions and project.model_version is not None:
             if project.ml_backend_in_model_version:
