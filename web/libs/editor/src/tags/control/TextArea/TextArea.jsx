@@ -746,20 +746,27 @@ const HtxTextArea = observer(({ item }) => {
 
   return item.displaymode === PER_REGION_MODES.TAG ? (
     <div className={textareaClassName} style={visibleStyle} ref={item.elementRef}>
-      {/* 自动填充按钮 */}
+      {/* 自动填充按钮 - 设置为不可见 */}
       {showAutoFill && (
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
-          <Tooltip title="如果有annotation或prediction结果，点击自动填充到文本框">
-            <Button
-              size="small"
-              icon={<InfoCircleOutlined />}
-              loading={autoFillLoading}
-              onClick={handleAutoFill}
-              style={{ marginRight: 8 }}
-            >
-              自动填充
-            </Button>
-          </Tooltip>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 0, height: 0 }}>
+          <Button
+            size="small"
+            icon={<InfoCircleOutlined style={{ display: "none" }} />}
+            loading={autoFillLoading}
+            onClick={handleAutoFill}
+            style={{ 
+              opacity: 0, 
+              width: 0, 
+              height: 0, 
+              padding: 0, 
+              margin: 0, 
+              border: "none", 
+              overflow: "hidden", 
+              position: "absolute" 
+            }}
+          >
+            自动填充
+          </Button>
         </div>
       )}
       {pageStats && <div style={{ color: "blue", marginBottom: 4, fontWeight: "normal" }}>{pageStats}</div>}
