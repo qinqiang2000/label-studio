@@ -396,8 +396,12 @@ const HtxTextArea = observer(({ item }) => {
 
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
-  // 仅当当前值为空时显示按钮
-  const showAutoFill = !item._value && item.displaymode === PER_REGION_MODES.TAG;
+  // 仅当当前值为空且 name 包含 json 时显示按钮
+  const showAutoFill =
+    !item._value &&
+    item.displaymode === PER_REGION_MODES.TAG &&
+    item.name &&
+    item.name.toLowerCase().includes("json");
 
   // 辅助函数：提取(id: xxx)中的xxx
   const extractName = (str) => {
@@ -558,7 +562,7 @@ const HtxTextArea = observer(({ item }) => {
               const pageCount = {};
               const multiPageTickets = []; // 存储跨多页的票据信息
               let hasFieldErrors = false;
-              let firstErrorMessage = "";
+              let allErrorMessages = []; // 收集所有错误信息
 
               for (let i = 0; i < parsed.length; i++) {
                 const x = parsed[i];
@@ -624,9 +628,11 @@ const HtxTextArea = observer(({ item }) => {
                     if (!x.hasOwnProperty(f)) missing.push(f);
                   });
                 }
-                if (missing.length > 0 && !hasFieldErrors) {
+                if (missing.length > 0) {
                   hasFieldErrors = true;
-                  firstErrorMessage = `${x.docType?.toLowerCase() === DOC_TYPES.INVOICE ? "发票" : x.docType?.toLowerCase() === DOC_TYPES.RECEIPT ? "收据" : ""}[${i + 1}]缺: ${missing.map((m) => `\"${m}\"`).join(", ")}`;
+                  const docTypeText = x.docType?.toLowerCase() === DOC_TYPES.INVOICE ? "发票" : 
+                                     x.docType?.toLowerCase() === DOC_TYPES.RECEIPT ? "收据" : "";
+                  allErrorMessages.push(`${docTypeText}[${i + 1}]缺: ${missing.map((m) => `"${m}"`).join(", ")}`);
                 }
               }
 
@@ -650,7 +656,17 @@ const HtxTextArea = observer(({ item }) => {
               statsArray.sort((a, b) => a.sortKey - b.sortKey);
 
               setPageStats(statsArray.length > 0 ? statsArray.map((item) => item.text).join(", ") : "暂无票据");
-              setJsonFieldError(hasFieldErrors ? firstErrorMessage : "");
+              
+              // 显示所有错误信息，但限制最多显示3个，超过则显示省略号
+              if (hasFieldErrors) {
+                if (allErrorMessages.length <= 3) {
+                  setJsonFieldError(allErrorMessages.join("\n"));
+                } else {
+                  setJsonFieldError(`${allErrorMessages.slice(0, 3).join("\n")}\n...等共${allErrorMessages.length}票，缺核心字段`);
+                }
+              } else {
+                setJsonFieldError("");
+              }
             } else {
               setJsonFieldError("");
               setPageStats("非数组格式");
@@ -748,7 +764,13 @@ const HtxTextArea = observer(({ item }) => {
       )}
       {pageStats && <div style={{ color: "blue", marginBottom: 4, fontWeight: "normal" }}>{pageStats}</div>}
       {jsonError && <div style={{ color: "red", marginBottom: 4, fontWeight: "bold" }}>{jsonError}</div>}
-      {jsonFieldError && <div style={{ color: "green", marginBottom: 4, fontWeight: "normal" }}>{jsonFieldError}</div>}
+      {jsonFieldError && (
+        <div style={{ color: "green", marginBottom: 4, fontWeight: "normal" }}>
+          {jsonFieldError.split("\n").map((line, index) => (
+            <div key={index}>{line}</div>
+          ))}
+        </div>
+      )}
       {Tree.renderChildren(item, item.annotation)}
 
       {item.showSubmit && (
