@@ -61,6 +61,10 @@ export const Inner = () => {
     backToDM();
   }, [backToDM, finishUpload, sample]);
 
+  if (!window.crypto || !window.crypto.subtle) {
+    throw new Error("当前环境不支持文件哈希计算（crypto.subtle），请升级浏览器或联系管理员。");
+  }
+
   return (
     <Modal
       title="Import data"
@@ -108,3 +112,13 @@ export const ImportModal = () => {
 
 ImportModal.path = "/import";
 ImportModal.modal = true;
+
+async function calculateFileHash(file) {
+  // 读取文件为 ArrayBuffer
+  const arrayBuffer = await file.arrayBuffer();
+  // 转为 Uint8Array
+  const uint8 = new Uint8Array(arrayBuffer);
+  // 计算 hash
+  const hashHex = sha256(uint8);
+  return hashHex.substring(0, 8);
+}

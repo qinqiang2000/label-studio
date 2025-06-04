@@ -418,7 +418,55 @@ const HtxTextArea = observer(({ item }) => {
       const annotationStore = store?.annotationStore;
       const preds = annotationStore?.predictions?.toJSON ? annotationStore.predictions.toJSON() : annotationStore.predictions;
       let filled = false;
-      if (Array.isArray(preds)) {
+
+      // 1. 先用 annotations
+      if (annotationStore?.annotations) {
+        const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
+        let lastMatchedValue = null;
+        for (const ann of anns) {
+          let results = ann.result;
+          if (!results && ann.resultSnapshot) results = ann.resultSnapshot;
+          if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result) results = ann._initialAnnotationObj.result;
+          // If still no results, treat _initialAnnotationObj as an array of result items
+          if (
+            !results &&
+            ann._initialAnnotationObj &&
+            (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === 'object')
+          ) {
+            // Convert to array if it's an object with numeric keys
+            const arr = Array.isArray(ann._initialAnnotationObj)
+              ? ann._initialAnnotationObj
+              : Object.values(ann._initialAnnotationObj).filter(v => v && typeof v === 'object' && v.type);
+            if (arr.length > 0) results = arr;
+          }
+          if (results && typeof results.toJSON === 'function') {
+            results = results.toJSON();
+          }
+          if (Array.isArray(results)) {
+            for (const r of results) {
+              const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+              const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+              if (
+                fromName === item.name &&
+                toName === item.toname &&
+                r.type === "textarea" &&
+                r.value && r.value.text && r.value.text.length > 0
+              ) {
+                const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                lastMatchedValue = value;
+              }
+            }
+          }
+        }
+        if (lastMatchedValue !== null) {
+          item.setValue(lastMatchedValue);
+          validateJsonAndFields(lastMatchedValue);
+          filled = true;
+        }
+      }
+
+      // 2. annotations 没命中再用 predictions
+      if (!filled && Array.isArray(preds)) {
         for (const pred of preds) {
           if (pred.trackedState && pred.trackedState.areas) {
             Array.from(pred.trackedState.areas.values()).forEach(area => {
@@ -458,49 +506,6 @@ const HtxTextArea = observer(({ item }) => {
               }
             }
           }
-        }
-      }
-      // 新增：如果prediction未命中，尝试annotation自动填充
-      if (!filled && annotationStore?.annotations) {
-        const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
-        for (const ann of anns) {
-          let results = ann.result;
-          if (!results && ann.resultSnapshot) results = ann.resultSnapshot;
-          if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result) results = ann._initialAnnotationObj.result;
-          // If still no results, treat _initialAnnotationObj as an array of result items
-          if (
-            !results &&
-            ann._initialAnnotationObj &&
-            (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === 'object')
-          ) {
-            // Convert to array if it's an object with numeric keys
-            const arr = Array.isArray(ann._initialAnnotationObj)
-              ? ann._initialAnnotationObj
-              : Object.values(ann._initialAnnotationObj).filter(v => v && typeof v === 'object' && v.type);
-            if (arr.length > 0) results = arr;
-          }
-          if (results && typeof results.toJSON === 'function') {
-            results = results.toJSON();
-          }
-          if (Array.isArray(results)) {
-            for (const r of results) {
-              const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-              const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
-              if (
-                fromName === item.name &&
-                toName === item.toname &&
-                r.type === "textarea" &&
-                r.value && r.value.text && r.value.text.length > 0
-              ) {
-                const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                item.setValue(value);
-                validateJsonAndFields(value);
-                filled = true;
-                break;
-              }
-            }
-          }
-          if (filled) break;
         }
       }
       if (filled) {

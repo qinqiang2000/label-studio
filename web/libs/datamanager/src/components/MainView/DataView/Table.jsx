@@ -196,9 +196,9 @@ export const DataView = injector(
               {!hasData && !!store.interfaces.get("import") && (
                 <Elem name="navigation" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <ImportButton look="primary" href="./import">
-                      Go to import
-                    </ImportButton>
+                  <ImportButton look="primary" href="./import">
+                    Go to import
+                  </ImportButton>
                     <span style={{ color: "#888", fontSize: "14px" }}>or</span>
                     <Button
                       look="primary"

@@ -4,11 +4,25 @@ import { Button } from "../../components/Button/Button";
 
 // 前端计算文件hash
 async function calculateFileHash(file) {
-  const arrayBuffer = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex.substring(0, 8); // 取前8位
+  try {
+    // 尝试使用Web Crypto API
+    const arrayBuffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex.substring(0, 8); // 取前8位
+  } catch (error) {
+    console.error('计算文件哈希出错:', error);
+    // 备用方法：使用文件名和大小生成简单哈希
+    const timestamp = Date.now().toString();
+    const fileInfo = `${file.name}-${file.size}-${timestamp}`;
+    let hash = 0;
+    for (let i = 0; i < fileInfo.length; i++) {
+      hash = ((hash << 5) - hash) + fileInfo.charCodeAt(i);
+      hash |= 0; // 转换为32位整数
+    }
+    return Math.abs(hash % 100000000).toString(16).padStart(8, '0');
+  }
 }
 
 function getFileTag(projectId, hashFilename) {
@@ -456,4 +470,4 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
       </div>
     </Modal>
   );
-}; 
+};
