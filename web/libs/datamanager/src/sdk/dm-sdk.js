@@ -490,14 +490,20 @@ export class DataManager {
     return this.interfaces.get(name) === true;
   }
 
+  // 定义需要忽略警告的已移除工具列表
+  ignoredInstruments = ['search'];
+
   get toolbarInstruments() {
     const sections = this.toolbar.split("|").map((s) => s.trim());
 
     const instrumentsList = sections.map((section) => {
       const sectionInstruments = section.split(" ").filter((instrument) => {
+        // 忽略已知的已移除工具
+        if (this.ignoredInstruments.includes(instrument)) return false;
+        
         const nativeInstrument = !!instruments[instrument];
         const customInstrument = !!this.instruments.has(instrument);
-
+        
         if (!nativeInstrument && !customInstrument) {
           console.warn(`Unknwown instrument detected: ${instrument}. Did you forget to register it?`);
         }
