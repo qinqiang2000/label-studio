@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # 1. 找出所有改动且以 label_studio/ 开头的文件
-changed_files=$(git diff --name-only c6d9011..company-custom | grep '^label_studio/')
+# changed_files=$(git diff --name-only c6d9011..company-custom | grep '^label_studio/')
+changed_files=$(git diff --name-only HEAD^ HEAD | grep '^label_studio/')
+
 
 # 2. 远程服务器信息
 PEM=~/tools/pem/ecs_label_studio_1.pem
