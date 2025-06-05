@@ -73,7 +73,7 @@ export class LabelStudio {
       element = document.getElementById(root);
     } else {
       element = root;
-    }
+    } 
 
     if (!element) {
       throw new Error(`Root element not found (selector: ${root})`);
@@ -87,27 +87,22 @@ export class LabelStudio {
 
     // === PATCH LOGIC START ===
     if (options.task && options.task.data) {
-      console.log('[patch] [LabelStudio] called with task:', options.task);
       let source = null;
       if (Array.isArray(options.task.annotations) && options.task.annotations.length > 0) {
-        console.log('[patch] [LabelStudio] annotations:', options.task.annotations);
         source = [...options.task.annotations]
           .filter(a => Array.isArray(a.result) && a.result.length > 0)
           .sort((a, b) => {
             const getTime = x => new Date(x.updated_at || x.created_at || 0).getTime();
             return getTime(b) - getTime(a) || (b.id || 0) - (a.id || 0);
           })[0];
-        console.log('[patch] [LabelStudio] picked annotation:', source);
       }
       if (!source && Array.isArray(options.task.predictions) && options.task.predictions.length > 0) {
-        console.log('[patch] [LabelStudio] predictions:', options.task.predictions);
         source = [...options.task.predictions]
           .filter(p => Array.isArray(p.result) && p.result.length > 0)
           .sort((a, b) => {
             const getTime = x => new Date(x.updated_at || x.created_at || 0).getTime();
             return getTime(b) - getTime(a) || (b.id || 0) - (a.id || 0);
           })[0];
-        console.log('[patch] [LabelStudio] picked prediction:', source);
       }
       if (!source) {
         console.log('[patch] [LabelStudio] no annotation or prediction found');
@@ -118,7 +113,6 @@ export class LabelStudio {
             const val = r.value.text[r.value.text.length - 1];
             if (key && val !== undefined && val !== null) {
               if (!options.task.data[key] || options.task.data[key] === "") {
-                console.log(`[patch] [LabelStudio] patching data[${key}] =`, val);
                 options.task.data[key] = val;
               } else {
                 console.log(`[patch] [LabelStudio] skip patch data[${key}], already has value:`, options.task.data[key]);

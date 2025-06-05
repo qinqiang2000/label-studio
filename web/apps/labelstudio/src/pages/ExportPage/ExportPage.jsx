@@ -149,7 +149,9 @@ const FormatInfo = ({ availableFormats, selected, onClick }) => {
     <Block name="formats">
       <Elem name="info">You can export dataset in one of the following formats:</Elem>
       <Elem name="list">
-        {availableFormats.map((format) => (
+        {availableFormats
+        .filter(format => !format.disabled)
+        .map((format) => (
           <Elem
             key={format.name}
             name="item"

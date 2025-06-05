@@ -41,17 +41,16 @@ const DOC_TYPES = {
 
 const VALID_DOC_TYPES = Object.values(DOC_TYPES);
 
-// 必填字段列表
-const REQUIRED_FIELDS = [
+const INVOICE_SPECIFIC_REQUIRED_FIELDS = ["billToName", "totalAmount", "totalTaxAmount", "invoiceNumber", "invoiceDate", "currency"];
+const RECEIPT_SPECIFIC_REQUIRED_FIELDS = ["totalAmount", "invoiceDate", "currency"];
+
+const REQUIRED_FIELDS = Array.from(new Set([
   "序号",
   "docType",
-  "totalAmount",
-  "totalTaxAmount",
-  "invoiceNumber",
-  "billToName",
-  "invoiceDate",
-  "currency",
-];
+  ...INVOICE_SPECIFIC_REQUIRED_FIELDS,
+  ...RECEIPT_SPECIFIC_REQUIRED_FIELDS
+]));
+
 // 高亮函数：高亮必填字段
 function highlightWithRequiredFields(code) {
   let html = Prism.highlight(code, Prism.languages.json, "json");
@@ -197,7 +196,7 @@ const Model = types
       return value.some((val) => val.toLowerCase() === text);
     },
   }))
-  .actions(() => (isFF(FF_LEAD_TIME) ? {} : { countTime: () => {} }))
+  .actions((self) => (isFF(FF_LEAD_TIME) ? {} : { countTime: () => {} }))
   .actions((self) => {
     let lastActiveElement = null;
     let lastActiveElementModel = null;
@@ -283,6 +282,7 @@ const Model = types
       },
 
       addText(text, pid) {
+        console.log('[TextArea addText]', self.name, text, 'regions.length(before):', self.regions.length);
         if (!self.validateText(text)) return;
 
         self.createRegion(text, pid, self.leadTime);
@@ -291,6 +291,7 @@ const Model = types
 
         // should go after `onChange` because it uses result and area
         self.updateLeadTime();
+        console.log('[TextArea addText]', self.name, text, 'regions.length(after):', self.regions.length);
       },
 
       /**
@@ -324,6 +325,7 @@ const Model = types
       },
 
       beforeSend() {
+        console.log('[TextArea beforeSend]', self.name, self._value);
         if (self._value && self._value.length) {
           self.addText(self._value);
           self._value = "";
@@ -622,14 +624,14 @@ const HtxTextArea = observer(({ item }) => {
                 }
                 if (x.docType?.toLowerCase() === DOC_TYPES.INVOICE) {
                   // 'invoice'
-                  ["billToName", "totalAmount", "totalTaxAmount", "invoiceNumber", "invoiceDate", "currency"].forEach(
+                  INVOICE_SPECIFIC_REQUIRED_FIELDS.forEach(
                     (f) => {
                       if (!x.hasOwnProperty(f)) missing.push(f);
                     },
                   );
                 } else if (x.docType?.toLowerCase() === DOC_TYPES.RECEIPT) {
                   // 'receipt'
-                  ["totalAmount", "invoiceDate", "currency"].forEach((f) => {
+                  RECEIPT_SPECIFIC_REQUIRED_FIELDS.forEach((f) => {
                     if (!x.hasOwnProperty(f)) missing.push(f);
                   });
                 }
@@ -783,8 +785,6 @@ const HtxTextArea = observer(({ item }) => {
           ))}
         </div>
       )}
-      {Tree.renderChildren(item, item.annotation)}
-
       {item.showSubmit && (
         <Form
           onFinish={() => {
@@ -838,6 +838,8 @@ const HtxTextArea = observer(({ item }) => {
           </Form.Item>
         </Form>
       )}
+
+      {Tree.renderChildren(item, item.annotation)}
 
       {item.regions.length > 0 && (
         <div style={{ marginBottom: "1em" }}>

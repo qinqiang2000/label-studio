@@ -1,6 +1,7 @@
 import { useContext, useEffect } from "react";
 import { useHistory } from "react-router-dom";
 import { ToastContext } from "@humansignal/ui";
+import { isAlive } from "mobx-state-tree";
 
 export const DRAFT_GUARD_KEY = "DRAFT_GUARD";
 
@@ -28,14 +29,19 @@ export const DraftGuard = () => {
      * unsuccessful draft saves.
      */
     const unsubscribe = history.block(() => {
-      const selected = window.Htx?.annotationStore?.selected;
+      const annotationStore = window.Htx?.annotationStore;
+      if (!annotationStore || !isAlive(annotationStore)) {
+        // annotationStore 已经被销毁，直接放行
+        return true;
+      }
+      const selected = annotationStore.selected;
       const submissionInProgress = !!selected?.submissionStarted;
       const hasChanges = !!selected?.history.undoIdx && !submissionInProgress;
 
       if (hasChanges) {
         selected.saveDraftImmediatelyWithResults()?.then((res) => {
+          if (!isAlive(selected)) return;
           const status = res?.$meta?.status;
-
           if (status === 200 || status === 201) {
             toast.show({ message: "Draft saved successfully", type: "info" });
             unblock();
