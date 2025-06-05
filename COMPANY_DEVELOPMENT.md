@@ -93,6 +93,7 @@ git push origin v1.0.0-company
 ## 构建和部署
 
 ### 开发环境
+如果不是源码开发，要安装两个python模块: openpyxl, aenum
 ```bash
 # 使用提供的构建脚本
 ./build_and_run.sh
