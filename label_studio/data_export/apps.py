@@ -5,3 +5,6 @@ from django.apps import AppConfig
 
 class DataExportConfig(AppConfig):
     name = 'data_export'
+
+    def ready(self):
+        import label_studio.data_export.ext_export  # noqa

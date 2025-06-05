@@ -76,6 +76,8 @@ dependencies = [
     ## HumanSignal repo dependencies :start
     "label-studio-sdk @ https://github.com/HumanSignal/label-studio-sdk/archive/1ed6661364d9e4040f360b15609232fd793b60b0.zip",
     ## HumanSignal repo dependencies :end
+    "openpyxl (>=3.0.0)",
+    "aenum (>=3.0.0)",
 ]
 
 [project.urls]
