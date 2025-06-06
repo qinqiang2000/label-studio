@@ -18,7 +18,7 @@ if not hasattr(Format, PIAOZONE_EXCEL):
 # 2. 扩展 _FORMAT_INFO
 Converter._FORMAT_INFO[getattr(Format, PIAOZONE_EXCEL)] = {
     "title": PIAOZONE_EXCEL,
-    "description": "发票云自定义的Excel导出格式",
+    "description": "发票云自定义的Excel导出格式，方便做线下标注",
     "link": f"https://yourdoc.com/{PIAOZONE_EXCEL}",
 }
 
@@ -38,7 +38,22 @@ def patched_all_formats(self):
 
 Converter.all_formats = patched_all_formats
 
-# 4. monkey patch convert 方法
+# 4. 限制 _supported_formats 只显示指定的格式
+original_supported_formats = Converter.supported_formats
+
+def patched_supported_formats(self):
+    # 只返回指定的格式
+    supported_formats = [
+        PIAOZONE_EXCEL,
+        Format.JSON.name,
+        Format.JSON_MIN.name,
+        Format.CSV.name,
+    ]
+    return supported_formats
+
+Converter.supported_formats = property(patched_supported_formats)
+
+# 5. monkey patch convert 方法
 old_convert = Converter.convert
 
 def new_convert(self, input_data, output_data, format, is_dir=True, **kwargs):
@@ -54,23 +69,7 @@ def new_convert(self, input_data, output_data, format, is_dir=True, **kwargs):
             raise NotImplementedError("PIAOZONE_EXCEL 只支持单文件导出")
 
         export_to_excel(input_data, output_data)
-        # import json
-        # with open(input_data, 'r', encoding='utf-8') as f:
-        #     data = json.load(f)
-            
-        # # data 是 list，每个元素是一个任务
-        # # 这里只做简单演示，把所有任务的 id 和 data 字段导出
-        # rows = []
-        # for item in data:
-        #     row = {
-        #         'id': item.get('id'),
-        #         **item.get('data', {})
-        #     }
-        #     rows.append(row)
-        # df = pd.DataFrame(rows)
-        # os.makedirs(output_data, exist_ok=True)
-        # excel_path = os.path.join(output_data, 'result.xlsx')
-        # df.to_excel(excel_path, index=False)
+
         return
     # 其他格式走原始逻辑
     return old_convert(self, input_data, output_data, format, is_dir, **kwargs)
