@@ -17,3 +17,6 @@ for file in $changed_files; do
 done
 
 echo "全部同步完成！"
+
+
+# scp -i ~/tools/pem/ecs_label_studio_1.pem /Users/qinqiang02/colab/codespace/ai/label-studio/web/dist/apps/labelstudio/* root@120.77.56.227:/root/miniconda3/envs/ls-env/lib/python3.10/site-packages/web/dist/apps/labelstudio

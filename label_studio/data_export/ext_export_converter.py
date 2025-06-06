@@ -5,7 +5,7 @@ import json
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 
-fields = ["id", "filename", "page", "invoiceType", "nameOfInvoice", "invoiceNumber", "invoiceCode", "originalInvoiceNumber", 
+fields = ["id", "filename", "page", "docType", "invoiceType", "nameOfInvoice", "invoiceNumber", "invoiceCode", "originalInvoiceNumber", 
 "invoiceDate", "originalInvoiceDate", "totalNetAmount", "totalAmount", "totalTaxAmount", "currency", 
 "billToName", "billToComposite", "billToCountry", "billToTaxIdentificationNumber", "shipFromComposite", 
 "billFromName", "billFromComposite", "billFromCountry", "billFromTaxIdentificationNumber", 
