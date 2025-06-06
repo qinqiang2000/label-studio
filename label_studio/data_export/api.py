@@ -179,6 +179,7 @@ class ExportAPI(generics.RetrieveAPIView):
         only_finished = not query_serializer.validated_data['download_all_tasks']
         download_resources = query_serializer.validated_data['download_resources']
         interpolate_key_frames = query_serializer.validated_data['interpolate_key_frames']
+        print(f"['download_all_tasks']: {query_serializer.validated_data['download_all_tasks']}\n\n")
 
         tasks_ids = request.GET.getlist('ids[]')
 
@@ -198,7 +199,7 @@ class ExportAPI(generics.RetrieveAPIView):
             tasks += ExportDataSerializer(
                 self.get_task_queryset(query.filter(id__in=_task_ids)),
                 many=True,
-                expand=['drafts'],
+                expand=['drafts', 'predictions'],
                 context={'interpolate_key_frames': interpolate_key_frames},
             ).data
         logger.debug('Prepare export files')

@@ -4,17 +4,17 @@
   }
 
   &__recent {
-    display: grid;
-    grid-auto-flow: rows;
+    display: flex;
+    align-items: center;
   }
 
   &__footer {
-    margin: 0 -40px -32px;
-    padding: 24px 32px;
-    position: sticky;
-    bottom: -40px;
-    background-color: var(--color-neutral-surface-active);
-    border-top: 1px solid var(--color-neutral-border);
+    margin-top: 16px;
+  }
+
+  &__checkbox-container {
+    margin-top: 16px;
+    margin-bottom: 16px;
   }
 }
 

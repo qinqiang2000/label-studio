@@ -124,6 +124,7 @@ export const ExportPage = () => {
 
         <Form ref={form}>
           <Input type="hidden" name="exportType" value={currentFormat} />
+          <Input type="hidden" name="download_all_tasks" value={true} />
         </Form>
 
         <Elem name="footer">
