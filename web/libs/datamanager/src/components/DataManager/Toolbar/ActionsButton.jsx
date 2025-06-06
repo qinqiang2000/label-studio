@@ -36,6 +36,32 @@ export const ActionsButton = injector(
     const selectedCount = store.currentView.selectedCount;
     const actions = store.availableActions.filter((a) => !a.hidden).sort((a, b) => a.order - b.order);
 
+    // 获取所有任务ID的方法（仅用于retrieve_tasks_predictions）
+    const getAllTaskIds = async () => {
+      try {
+        const view = store.currentView ?? {};
+        const params = {
+          page_size: 500,  // 使用较大的数值获取更多任务
+        };
+        
+        // 添加视图相关参数
+        if (view.query) {
+          params.query = view.query;
+        } else if (view.id) {
+          params.view = view.id;
+        }
+        
+        console.log('[DEBUG] 获取所有任务ID，参数:', params);
+        const response = await store.apiCall('tasks', params);
+        const taskIds = response.tasks?.map(task => task.id) || [];
+        console.log('[DEBUG] 成功获取所有任务ID，数量:', taskIds.length);
+        return taskIds;
+      } catch (error) {
+        console.error('[DEBUG] 获取所有任务ID失败:', error);
+        return [];
+      }
+    };
+
     const handleBatchPredictions = async (action, params) => {
       console.log('[DEBUG] handleBatchPredictions 开始执行', { action: action.id, params });
       
@@ -60,10 +86,17 @@ export const ActionsButton = injector(
       // 获取要处理的任务ID列表
       let taskIds;
       if (selectedItems.all) {
-        // 全选状态：获取当前视图中的所有任务
-        const view = store.currentView ?? {};
-        taskIds = view.dataStore?.list?.map(task => task.id) || [];
-        console.log('[DEBUG] 全选模式：获取所有任务');
+        // 全选状态：从后端获取所有任务ID（仅用于retrieve_tasks_predictions）
+        console.log('[DEBUG] 全选模式：从后端获取所有任务ID');
+        taskIds = await getAllTaskIds();
+        
+        if (taskIds.length === 0) {
+          store.SDK.invoke("toast", { 
+            message: "无法获取任务列表，请重试", 
+            type: "error" 
+          });
+          return;
+        }
       } else {
         // 部分选择：使用included数组
         taskIds = selectedItems.included || [];
