@@ -3,6 +3,7 @@
 set -e
 #export LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
 #export LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/Users/qinqiang02/job/test/发票测试数据/海外形式发票/日本/海信日本生产20250522
+#export FRONTEND_HMR=true # 开启 HMR 热更新
 
 echo "进入 web 目录..."
 cd web

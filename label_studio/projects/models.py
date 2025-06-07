@@ -29,6 +29,7 @@ from core.utils.db import fast_first
 from django.conf import settings
 from django.core.validators import MaxLengthValidator, MinLengthValidator
 from django.db import models, transaction
+from core.utils.common import conditional_atomic, db_is_not_sqlite, retry_database_locked
 from django.db.models import Avg, BooleanField, Case, Count, JSONField, Max, Q, Sum, Value, When
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
@@ -387,7 +388,7 @@ class Project(ProjectMixin, models.Model):
 
     def add_collaborator(self, user):
         created = False
-        with transaction.atomic():
+        with conditional_atomic(predicate=db_is_not_sqlite):
             try:
                 ProjectMember.objects.get(user=user, project=self)
             except ProjectMember.DoesNotExist:
@@ -525,7 +526,7 @@ class Project(ProjectMixin, models.Model):
         if not hasattr(self, 'summary'):
             return
 
-        with transaction.atomic():
+        with conditional_atomic(predicate=db_is_not_sqlite):
             # Lock summary for update to avoid race conditions
             summary = ProjectSummary.objects.select_for_update().get(project=self)
 
@@ -690,7 +691,7 @@ class Project(ProjectMixin, models.Model):
 
         predictions = Prediction.objects.filter(**params)
 
-        with transaction.atomic():
+        with conditional_atomic(predicate=db_is_not_sqlite):
             # If we are deleting specific model_version then we need
             # to remove that from the project
             if self.should_none_model_version(model_version):
@@ -787,7 +788,7 @@ class Project(ProjectMixin, models.Model):
             )
 
         if hasattr(self, 'summary'):
-            with transaction.atomic():
+            with conditional_atomic(predicate=db_is_not_sqlite):
                 # Lock summary for update to avoid race conditions
                 summary = ProjectSummary.objects.select_for_update().get(project=self)
                 # Ensure project.summary is consistent with current tasks / annotations
@@ -1058,7 +1059,7 @@ class Project(ProjectMixin, models.Model):
         page_idx = 0
 
         while task_ids_slice := task_ids[page_idx * settings.BATCH_SIZE : (page_idx + 1) * settings.BATCH_SIZE]:
-            with transaction.atomic():
+            with conditional_atomic(predicate=db_is_not_sqlite):
                 # If counters are updated, is_labeled must be updated as well. Hence, if either fails, we
                 # will roll back.
                 queryset = make_queryset_from_iterable(task_ids_slice)
@@ -1202,6 +1203,7 @@ class ProjectSummary(models.Model):
         user.project = self.project  # link for activity log
         return self.project.has_permission(user)
 
+    @retry_database_locked()
     def reset(self, tasks_data_based=True):
         import traceback
 

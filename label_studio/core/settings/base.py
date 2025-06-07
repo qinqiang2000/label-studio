@@ -221,7 +221,7 @@ INSTALLED_APPS = [
     'organizations',
     'data_import',
     'data_export',
-    'projects',
+    'projects.apps.ProjectsConfig',
     'tasks',
     'data_manager',
     'io_storages',

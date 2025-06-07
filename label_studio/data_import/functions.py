@@ -3,7 +3,7 @@ import time
 import traceback
 from typing import Callable, Optional
 
-from core.utils.common import load_func
+from core.utils.common import conditional_atomic, db_is_not_sqlite, load_func
 from django.conf import settings
 from django.db import transaction
 from projects.models import ProjectImport, ProjectReimport, ProjectSummary
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def async_import_background(
     import_id, user_id, recalculate_stats_func: Optional[Callable[..., None]] = None, **kwargs
 ):
-    with transaction.atomic():
+    with conditional_atomic(predicate=db_is_not_sqlite):
         try:
             project_import = ProjectImport.objects.get(id=import_id)
         except ProjectImport.DoesNotExist:
@@ -47,7 +47,7 @@ def async_import_background(
         tasks = reformat_predictions(tasks, project_import.preannotated_from_fields)
 
     if project_import.commit_to_project:
-        with transaction.atomic():
+        with conditional_atomic(predicate=db_is_not_sqlite):
             # Lock summary for update to avoid race conditions
             summary = ProjectSummary.objects.select_for_update().get(project=project)
 
@@ -133,7 +133,7 @@ post_process_reimport = load_func(settings.POST_PROCESS_REIMPORT)
 
 def async_reimport_background(reimport_id, organization_id, user, **kwargs):
 
-    with transaction.atomic():
+    with conditional_atomic(predicate=db_is_not_sqlite):
         try:
             reimport = ProjectReimport.objects.get(id=reimport_id)
         except ProjectReimport.DoesNotExist:
@@ -151,7 +151,7 @@ def async_reimport_background(reimport_id, organization_id, user, **kwargs):
         reimport.project, reimport.file_upload_ids, files_as_tasks_list=reimport.files_as_tasks_list
     )
 
-    with transaction.atomic():
+    with conditional_atomic(predicate=db_is_not_sqlite):
         # Lock summary for update to avoid race conditions
         summary = ProjectSummary.objects.select_for_update().get(project=project)
 
