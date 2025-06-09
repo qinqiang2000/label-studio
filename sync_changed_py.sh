@@ -24,6 +24,9 @@ sync_backend() {
 
     # 2. 逐个 scp 同步
     for file in $changed_files; do
+      remote_dir=$(dirname "$REMOTE_BASE/$file")
+      echo "ssh -i $PEM $REMOTE 'mkdir -p $remote_dir'"
+      ssh -i $PEM $REMOTE "mkdir -p $remote_dir"
       echo "scp -i $PEM $file $REMOTE:$REMOTE_BASE/$file"
       scp -i $PEM $file $REMOTE:$REMOTE_BASE/$file
     done

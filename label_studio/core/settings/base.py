@@ -583,7 +583,28 @@ TASK_SERIALIZER = 'tasks.serializers.BaseTaskSerializer'
 EXPORT_DATA_SERIALIZER = 'data_export.serializers.BaseExportDataSerializer'
 DATA_MANAGER_GET_ALL_COLUMNS = 'data_manager.functions.get_all_columns'
 DATA_MANAGER_ANNOTATIONS_MAP = {}
-DATA_MANAGER_ACTIONS = {}
+DATA_MANAGER_ACTIONS = {
+    'evaluate_annotations_vs_predictions': {
+        'entry_point': 'data_manager.actions.evaluation.evaluate_annotations_vs_predictions',
+        'permission': 'projects.view_project',
+        'title': 'Evaluate Predictions vs Annotations',
+        'order': 200,
+        'dialog': {
+            'text': 'This will evaluate the accuracy of predictions against human annotations for selected tasks.',
+            'type': 'confirm'
+        }
+    },
+    'evaluate_inter_annotator_agreement': {
+        'entry_point': 'data_manager.actions.evaluation.evaluate_inter_annotator_agreement',
+        'permission': 'projects.view_project',
+        'title': 'Calculate Inter-Annotator Agreement',
+        'order': 201,
+        'dialog': {
+            'text': 'This will calculate agreement metrics between different annotators for selected tasks.',
+            'type': 'confirm'
+        }
+    }
+}
 DATA_MANAGER_CUSTOM_FILTER_EXPRESSIONS = 'data_manager.functions.custom_filter_expressions'
 DATA_MANAGER_PREPROCESS_FILTER = 'data_manager.functions.preprocess_filter'
 USER_LOGIN_FORM = 'users.forms.LoginForm'

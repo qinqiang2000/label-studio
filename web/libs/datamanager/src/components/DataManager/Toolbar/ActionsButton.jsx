@@ -8,6 +8,10 @@ import { Dropdown } from "../../Common/Dropdown/DropdownComponent";
 import Form from "../../Common/Form/Form";
 import { Menu } from "../../Common/Menu/Menu";
 import { Modal } from "../../Common/Modal/ModalPopup";
+import { Space } from "../../Common/Space/Space";
+import { Tooltip } from "@humansignal/ui";
+import { isDefined } from "../../../utils/utils";
+import { EvaluationResultModal } from "../EvaluationResultModal";
 import "./ActionsButton.scss";
 
 const isFFLOPSE3 = isFF(FF_LOPS_E_3);
@@ -33,6 +37,8 @@ export const ActionsButton = injector(
   observer(({ store, size, hasSelected, ...rest }) => {
     const formRef = useRef();
     const [batchProgress, setBatchProgress] = useState(null);
+    const [evaluationResult, setEvaluationResult] = useState(null);
+    const [showEvaluationModal, setShowEvaluationModal] = useState(false);
     const selectedCount = store.currentView.selectedCount;
     const actions = store.availableActions.filter((a) => !a.hidden).sort((a, b) => a.order - b.order);
 
@@ -203,6 +209,17 @@ export const ActionsButton = injector(
                console.log('[DEBUG] 检测到 retrieve_tasks_predictions 动作，路由到批量处理函数');
                console.log('[DEBUG] 对话框模式传递的body参数:', body);
                return handleBatchPredictions(action, { body });
+             } else if (action.id === 'evaluate_annotations_vs_predictions' || action.id === 'evaluate_invoice_extraction_task') {
+               console.log('[DEBUG] 检测到评估动作:', action.id);
+               store.invokeAction(action.id, { body }).then((result) => {
+                 if (result && result.evaluation_results) {
+                   console.log('[DEBUG] 收到evaluation结果:', result);
+                   setEvaluationResult(result);
+                   setShowEvaluationModal(true);
+                 }
+               }).catch((error) => {
+                 console.error('[DEBUG] Evaluation动作执行失败:', error);
+               });
              } else {
                console.log('[DEBUG] 使用标准 invokeAction 处理动作:', action.id);
                store.invokeAction(action.id, { body });
@@ -227,6 +244,17 @@ export const ActionsButton = injector(
           };
           console.log('[DEBUG] 构造的动作参数:', actionParams);
           handleBatchPredictions(action, actionParams);
+        } else if (action.id === 'evaluate_annotations_vs_predictions' || action.id === 'evaluate_invoice_extraction_task') {
+          console.log('[DEBUG] 直接调用模式：检测到评估动作:', action.id);
+          store.invokeAction(action.id).then((result) => {
+            if (result && result.evaluation_results) {
+              console.log('[DEBUG] 收到evaluation结果:', result);
+              setEvaluationResult(result);
+              setShowEvaluationModal(true);
+            }
+          }).catch((error) => {
+            console.error('[DEBUG] Evaluation动作执行失败:', error);
+          });
         } else {
           console.log('[DEBUG] 直接调用模式：使用标准 invokeAction 处理动作:', action.id);
           store.invokeAction(action.id);
@@ -307,20 +335,35 @@ export const ActionsButton = injector(
     const recordTypeLabel = isFFLOPSE3 && store.SDK.type === "DE" ? "Record" : "Task";
 
     return (
-      <Dropdown.Trigger
-        content={<Menu size="compact">{actionButtons}</Menu>}
-        openUpwardForShortViewport={false}
-        disabled={!hasSelected || batchProgress !== null}
-      >
-        <Button size={size} disabled={!hasSelected || batchProgress !== null} {...rest}>
-          {batchProgress ? (
-            `处理中... ${batchProgress.current + 1}/${batchProgress.total}`
-          ) : (
-            selectedCount > 0 ? `${selectedCount} ${recordTypeLabel}${selectedCount > 1 ? "s" : ""}` : "Actions"
-          )}
-          <IconChevronDown style={{ marginLeft: 4, marginRight: -7 }} />
-        </Button>
-      </Dropdown.Trigger>
+      <>
+        <Dropdown.Trigger
+          content={<Menu size="compact">{actionButtons}</Menu>}
+          openUpwardForShortViewport={false}
+          disabled={!hasSelected || batchProgress !== null}
+        >
+          <Button size={size} disabled={!hasSelected || batchProgress !== null} {...rest}>
+            {batchProgress ? (
+              `处理中... ${batchProgress.current + 1}/${batchProgress.total}`
+            ) : (
+              selectedCount > 0 ? `${selectedCount} ${recordTypeLabel}${selectedCount > 1 ? "s" : ""}` : "Actions"
+            )}
+            <IconChevronDown style={{ marginLeft: 4, marginRight: -7 }} />
+          </Button>
+        </Dropdown.Trigger>
+        
+        {/* Evaluation Result Modal */}
+        {showEvaluationModal && evaluationResult && (
+          <EvaluationResultModal
+            result={evaluationResult}
+            onClose={() => {
+              setShowEvaluationModal(false);
+              setEvaluationResult(null);
+            }}
+          />
+        )}
+      </>
     );
   }),
 );
+
+export default ActionsButton;
