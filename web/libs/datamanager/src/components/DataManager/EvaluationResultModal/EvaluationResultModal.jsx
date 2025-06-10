@@ -52,7 +52,10 @@ const EvaluationResultModal = ({ result, onClose }) => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const pad = n => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
 
   const getMetricColor = (value) => {
@@ -145,7 +148,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
                   </Elem>
                 );
               })}
-              {/* 总计行 */}
+              {/* 总计行，放在 field-list 内部，确保同宽 */}
               <Elem name="field-row" mod={{ type: 'total-row' }}>
                 <Elem name="field-item" mod={{ type: 'field', weight: 'bold' }}>总计</Elem>
                 <Elem name="field-item" mod={{ type: 'total', weight: 'bold' }}>
@@ -207,21 +210,21 @@ const EvaluationResultModal = ({ result, onClose }) => {
       size="large"
       style={{ maxHeight: '90vh', height: 'auto', width: '65vw', maxWidth: '65vw', minHeight: 400 }}
     >
-      <Block name="evaluation-results" mod={{ scrollable: true }} style={{ maxHeight: 'calc(90vh - 48px)', overflowY: 'auto' }}>
+      <Block name="evaluation-results" mod={{ scrollable: true }} style={{ maxHeight: 'calc(90vh - 52px)', overflowY: 'auto' }}>
         {/* Summary Section */}
         <Elem name="summary">
           <Elem name="summary-item">
-            <span><strong>总文档数:</strong> {evaluation_results?.statistics?.total_documents || task_count}</span>
+            <span><strong>总文档数:</strong> <span className="summary-number">{evaluation_results?.statistics?.total_documents || task_count}</span></span>
           </Elem>
           <Elem name="summary-item">
-            <span><strong>总票据数:</strong> {evaluation_results?.statistics?.total_invoices || processed_items}</span>
+            <span><strong>总票据数:</strong> <span className="summary-number">{evaluation_results?.statistics?.total_invoices || processed_items}</span></span>
           </Elem>
           <Elem name="summary-item">
-            <span><strong>总字段数:</strong> {evaluation_results?.statistics?.field_accuracy ? 
-              Object.keys(evaluation_results.statistics.field_accuracy).length * (evaluation_results?.statistics?.total_invoices || processed_items) : 0}</span>
+            <span><strong>总字段数:</strong> <span className="summary-number">{evaluation_results?.statistics?.field_accuracy ? 
+              Object.keys(evaluation_results.statistics.field_accuracy).length * (evaluation_results?.statistics?.total_invoices || processed_items) : 0}</span></span>
           </Elem>
           <Elem name="summary-item">
-            <span><strong>评估时间:</strong> {formatDate(evaluated_at)}</span>
+            <span><strong>评估时间:</strong> <span className="summary-number">{formatDate(evaluated_at)}</span></span>
           </Elem>
         </Elem>
 

@@ -30,28 +30,37 @@
   }
 
   &__summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 12px;
-    margin-bottom: 24px;
-    padding: 16px;
+    margin-bottom: 8px;
     background: #f8f9fa;
     border-radius: 8px;
     border: 1px solid #e9ecef;
+    padding: 12px;
   }
 
   &__summary-item {
+    margin: 0;
+    padding: 0 12px;
+    font-size: 24px;
+    line-height: 24px;
+    white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: 4px;
-    
     span {
-      font-size: 14px;
+      font-size: 16px;
       color: #212529;
-      
       strong {
         font-weight: 600;
-        color: #495057;
+        color: #212529;
+        margin-right: 2px;
+      }
+      .summary-number {
+        font-size: 22px;
+        font-weight: 700;
+        color: #111;
+        margin-left: 2px;
       }
     }
   }
@@ -320,8 +329,8 @@
 
   // 新增：整体指标样式
   &__overall-metrics {
-    margin-bottom: 24px;
-    padding: 20px 0; /* 移除边框，只保留上下内边距 */
+    margin-bottom: 12px;
+    padding: 16px 0;
   }
 
   &__metrics-cards {
@@ -354,7 +363,7 @@
   }
 
   &__metric-value {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
     
     // 卡片布局中的数值样式
@@ -372,13 +381,15 @@
 
   // 新增：字段指标列表样式
   &__field-metrics {
-    margin-bottom: 24px;
+    margin-bottom: 12px;
+    margin-top: 0;
   }
 
   &__field-list {
     background: #ffffff;
     border-radius: 8px;
     overflow: hidden;
+    margin: 0 0 8px 0;
   }
 
   &__field-header {
