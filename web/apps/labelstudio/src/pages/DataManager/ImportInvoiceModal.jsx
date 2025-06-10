@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Modal } from "../../components/Modal/Modal";
 import { Button } from "../../components/Button/Button";
+import { useAPI } from "../../providers/ApiProvider";
 
 // 前端计算文件hash
 async function calculateFileHash(file) {
@@ -41,15 +42,11 @@ function getFileTag(projectId, hashFilename) {
 }
 
 function extractDataFieldFromLabelConfig(labelConfig) {
-  console.log('🔍 原始 label config:', labelConfig);
-  
   const parser = new DOMParser();
   const xml = parser.parseFromString(labelConfig, "application/xml");
-  console.log('🔍 解析后的 XML:', xml);
   
   // 查找所有带有value属性的元素（与后端extract_data_types函数逻辑一致）
   const elementsWithValue = xml.querySelectorAll('*[value]');
-  console.log('🔍 找到带有value属性的元素:', elementsWithValue);
   
   const dataTypes = {};
   
@@ -59,13 +56,11 @@ function extractDataFieldFromLabelConfig(labelConfig) {
     }
     
     const value = match.getAttribute('value');
-    console.log('🔍 处理元素:', match.tagName, 'value:', value);
     
     // 检查是否以$开头的简单变量
     if (value && value.length > 1 && value.startsWith('$')) {
       const fieldName = value.substring(1);
       dataTypes[fieldName] = match.tagName;
-      console.log('🔍 找到数据字段:', fieldName, '类型:', match.tagName);
     } else if (value) {
       // 处理包含$变量的复杂表达式（如正则表达式）
       const pattern = /\$(\w+)/g;
@@ -73,18 +68,40 @@ function extractDataFieldFromLabelConfig(labelConfig) {
       while ((regexMatch = pattern.exec(value)) !== null) {
         const fieldName = regexMatch[1];
         dataTypes[fieldName] = match.tagName;
-        console.log('🔍 从表达式中找到数据字段:', fieldName, '类型:', match.tagName);
       }
     }
   }
   
-  console.log('🔍 所有数据字段:', dataTypes);
   return dataTypes;
 }
 
-function generateTaskDataWithAllFields(dataTypes, fileUrl, fileName) {
-  console.log('📋 生成任务数据，所有字段:', dataTypes);
+// 新增函数：解析label config中的textarea配置
+function extractTextAreaConfig(labelConfig) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(labelConfig, "application/xml");
   
+  // 查找所有textarea元素
+  const textareas = xml.querySelectorAll('TextArea');
+  
+  const textareaConfigs = [];
+  
+  for (let textarea of textareas) {
+    const name = textarea.getAttribute('name');
+    const toName = textarea.getAttribute('toName');
+    
+    if (name && toName) {
+      textareaConfigs.push({
+        from_name: name,
+        to_name: toName,
+        type: 'textarea'
+      });
+    }
+  }
+  
+  return textareaConfigs;
+}
+
+function generateTaskDataWithAllFields(dataTypes, fileUrl, fileName) {
   // 创建包含所有字段的数据对象
   const taskData = {};
   
@@ -105,7 +122,6 @@ function generateTaskDataWithAllFields(dataTypes, fileUrl, fileName) {
     taskData.filename = fileName;
   }
   
-  console.log('📋 生成的任务数据:', taskData);
   return taskData;
 }
 
@@ -115,19 +131,22 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
   const [success, setSuccess] = useState(null);
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState(5); // 添加倒计时状态
+  const [exportingJson, setExportingJson] = useState(false); // 导出JSON状态
   const fileInputRef = useRef();
+  const annotationFileInputRef = useRef(); // 标注文件输入引用
   const timeoutRef = useRef(); // 用于清理定时器
   const countdownIntervalRef = useRef(); // 用于清理倒计时
   const isMountedRef = useRef(true); // 跟踪组件挂载状态
+  const api = useAPI(); // 添加API钩子
 
-  // 自动点击文件选择按钮
-  useEffect(() => {
-    if (fileInputRef.current) {
-      setTimeout(() => {
-        fileInputRef.current.click();
-      }, 100);
-    }
-  }, []);
+  // 暂停自动点击文件选择按钮功能
+  // useEffect(() => {
+  //   if (fileInputRef.current) {
+  //     setTimeout(() => {
+  //       fileInputRef.current.click();
+  //     }, 100);
+  //   }
+  // }, []);
 
   // 组件卸载时清理
   useEffect(() => {
@@ -148,7 +167,6 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
     setUploading(true);
     try {
       const files = Array.from(e.target.files);
-      console.log('📤 开始上传文件:', files);
       
       // 验证文件类型
       const allowedExtensions = ["jpg", "jpeg", "png", "gif", "bmp", "svg", "webp", "pdf"];
@@ -163,7 +181,6 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
       }
       
       // 计算文件hash并生成hash文件名
-      console.log('🔢 开始计算文件hash...');
       const fileHashData = [];
       for (const file of files) {
         const hash = await calculateFileHash(file);
@@ -175,7 +192,6 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
           hashFilename: hashFilename,
           hash: hash
         });
-        console.log('🔢 文件hash计算完成:', file.name, '->', hashFilename);
       }
       
       // 1. 上传到本地API
@@ -188,16 +204,12 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
         formData.append(`file_${index}`, hashFile);
       });
       
-      console.log('📤 发送上传请求到:', `/api/projects/${project.id}/local-upload/`);
-      console.log('📤 上传文件数量:', fileHashData.length);
-      
       const res = await fetch(`/api/projects/${project.id}/local-upload/`, {
         method: "POST",
         body: formData,
         credentials: "include",
       });
       
-      console.log('📤 上传响应状态:', res.status);
       if (!res.ok) {
         const errorText = await res.text();
         console.error('📤 上传失败:', errorText);
@@ -205,20 +217,16 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
       }
       
       const uploadResult = await res.json();
-      console.log('📤 上传结果:', uploadResult);
       const { files: uploadedFiles } = uploadResult;
 
       // 2. 获取label_config并提取data字段名
-      console.log('🏷️ 获取项目配置...');
       const projectRes = await fetch(`/api/projects/${project.id}`);
-      console.log('🏷️ 项目配置响应状态:', projectRes.status);
       
       if (!projectRes.ok) {
         throw new Error("获取项目配置失败");
       }
       
       const projectData = await projectRes.json();
-      console.log('🏷️ 项目数据:', projectData);
       
       const labelConfig = projectData.label_config;
       const dataTypes = extractDataFieldFromLabelConfig(labelConfig);
@@ -227,13 +235,11 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
       }
 
       // 2.5. 获取导入前的最大任务ID
-      console.log('📊 获取当前任务列表...');
       const tasksRes = await fetch(`/api/projects/${project.id}/tasks/?page_size=1&ordering=-id`);
       let maxExistingTaskId = 0;
       
       if (tasksRes.ok) {
         const tasksData = await tasksRes.json();
-        console.log('📊 任务数据响应:', tasksData);
         
         // 处理两种可能的返回格式：数组或包含results的对象
         let tasks = [];
@@ -245,12 +251,7 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
         
         if (tasks.length > 0) {
           maxExistingTaskId = tasks[0].id;
-          console.log('📊 当前最大任务ID:', maxExistingTaskId);
-        } else {
-          console.log('📊 没有找到任务结果');
         }
-      } else {
-        console.log('📊 无法获取任务列表，将使用备选方案');
       }
 
       // 3. 生成任务json
@@ -260,12 +261,9 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
           data: generateTaskDataWithAllFields(dataTypes, fileUrl, data.originalName)
         };
       });
-      
-      console.log('📋 生成的任务:', tasks);
 
       // 4. 导入任务
       setImporting(true);
-      console.log('📥 发送导入请求到:', `/api/projects/${project.id}/import`);
       
       const importRes = await fetch(`/api/projects/${project.id}/import`, {
         method: "POST",
@@ -274,7 +272,6 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
         body: JSON.stringify(tasks),
       });
       
-      console.log('📥 导入响应状态:', importRes.status);
       if (!importRes.ok) {
         const errorText = await importRes.text();
         console.error('📥 导入失败:', errorText);
@@ -282,9 +279,6 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
       }
       
       const importResult = await importRes.json();
-      console.log('📥 导入结果:', importResult);
-      console.log('📥 导入结果类型:', typeof importResult);
-      console.log('📥 导入结果所有字段:', Object.keys(importResult));
       
       setImporting(false);
       setUploading(false);
@@ -298,14 +292,11 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
       // 使用推算的任务ID
       if (importResult.task_count && importResult.task_count > 0) {
         const createdTaskCount = importResult.task_count;
-        console.log('📊 准备生成任务ID，maxExistingTaskId:', maxExistingTaskId, 'createdTaskCount:', createdTaskCount);
         
         if (maxExistingTaskId > 0) {
           // 推算新创建的任务ID范围
           const startId = maxExistingTaskId + 1;
           const endId = maxExistingTaskId + createdTaskCount;
-          
-          console.log('📊 计算任务ID范围: startId =', startId, ', endId =', endId);
           
           if (createdTaskCount === 1) {
             successMessage += `，任务ID：${startId}`;
@@ -317,11 +308,8 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
             }
             successMessage += `，任务ID：${taskIds.join(', ')}`;
           }
-          
-          console.log('📊 推算的新任务ID范围:', startId, '到', endId);
         } else {
           // 无法获取现有任务ID，使用备选显示
-          console.log('📊 maxExistingTaskId <= 0，使用备选显示');
           successMessage += `，共创建${createdTaskCount}个任务`;
         }
       } else {
@@ -335,8 +323,6 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
         } else if (importResult.id) {
           successMessage += `，任务ID：${importResult.id}`;
         } else {
-          console.log('📥 尝试从其他字段获取任务ID信息:', importResult);
-          
           const possibleIdFields = ['task_id', 'ids', 'created_tasks', 'new_tasks'];
           let foundIds = false;
           
@@ -379,16 +365,11 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
       timeoutRef.current = setTimeout(() => {
         // 检查组件是否还在挂载状态
         if (!isMountedRef.current) {
-          console.log('🔄 组件已卸载，跳过刷新');
           return;
         }
         
-        onClose();
-        
-        // 使用页面刷新避免mobx-state-tree状态错误
-        // dm.reload() 会销毁状态树导致错误，所以改用页面刷新
-        console.log('🔄 使用页面刷新更新任务列表');
-        window.location.reload();
+        // 调用handleClose来处理关闭逻辑
+        handleClose();
       }, 5000);
     } catch (err) {
       console.error('❌ 导入过程出错:', err);
@@ -398,12 +379,229 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
     }
   };
 
+  // 导入标注数据功能
+  const handleImportAnnotations = async () => {
+    setError(null);
+    setExportingJson(true);
+    
+    try {
+      /* c
+      onsole.log('🔄 开始获取项目JSON格式数据...'); 
+      // 调用导出API获取JSON格式数据
+      const response = await api.callApi("exportRaw", {
+        params: {
+          pk: project.id,
+          exportType: "JSON",
+          download_all_tasks: true,
+        },
+      });
+      
+      if (response && response.ok) {
+        // 获取响应内容
+        const jsonData = await response.text();
+        console.log('📋 获取到的JSON数据:', jsonData);
+        
+        // 解析JSON数据
+        let parsedData;
+        try {
+          parsedData = JSON.parse(jsonData);
+          console.log('📋 解析后的JSON数据:', parsedData);
+        } catch (parseError) {
+          console.log('📋 JSON解析失败，原始数据:', jsonData);
+          throw new Error('JSON数据解析失败');
+        }
+        */
+        
+        // 临时使用空数据进行调试
+        const parsedData = [];
+        console.log('📋 使用临时空数据进行调试:', parsedData);
+        
+        setExportingJson(false);
+        
+        // 创建文件输入元素让用户选择Excel文件
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.xlsx,.xls';
+        fileInput.onchange = async (event) => {
+          const file = event.target.files[0];
+          if (file) {
+            await processExcelFile(file, parsedData);
+          }
+        };
+        fileInput.click();
+        
+      /*
+      } else {
+        throw new Error('获取项目数据失败');
+      }
+      */
+    } catch (err) {
+      console.error('❌ 获取项目数据出错:', err);
+      setError(err.message || '获取项目数据失败');
+      setExportingJson(false);
+    }
+  };
+
+  // 处理Excel文件
+  const processExcelFile = async (file, projectData) => {
+    setImporting(true);
+    setError(null);
+    
+    try {
+      // 动态导入xlsx库
+      const XLSX = await import('xlsx');
+      
+      // 读取Excel文件
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      
+      // 查找Annotations sheet
+      const annotationsSheetName = 'Annotations';
+      if (!workbook.SheetNames.includes(annotationsSheetName)) {
+        throw new Error('Excel文件中未找到"Annotations"工作表');
+      }
+      
+      const worksheet = workbook.Sheets[annotationsSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      
+      // 组装标注数据
+      const annotationsByTask = {};
+      
+      jsonData.forEach(row => {
+        const taskId = row.id;
+        if (!taskId) return;
+        
+        // 提取page及以后的字段
+        const annotationData = {};
+        const fields = ['page', 'docType', 'invoiceType', 'nameOfInvoice', 'invoiceNumber', 
+                       'invoiceCode', 'originalInvoiceNumber', 'invoiceDate', 'originalInvoiceDate',
+                       'totalNetAmount', 'totalAmount', 'totalTaxAmount', 'currency', 'billToName',
+                       'billToComposite', 'billToCountry', 'billToTaxIdentificationNumber',
+                       'shipFromComposite', 'billFromName', 'billFromComposite', 'billFromCountry',
+                       'billFromTaxIdentificationNumber', 'purchaseOrderNumber', 'shipmentNumber',
+                       'dueDate', 'paymentDueInDays', 'detailOfGoodsOrServices', 'detailOfTaxSummary'];
+        
+        fields.forEach(field => {
+          if (row[field] !== undefined && row[field] !== null && row[field] !== '') {
+            if (field === 'page' || field === 'detailOfGoodsOrServices' || field === 'detailOfTaxSummary') {
+              // 这些字段是数组类型
+              if (field === 'page') {
+                annotationData[field] = [row[field]];
+              } else {
+                annotationData[field] = Array.isArray(row[field]) ? row[field] : [];
+              }
+            } else {
+              annotationData[field] = row[field];
+            }
+          }
+        });
+        
+        if (!annotationsByTask[taskId]) {
+          annotationsByTask[taskId] = [];
+        }
+        annotationsByTask[taskId].push(annotationData);
+      });
+      
+      // 发送标注数据到后端
+      let successCount = 0;
+      let errorCount = 0;
+      
+      // 获取项目的label config并解析textarea配置
+      const labelConfig = project.label_config;
+      const textareaConfigs = extractTextAreaConfig(labelConfig);
+      
+      // 如果没有找到textarea配置，使用默认值
+      const defaultTextareaConfig = {
+        from_name: "invoices_json",
+        to_name: "pdf", 
+        type: "textarea"
+      };
+      
+      // 使用第一个找到的textarea配置，如果没有则使用默认配置
+      const textareaConfig = textareaConfigs.length > 0 ? textareaConfigs[0] : defaultTextareaConfig;
+      
+      for (const [taskId, annotations] of Object.entries(annotationsByTask)) {
+        try {
+          // 将标注数据转换为正确的格式，使用动态解析的配置
+          const annotationResult = [{
+            value: {
+              text: [JSON.stringify(annotations)]
+            },
+            from_name: textareaConfig.from_name,
+            to_name: textareaConfig.to_name,
+            type: textareaConfig.type
+          }];
+          
+          // 调用API发送标注数据
+          const response = await dataManager.apiCall("submitAnnotation", {
+            taskID: taskId
+          }, {
+            result: annotationResult,
+            was_cancelled: false,
+            ground_truth: false
+          });
+          
+          if (response && !response.error) {
+            successCount++;
+          } else {
+            errorCount++;
+            console.error(`❌ 任务 ${taskId} 标注数据提交失败:`, response?.error);
+          }
+        } catch (err) {
+          errorCount++;
+          console.error(`❌ 任务 ${taskId} 标注数据提交出错:`, err);
+        }
+      }
+      
+      setImporting(false);
+      
+      if (successCount > 0) {
+        setSuccess(`成功导入 ${successCount} 个任务的标注数据${errorCount > 0 ? `，${errorCount} 个失败` : ''}`);
+        setCountdown(5);
+        
+        // 启动倒计时
+        countdownIntervalRef.current = setInterval(() => {
+          setCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownIntervalRef.current);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+        
+        // 5秒后自动关闭对话框并刷新页面
+        timeoutRef.current = setTimeout(() => {
+          // 使用handleClose函数来确保页面刷新
+          if (isMountedRef.current) {
+            handleClose();
+          }
+        }, 5000);
+      } else {
+        setError('所有标注数据导入失败');
+      }
+      
+    } catch (err) {
+      console.error('❌ 处理Excel文件出错:', err);
+      setError(err.message || 'Excel文件处理失败');
+      setImporting(false);
+    }
+  };
+
   // 新增 handleClose，统一关闭逻辑
   const handleClose = () => {
-    if (success) {
-      window.location.reload();
-    } else {
-      onClose();
+    // 无论是否有success，都刷新页面
+    // 使用一个标志来防止重复刷新
+    const needsRefresh = success || countdown > 0;
+    
+    // 先关闭对话框
+    onClose();
+    
+    // 如果需要刷新，则在短暂延迟后刷新页面
+    if (needsRefresh) {
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     }
   };
 
@@ -430,6 +628,14 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
           onChange={handleUpload}
         />
         
+        <input
+          type="file"
+          accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+          ref={annotationFileInputRef}
+          style={{ display: "none" }}
+          onChange={() => {}} // 暂时空实现
+        />
+        
         {success ? (
           <div style={{ 
             padding: 16, 
@@ -451,22 +657,36 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
             </div>
           </div>
         ) : (
-          <Button
-            look="primary"
-            onClick={() => fileInputRef.current.click()}
-            waiting={uploading || importing}
-          >
-            选择文件上传
-          </Button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Button
+              look="primary"
+              onClick={() => fileInputRef.current.click()}
+              waiting={uploading || importing}
+            >
+              导入票据
+            </Button>
+            
+            <div style={{ fontSize: 12, color: "#888", textAlign: 'center'}}>
+              支持图片和PDF文件的导入。导入后会自动生成任务。
+            </div>
+            
+            <Button
+              look="secondary"
+              onClick={handleImportAnnotations}
+              waiting={exportingJson}
+            >
+              导入人工标注
+            </Button>
+            
+            <div style={{ fontSize: 12, color: "#888", textAlign: 'center' }}>
+              导入已标注的Excel文件。模版可从Export功能获取。
+            </div>
+          </div>
         )}
         
         {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
         
-        {!success && (
-          <div style={{ marginTop: 12, color: "#888" }}>
-            支持图片（jpg/png/gif/svg/webp等）和PDF文件，文件将直接存储到本地项目目录并自动生成任务。
-          </div>
-        )}
+
       </div>
     </Modal>
   );

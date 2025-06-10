@@ -217,7 +217,8 @@ const EvaluationResultModal = ({ result, onClose }) => {
             <span><strong>总票据数:</strong> {evaluation_results?.statistics?.total_invoices || processed_items}</span>
           </Elem>
           <Elem name="summary-item">
-            <span><strong>总字段数:</strong> {evaluation_results?.statistics?.field_accuracy ? Object.keys(evaluation_results.statistics.field_accuracy).length : 0}</span>
+            <span><strong>总字段数:</strong> {evaluation_results?.statistics?.field_accuracy ? 
+              Object.keys(evaluation_results.statistics.field_accuracy).length * (evaluation_results?.statistics?.total_invoices || processed_items) : 0}</span>
           </Elem>
           <Elem name="summary-item">
             <span><strong>评估时间:</strong> {formatDate(evaluated_at)}</span>
@@ -250,30 +251,6 @@ const EvaluationResultModal = ({ result, onClose }) => {
 
           </Elem>
         )}
-        
-
-        {/* Performance Interpretation */}
-        {/* <Elem name="interpretation">
-          <Elem name="section-title">Performance Interpretation</Elem>
-          <Elem name="interpretation-content">
-            <Elem name="interpretation-item">
-              <Elem name="color-indicator" mod={{ level: 'excellent' }} />
-              <span>Excellent (≥80%): Outstanding performance</span>
-            </Elem>
-            <Elem name="interpretation-item">
-              <Elem name="color-indicator" mod={{ level: 'good' }} />
-              <span>Good (60-79%): Satisfactory performance</span>
-            </Elem>
-            <Elem name="interpretation-item">
-              <Elem name="color-indicator" mod={{ level: 'fair' }} />
-              <span>Fair (40-59%): Needs improvement</span>
-            </Elem>
-            <Elem name="interpretation-item">
-              <Elem name="color-indicator" mod={{ level: 'poor' }} />
-              <span>Poor (&lt;40%): Significant improvement needed</span>
-            </Elem>
-          </Elem>
-        </Elem> */}
       </Block>
     </Modal>
   );

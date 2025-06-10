@@ -14,7 +14,6 @@ export const APIConfig = {
     tasks: {
       path: "/tasks",
       mock: (url, params, fakeRequest) => {
-        console.log("mock", url, params, fakeRequest);
         return {
           total_annotations: 1,
           total_predictions: 1,
