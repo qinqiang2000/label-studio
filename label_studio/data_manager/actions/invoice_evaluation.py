@@ -233,14 +233,176 @@ def compare_invoices_with_comparer(annotation_text_filtered, prediction_text_fil
             "field_accuracy": 0.0
         }
 
-# eval_list每个元素代表一个文档的数据
-# 返回excel的地址，表格包含了每个字段的对比结果
+def _create_overview_section(statistics):
+    """
+    创建总览部分的数据
+    """
+    return [
+        ['总览'],
+        ['总文档数:', statistics['total_documents']],
+        ['总票据数:', statistics['total_invoices']],
+        ['总字段数:', statistics['total_invoices'] * len(statistics['field_accuracy'])],
+        ['评估时间:', datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
+        ['']  # 空行
+    ]
+
+def _create_overall_metrics_section(statistics):
+    """
+    创建整体指标部分的数据
+    """
+    return [
+        ['整体指标'],
+        ['文档准确率:', f"{statistics['document_accuracy']}%"],
+        ['票据准确率:', f"{statistics['invoice_accuracy']}%"],
+        ['']  # 空行
+    ]
+
+def _create_field_metrics_section(statistics, compare_fields):
+    """
+    创建字段指标部分的数据
+    """
+    stats_data = [
+        ['核心字段指标'],
+        ['字段名称', '总样本数', '正确数', '识别正确率']
+    ]
+    
+    # 添加每个字段的统计数据
+    total_correct = 0
+    for field in compare_fields:
+        field_stats = statistics['field_accuracy'].get(field, 0)
+        correct_count = round(statistics['total_invoices'] * field_stats / 100)
+        total_correct += correct_count
+        stats_data.append([
+            field,
+            statistics['total_invoices'],
+            correct_count,
+            f"{field_stats}%"
+        ])
+    
+    # 添加总计行
+    total_accuracy = round(total_correct / (statistics['total_invoices'] * len(compare_fields)) * 100, 2)
+    stats_data.append([
+        '总计',
+        statistics['total_invoices'] * len(compare_fields),
+        total_correct,
+        f"{total_accuracy}%"
+    ])
+    
+    return stats_data
+
+def _create_statistics_sheet(writer, statistics, compare_fields):
+    """
+    创建统计sheet
+    """
+    # 合并所有统计数据
+    stats_data = []
+    stats_data.extend(_create_overview_section(statistics))
+    stats_data.extend(_create_overall_metrics_section(statistics))
+    stats_data.extend(_create_field_metrics_section(statistics, compare_fields))
+    
+    # 创建统计DataFrame并写入
+    stats_df = pd.DataFrame(stats_data)
+    stats_df.to_excel(writer, sheet_name='Statistics', index=False, header=False)
+    
+    # 调整列宽
+    worksheet = writer.sheets['Statistics']
+    for idx, col in enumerate(stats_df.columns):
+        max_length = max(
+            stats_df[col].astype(str).apply(len).max(),
+            len(str(col))
+        )
+        worksheet.column_dimensions[chr(65 + idx)].width = max_length + 2
+
+def _create_details_sheet(writer, all_rows, columns):
+    """
+    创建详情sheet
+    """
+    if all_rows:
+        df = pd.DataFrame(all_rows)
+        df = df.reindex(columns=columns)
+        print(f"Excel报告已生成，包含 {len(all_rows)} 行数据")
+    else:
+        df = pd.DataFrame(columns=columns)
+        print("Excel报告已生成，无数据但创建了空工作表")
+    
+    df.to_excel(writer, sheet_name='Invoice_Details', index=False)
+
+def generate_excel_report(excel_data, compare_fields, statistics):
+    """
+    生成Excel报告，包含票据比对结果
+    
+    Args:
+        excel_data: 包含比对数据的列表，每个元素包含filename、annotation_text、prediction_text和result
+        compare_fields: 需要比对的字段列表
+        statistics: 统计数据（已算好）
+    
+    Returns:
+        tuple: (excel_output_path, all_rows)
+            - excel_output_path: 生成的Excel文件路径
+            - all_rows: 所有比对结果数据
+    """
+    # 创建临时文件，使用.xlsx后缀
+    temp_fd, excel_output_path = tempfile.mkstemp(suffix='.xlsx')
+    os.close(temp_fd)  # 关闭文件描述符
+
+    # 创建列顺序
+    columns = ['filename']
+    for field in compare_fields:
+        columns.extend([f'std_{field}', f'pred_{field}', f'check_{field}'])
+    
+    all_rows = []
+    
+    try:
+        # 处理数据
+        for data in excel_data:
+            filename = data['filename']
+            annotation_text = data['annotation_text']
+            prediction_text = data['prediction_text']
+            result = data['result']
+            
+            # 解析JSON数据
+            try:
+                standard_invoices = json.loads(annotation_text)
+                prediction_invoices = json.loads(prediction_text)
+            except json.JSONDecodeError as e:
+                print(f"解析JSON数据失败 {filename}: {e}")
+                continue
+            
+            # 创建InvoiceComparer实例用于数据处理
+            comparer = InvoiceComparer(core_fields=compare_fields, verbose=False)
+            
+            # 处理每种类型的比对结果
+            file_rows = process_comparison_results(
+                filename, standard_invoices, prediction_invoices, 
+                result, compare_fields, comparer
+            )
+            all_rows.extend(file_rows)
+        
+        # 写入Excel
+        with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
+            # 先写入统计sheet
+            _create_statistics_sheet(writer, statistics, compare_fields)
+            # 再写入详情sheet
+            _create_details_sheet(writer, all_rows, columns)
+            
+    except Exception as e:
+        print(f"生成Excel报告时出错: {e}")
+        # 如果出错，创建一个最基本的Excel文件
+        try:
+            df = pd.DataFrame(columns=columns)
+            with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Invoice_Details', index=False)
+            print(f"已创建空的Excel文件: {excel_output_path}")
+        except Exception as fallback_e:
+            print(f"创建备用Excel文件也失败: {fallback_e}")
+
+    return excel_output_path, all_rows
+
 def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"]):
     logger.info(f"开始票据提取评估，可用文档数量: {len(eval_list)}")
     results = []
     excel_data = []  # 用于存储Excel数据
 
-    
     # 遍历每个文件，进行票据比对
     for i, (filename, (annotation_text, prediction_text)) in enumerate(eval_list.items(), 1):
         # 后处理：为缺少totalTaxAmount的发票添加该字段
@@ -269,74 +431,34 @@ def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", 
 
     if not results:
         logger.warning("results==none, 没有可评估的任务")
-        return
+        return None, [], {}
     
-    # 创建临时文件，使用.xlsx后缀
-    temp_fd, excel_output_path = tempfile.mkstemp(suffix='.xlsx')
-    os.close(temp_fd)  # 关闭文件描述符
-
-    # 生成Excel报告
-    try:
-        # 创建列顺序
-        columns = ['filename']
-        for field in compare_fields:
-            columns.extend([f'std_{field}', f'pred_{field}', f'check_{field}'])
-        
-        all_rows = []
-        
-        for data in excel_data:
-            filename = data['filename']
-            annotation_text = data['annotation_text']
-            prediction_text = data['prediction_text']
-            result = data['result']
-            
-            # 解析JSON数据
-            try:
-                standard_invoices = json.loads(annotation_text)
-                prediction_invoices = json.loads(prediction_text)
-            except json.JSONDecodeError as e:
-                print(f"解析JSON数据失败 {filename}: {e}")
-                continue
-            
-            # 创建InvoiceComparer实例用于数据处理
-            comparer = InvoiceComparer(core_fields=compare_fields, verbose=False)
-            
-            # 处理每种类型的比对结果
-            file_rows = process_comparison_results(
-                filename, standard_invoices, prediction_invoices, 
-                result, compare_fields, comparer
-            )
-            all_rows.extend(file_rows)
-        
-        # 创建DataFrame - 无论是否有数据都创建
-        if all_rows:
-            df = pd.DataFrame(all_rows)
-            df = df.reindex(columns=columns)
-            print(f"Excel报告已生成: {excel_output_path}，包含 {len(all_rows)} 行数据")
-        else:
-            # 创建空的DataFrame，确保至少有一个工作表
-            df = pd.DataFrame(columns=columns)
-            print(f"Excel报告已生成: {excel_output_path}，无数据但创建了空工作表")
-        
-        # 写入Excel - 确保总是有工作表
-        with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Invoice_Details', index=False)
-            
-    except Exception as e:
-        print(f"生成Excel报告时出错: {e}")
-        # 如果出错，创建一个最基本的Excel文件
+    # 生成所有明细行
+    all_rows = []
+    for data in excel_data:
+        filename = data['filename']
+        annotation_text = data['annotation_text']
+        prediction_text = data['prediction_text']
+        result = data['result']
         try:
-            columns = ['filename']
-            for field in compare_fields:
-                columns.extend([f'std_{field}', f'pred_{field}', f'check_{field}'])
-            df = pd.DataFrame(columns=columns)
-            with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='Invoice_Details', index=False)
-            print(f"已创建空的Excel文件: {excel_output_path}")
-        except Exception as fallback_e:
-            print(f"创建备用Excel文件也失败: {fallback_e}")
-
-    return excel_output_path, all_rows
+            standard_invoices = json.loads(annotation_text)
+            prediction_invoices = json.loads(prediction_text)
+        except json.JSONDecodeError as e:
+            print(f"解析JSON数据失败 {filename}: {e}")
+            continue
+        comparer = InvoiceComparer(core_fields=compare_fields, verbose=False)
+        file_rows = process_comparison_results(
+            filename, standard_invoices, prediction_invoices, 
+            result, compare_fields, comparer
+        )
+        all_rows.extend(file_rows)
+    
+    # 只算一次统计
+    statistics = calculate_evaluation_statistics(all_rows)
+    
+    # 生成Excel报告
+    excel_path, _ = generate_excel_report(excel_data, compare_fields, statistics)
+    return excel_path, all_rows, statistics
 
 # todo: 异常判读
 def get_last_value(task_ann_preds):
@@ -475,10 +597,7 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
                 logger.error(f"任务 {id} 没有文件名信息，跳过")
 
     # 字段明细比对列表
-    excel_path,all_rows = eval_ls(results)
-    
-    # 计算统计指标
-    statistics = calculate_evaluation_statistics(all_rows)
+    excel_path, all_rows, statistics = eval_ls(results)
     
     # 构建评估摘要
     evaluation_summary = {

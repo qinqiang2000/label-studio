@@ -208,7 +208,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
       visible={true}
       onHide={onClose}
       size="large"
-      style={{ maxHeight: '90vh', height: 'auto', width: '65vw', maxWidth: '65vw', minHeight: 400 }}
+      style={{ maxHeight: '92vh', height: 'auto', width: '65vw', maxWidth: '65vw', minHeight: 400 }}
     >
       <Block name="evaluation-results" mod={{ scrollable: true }} style={{ maxHeight: 'calc(90vh - 52px)', overflowY: 'auto' }}>
         {/* Summary Section */}

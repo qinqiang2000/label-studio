@@ -4,10 +4,27 @@
 
 prismjs@^1.30.0:
   version "1.30.0"
-  resolved "https://registry.npmmirror.com/prismjs/-/prismjs-1.30.0.tgz#d9709969d9d4e16403f6f348c63553b19f0975a9"
+  resolved "https://registry.npmmirror.com/prismjs/-/prismjs-1.30.0.tgz"
   integrity sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==
+
+react-dom@>=16.8.0:
+  version "19.1.0"
+  resolved "https://registry.npmmirror.com/react-dom/-/react-dom-19.1.0.tgz"
+  integrity sha512-Xs1hdnE+DyKgeHJeJznQmYMIBG3TKIHJJT95Q58nHLSrElKlGQqDTR2HQ9fx5CN/Gk6Vh/kupBTDLU11/nDk/g==
+  dependencies:
+    scheduler "^0.26.0"
 
 react-simple-code-editor@^0.14.1:
   version "0.14.1"
-  resolved "https://registry.npmmirror.com/react-simple-code-editor/-/react-simple-code-editor-0.14.1.tgz#fd37eb3349f5def45900dd46acf296f796d81d2c"
+  resolved "https://registry.npmmirror.com/react-simple-code-editor/-/react-simple-code-editor-0.14.1.tgz"
   integrity sha512-BR5DtNRy+AswWJECyA17qhUDvrrCZ6zXOCfkQY5zSmb96BVUbpVAv03WpcjcwtCwiLbIANx3gebHOcXYn1EHow==
+
+react@^19.1.0, react@>=16.8.0:
+  version "19.1.0"
+  resolved "https://registry.npmmirror.com/react/-/react-19.1.0.tgz"
+  integrity sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg==
+
+scheduler@^0.26.0:
+  version "0.26.0"
+  resolved "https://registry.npmmirror.com/scheduler/-/scheduler-0.26.0.tgz"
+  integrity sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA==
