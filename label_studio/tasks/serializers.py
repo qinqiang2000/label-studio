@@ -67,6 +67,12 @@ class PredictionSerializer(ModelSerializer):
         help_text='Model version - tag for predictions that can be used to filter tasks in Data Manager, as well as '
         'select specific model version for showing preannotations in the labeling interface',
     )
+    prompt_name = serializers.CharField(
+        allow_blank=True,
+        required=False,
+        default='',
+        help_text='Name of the prompt used to generate this prediction',
+    )
     created_ago = serializers.CharField(default='', read_only=True, help_text='Delta time from creation time')
 
     class Meta:
@@ -430,15 +436,21 @@ class BaseTaskSerializerBulk(serializers.ListSerializer):
                         prediction_score = None
 
                 last_model_version = prediction.get('model_version', 'undefined')
-                db_predictions.append(
-                    Prediction(
-                        task=self.db_tasks[i],
-                        project=self.db_tasks[i].project,
-                        result=result,
-                        score=prediction_score,
-                        model_version=last_model_version,
-                    )
-                )
+                prompt_name = prediction.get('prompt_name', '')
+                
+                prediction_kwargs = {
+                    'task': self.db_tasks[i],
+                    'project': self.db_tasks[i].project,
+                    'result': result,
+                    'score': prediction_score,
+                    'model_version': last_model_version,
+                }
+                
+                # 只有当 prompt_name 有值时才添加
+                if prompt_name:
+                    prediction_kwargs['prompt_name'] = prompt_name
+                    
+                db_predictions.append(Prediction(**prediction_kwargs))
 
         # predictions: DB bulk create
         self.db_predictions = Prediction.objects.bulk_create(db_predictions, batch_size=settings.BATCH_SIZE)

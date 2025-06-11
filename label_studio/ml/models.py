@@ -259,7 +259,7 @@ class MLBackend(models.Model):
         }
 
     def _get_predictions_from_ml_backend_one_by_one(
-        self, serialized_tasks: List[Dict], current_responses: List[Dict]
+        self, serialized_tasks: List[Dict], current_responses: List[Dict], prompt_name=None
     ) -> List[Dict]:
         """
         This is helper method to get predictions from ML backend one by one
@@ -277,7 +277,7 @@ class MLBackend(models.Model):
             predictions = []
             for serialized_task in serialized_tasks:
                 # get predictions per task
-                predictions.extend(self._get_predictions_from_ml_backend([serialized_task]))
+                predictions.extend(self._get_predictions_from_ml_backend([serialized_task], prompt_name=prompt_name))
 
             return predictions
         else:
@@ -289,8 +289,8 @@ class MLBackend(models.Model):
             )
             return []
 
-    def _get_predictions_from_ml_backend(self, serialized_tasks: List[Dict]) -> List[Dict]:
-        result = self.api.make_predictions(serialized_tasks, self.project)
+    def _get_predictions_from_ml_backend(self, serialized_tasks: List[Dict], prompt_name=None) -> List[Dict]:
+        result = self.api.make_predictions(serialized_tasks, self.project, prompt_name=prompt_name)
 
         # response validation
         if result.is_error:
@@ -312,7 +312,7 @@ class MLBackend(models.Model):
             # Number of tasks and responses are not equal
             # It can happen if ML backend doesn't support batch processing but only process one task at a time
             # In the future versions, we may better consider this as an error and deprecate this code branch
-            return self._get_predictions_from_ml_backend_one_by_one(serialized_tasks, responses)
+            return self._get_predictions_from_ml_backend_one_by_one(serialized_tasks, responses, prompt_name=prompt_name)
 
         # ML backend supports batch processing
         for task, response in zip(serialized_tasks, responses):
@@ -328,18 +328,22 @@ class MLBackend(models.Model):
                         f' {r}'
                     )
                     continue
-                predictions.append(
-                    {
-                        'task': task['id'],
-                        'result': r['result'],
-                        'score': r.get('score'),
-                        'model_version': r.get('model_version', self.model_version),
-                        'project': task['project'],
-                    }
-                )
+                prediction_data = {
+                    'task': task['id'],
+                    'result': r['result'],
+                    'score': r.get('score'),
+                    'model_version': r.get('model_version', self.model_version),
+                    'project': task['project'],
+                }
+                # 只有当 prompt_name 不为空时才添加
+                if prompt_name:
+                    prediction_data['prompt_name'] = prompt_name
+                    logger.info(f"🎯 [PROMPT DEBUG] Added prompt_name '{prompt_name}' to prediction for task {task['id']}")
+                predictions.append(prediction_data)
         return predictions
 
-    def predict_tasks(self, tasks):
+    def predict_tasks(self, tasks, prompt_name=None):
+        logger.info(f"🎯 [PROMPT DEBUG] MLBackend.predict_tasks called with prompt_name: '{prompt_name}'")
         model_version = self.update_state()
         if self.not_ready:
             logger.debug(f'ML backend {self} is not ready')
@@ -358,7 +362,8 @@ class MLBackend(models.Model):
             logger.debug(f'All tasks already have prediction from model version={self.model_version}')
             return model_version
         tasks_ser = TaskSimpleSerializer(tasks, many=True).data
-        predictions = self._get_predictions_from_ml_backend(tasks_ser)
+        logger.info(f"🎯 [PROMPT DEBUG] Serialized {len(tasks_ser)} tasks, calling _get_predictions_from_ml_backend with prompt_name: '{prompt_name}'")
+        predictions = self._get_predictions_from_ml_backend(tasks_ser, prompt_name=prompt_name)
         with conditional_atomic(predicate=db_is_not_sqlite):
             prediction_ser = PredictionSerializer(data=predictions, many=True)
             prediction_ser.is_valid(raise_exception=True)

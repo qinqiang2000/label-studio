@@ -18,13 +18,89 @@ all_permissions = AllPermissions()
 logger = logging.getLogger(__name__)
 
 
+def retrieve_tasks_predictions_form(user, project):
+    """Form for retrieve predictions action with prompt selection"""
+    # 构建 prompt 选项
+    prompt_options = [{"label": "None", "value": ""}]  # 默认"无"选项
+    
+    # 安全地获取所有可用的 prompts
+    try:
+        from prompts.models import Prompt
+        prompts = Prompt.objects.all().order_by('name')
+        for prompt in prompts:
+            prompt_options.append({
+                "label": prompt.name,
+                "value": prompt.name
+            })
+        logger.debug(f"Found {len(prompts)} prompts for selection")
+    except (ImportError, AttributeError, Exception):
+        # 如果 prompts 模块不存在或有其他错误，只显示"无"选项
+        logger.debug("Prompts model not available, using empty prompt list")
+    
+    # 安全地获取用户和项目的默认选择
+    default_value = ""
+    try:
+        from users.models import UserPreference
+        preference = UserPreference.objects.filter(
+            user=user,
+            project=project,
+            preference_key='last_selected_prompt'
+        ).first()
+        if preference:
+            default_value = preference.preference_value
+    except (ImportError, AttributeError, Exception):
+        # 如果 UserPreference 模型不存在或有其他错误，使用空默认值
+        logger.debug("UserPreference model not available, using empty default")
+    
+    return [
+        {
+            'columnCount': 1,
+            'fields': [
+                {
+                    'type': 'select',
+                    'name': 'prompt_name',
+                    'label': 'Choose Prompt (Optional)',
+                    'options': prompt_options,
+                    'value': default_value,
+                    'placeholder': 'Select a prompt or leave empty'
+                }
+            ],
+        }
+    ]
+
+
 def retrieve_tasks_predictions(project, queryset, **kwargs):
     """Retrieve predictions by tasks ids
 
     :param project: project instance
     :param queryset: filtered tasks db queryset
     """
-    evaluate_predictions(queryset)
+    request = kwargs.get('request')
+    prompt_name = None
+    
+    # 从请求中获取 prompt_name
+    if request and hasattr(request, 'data'):
+        prompt_name = request.data.get('prompt_name')
+        
+        # 安全地保存用户的 prompt 选择
+        if prompt_name and request.user.is_authenticated:
+            try:
+                from users.models import UserPreference
+                preference, created = UserPreference.objects.get_or_create(
+                    user=request.user,
+                    project=project,
+                    preference_key='last_selected_prompt',
+                    defaults={'preference_value': prompt_name}
+                )
+                if not created:
+                    preference.preference_value = prompt_name
+                    preference.save()
+            except (ImportError, AttributeError, Exception) as e:
+                logger.debug(f'Failed to save user preference (this is safe to ignore): {e}')
+    
+    # 调用 evaluate_predictions 并传递 prompt_name
+    logger.info(f"🎯 [PROMPT DEBUG] Calling evaluate_predictions with prompt_name: '{prompt_name}' for {queryset.count()} tasks")
+    evaluate_predictions(queryset, prompt_name=prompt_name)
     return {'processed_items': queryset.count(), 'detail': 'Retrieved ' + str(queryset.count()) + ' predictions'}
 
 
@@ -140,11 +216,13 @@ actions = [
         'order': 90,
         'dialog': {
             'title': 'Retrieve Predictions',
-            'text': 'Send the selected tasks to all ML backends connected to the project.'
+            'text': 'Send the selected tasks to all ML backends connected to the project. '
+            'You can optionally select a prompt to use for prediction generation. '
             'This operation might be abruptly interrupted due to a timeout. '
-            'The recommended way to get predictions is to update tasks using the Label Studio API.'
+            'The recommended way to get predictions is to update tasks using the Label Studio API. '
             'Please confirm your action.',
             'type': 'confirm',
+            'form': retrieve_tasks_predictions_form,
         },
     },
     {

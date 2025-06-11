@@ -900,6 +900,13 @@ class Prediction(models.Model):
         null=True,
         help_text='A string value that for model version that produced the prediction. Used in both live models and when uploading offline predictions.',
     )
+    prompt_name = models.TextField(
+        _('prompt name'),
+        default='',
+        blank=True,
+        null=True,
+        help_text='Name of the prompt used to generate this prediction.',
+    )
 
     model = models.ForeignKey(
         'ml.MLBackend',

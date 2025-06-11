@@ -208,3 +208,28 @@ def init_user(sender, instance=None, created=False, **kwargs):
     if created:
         # create token for user
         Token.objects.create(user=instance)
+
+
+class UserPreference(models.Model):
+    """Model for storing user preferences"""
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='preferences'
+    )
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.CASCADE,
+        related_name='user_preferences'
+    )
+    preference_key = models.CharField(max_length=255, help_text="Preference key")
+    preference_value = models.TextField(help_text="Preference value")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'project', 'preference_key']
+        
+    def __str__(self):
+        return f"{self.user.username} - {self.project.title} - {self.preference_key}"

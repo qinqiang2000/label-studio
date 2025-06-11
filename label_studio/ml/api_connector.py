@@ -205,22 +205,32 @@ class MLApi(BaseHTTPAPI):
             }
             return self._request('train', request, verbose=False, timeout=TIMEOUT_PREDICT)
 
-    def _prep_prediction_req(self, tasks, project, context=None):
+    def _prep_prediction_req(self, tasks, project, context=None, prompt_name=None):
+        params = {
+            'login': project.task_data_login,
+            'password': project.task_data_password,
+            'context': context,
+        }
+        
+        # 只有当 prompt_name 不为空时才添加到参数中
+        if prompt_name:
+            params['prompt_name'] = prompt_name
+            
         request = {
             'tasks': tasks,
             'project': self._create_project_uid(project),
             'label_config': project.label_config,
-            'params': {
-                'login': project.task_data_login,
-                'password': project.task_data_password,
-                'context': context,
-            },
+            'params': params,
         }
 
         return request
 
-    def make_predictions(self, tasks, project, context=None):
-        request = self._prep_prediction_req(tasks, project, context=context)
+    def make_predictions(self, tasks, project, context=None, prompt_name=None):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"🎯 [PROMPT DEBUG] ML API making predictions with prompt_name: '{prompt_name}' for {len(tasks)} tasks")
+        request = self._prep_prediction_req(tasks, project, context=context, prompt_name=prompt_name)
+        logger.info(f"🎯 [PROMPT DEBUG] Request params: {request.get('params', {})}")
         return self._request(PREDICT_URL, request, verbose=False, timeout=TIMEOUT_PREDICT)
 
     def health(self):

@@ -89,6 +89,12 @@ export const API_CONFIG = {
 
     accessTokenSettings: "GET:/jwt/settings",
     accessTokenUpdateSettings: "POST:/jwt/settings",
+
+    // Prompts
+    getPrompts: "GET:/prompts",
+    createPrompt: "POST:/prompts",
+    updatePrompt: "PATCH:/prompts/:id",
+    deletePrompt: "DELETE:/prompts/:id",
   },
   alwaysExpectJSON: false,
 };

@@ -200,6 +200,15 @@ def get_all_columns(project, *_):
             'project_defined': False,
         },
         {
+            'id': 'predictions_prompt_names',
+            'title': 'Prediction prompt names',
+            'type': 'List',
+            'target': 'tasks',
+            'help': 'Prompt names used for predictions',
+            'visibility_defaults': {'explore': False, 'labeling': False},
+            'project_defined': False,
+        },
+        {
             'id': 'file_upload',
             'title': 'Upload filename',
             'type': 'String',
@@ -326,21 +335,32 @@ def get_prepared_queryset(request, project):
     return queryset
 
 
-def evaluate_predictions(tasks):
+def evaluate_predictions(tasks, prompt_name=None):
     """
     Call the given ML backend to retrieve predictions with the task queryset as an input.
     If backend is not specified, we'll assume the tasks' project only has one associated
     ML backend, and use that backend.
+    
+    :param tasks: task queryset
+    :param prompt_name: optional prompt name to use for prediction generation
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if not tasks:
+        logger.info("🎯 [PROMPT DEBUG] No tasks provided to evaluate_predictions")
         return
 
     project = tasks[0].project
+    logger.info(f"🎯 [PROMPT DEBUG] evaluate_predictions called for project '{project.title}' with prompt_name: '{prompt_name}'")
 
     backend = project.ml_backend
 
     if backend:
-        return backend.predict_tasks(tasks=tasks)
+        logger.info(f"🎯 [PROMPT DEBUG] Found ML backend '{backend.title}', calling predict_tasks")
+        return backend.predict_tasks(tasks=tasks, prompt_name=prompt_name)
+    else:
+        logger.warning(f"🎯 [PROMPT DEBUG] No ML backend found for project '{project.title}'")
 
 
 def filters_ordering_selected_items_exist(data):

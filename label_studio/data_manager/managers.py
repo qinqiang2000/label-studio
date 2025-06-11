@@ -332,6 +332,24 @@ def apply_filters(queryset, filters, project, request):
             filter_expressions.append(Q(predictions__model_version__isnull=value))
             continue
 
+        # predictions prompt names
+        if field_name == 'predictions_prompt_names' and _filter.operator == Operator.CONTAINS:
+            q = Q()
+            for value in _filter.value:
+                q |= Q(predictions__prompt_name__contains=value)
+            filter_expressions.append(q)
+            continue
+        elif field_name == 'predictions_prompt_names' and _filter.operator == Operator.NOT_CONTAINS:
+            q = Q()
+            for value in _filter.value:
+                q &= ~Q(predictions__prompt_name__contains=value)
+            filter_expressions.append(q)
+            continue
+        elif field_name == 'predictions_prompt_names' and _filter.operator == Operator.EMPTY:
+            value = cast_bool_from_str(_filter.value)
+            filter_expressions.append(Q(predictions__prompt_name__isnull=value) | Q(predictions__prompt_name=''))
+            continue
+
         # use other name because of model names conflict
         if field_name == 'file_upload':
             field_name = 'file_upload_field'
@@ -665,6 +683,16 @@ def annotate_predictions_model_versions(queryset):
         return queryset.annotate(predictions_model_versions=ArrayAgg('predictions__model_version', default=Value([])))
 
 
+def annotate_predictions_prompt_names(queryset):
+    """Annotate queryset with prompt names from predictions"""
+    if settings.DJANGO_DB == settings.DJANGO_DB_SQLITE:
+        return queryset.annotate(
+            predictions_prompt_names=GroupConcat('predictions__prompt_name', output_field=models.CharField())
+        )
+    else:
+        return queryset.annotate(predictions_prompt_names=ArrayAgg('predictions__prompt_name', default=Value([])))
+
+
 def annotate_avg_lead_time(queryset):
     return queryset.annotate(avg_lead_time=Avg('annotations__lead_time'))
 
@@ -689,6 +717,7 @@ settings.DATA_MANAGER_ANNOTATIONS_MAP = {
     'annotations_results': annotate_annotations_results,
     'predictions_results': annotate_predictions_results,
     'predictions_model_versions': annotate_predictions_model_versions,
+    'predictions_prompt_names': annotate_predictions_prompt_names,
     'predictions_score': annotate_predictions_score,
     'annotators': annotate_annotators,
     'annotations_ids': annotate_annotations_ids,

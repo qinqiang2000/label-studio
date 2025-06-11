@@ -73,9 +73,28 @@ export const ActionsButton = injector(
       
       // 处理两种不同的参数格式：直接调用模式和对话框模式
       const body = params?.body || params;
-      const selectedItems = body?.selectedItems;
+      let selectedItems = body?.selectedItems;
       console.log('[DEBUG] 处理后的body:', body);
-      console.log('[DEBUG] selectedItems:', selectedItems);
+      console.log('[DEBUG] 原始selectedItems:', selectedItems);
+      
+      // 确保selectedItems有正确的格式
+      if (!selectedItems) {
+        console.log('[DEBUG] selectedItems为空，使用默认值');
+        selectedItems = { all: false, included: [] };
+      }
+      
+      // 如果selectedItems不是期望的对象格式，尝试修正
+      if (Array.isArray(selectedItems)) {
+        console.log('[DEBUG] selectedItems是数组，转换为对象格式');
+        selectedItems = { all: false, included: selectedItems };
+      }
+      
+      console.log('[DEBUG] 处理后的selectedItems:', selectedItems);
+      
+      // 更新body中的selectedItems
+      if (body) {
+        body.selectedItems = selectedItems;
+      }
       
       // 检查是否为单个任务或无选择：
       // 1. 没有选中项
@@ -192,14 +211,22 @@ export const ActionsButton = injector(
           onOk() {
             let body = formRef.current?.assembleFormData({ asJSON: true });
             
-            // 如果没有表单数据，为retrieve_tasks_predictions构造选中任务的body
-            if (!body && action.id === 'retrieve_tasks_predictions') {
+            // 对于retrieve_tasks_predictions，需要确保包含selectedItems信息
+            if (action.id === 'retrieve_tasks_predictions') {
               const view = store.currentView ?? {};
               const { selected } = view;
-              body = {
-                selectedItems: selected?.snapshot || []
-              };
-              console.log('[DEBUG] 对话框模式：没有表单，构造选中任务body:', body);
+              
+              // 如果没有表单数据，创建空对象
+              if (!body) {
+                body = {};
+              }
+              
+              // 确保包含selectedItems信息
+              if (!body.selectedItems) {
+                body.selectedItems = selected?.snapshot || { all: false, included: [] };
+              }
+              
+              console.log('[DEBUG] 对话框模式：补充选中任务信息后的body:', body);
             }
 
             store.SDK.invoke("actionDialogOk", action.id, { body });

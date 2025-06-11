@@ -418,6 +418,7 @@ class ImportPredictionsAPI(generics.CreateAPIView):
                     result=Prediction.prepare_prediction_result(item.get('result'), project),
                     score=item.get('score'),
                     model_version=item.get('model_version', 'undefined'),
+                    prompt_name=item.get('prompt_name', ''),
                 )
             )
         predictions_obj = Prediction.objects.bulk_create(predictions, batch_size=settings.BATCH_SIZE)
