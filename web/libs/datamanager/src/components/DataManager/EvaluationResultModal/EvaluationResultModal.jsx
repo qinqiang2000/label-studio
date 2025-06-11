@@ -55,7 +55,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     const pad = n => n.toString().padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
   };
 
   const getMetricColor = (value) => {
@@ -224,7 +224,10 @@ const EvaluationResultModal = ({ result, onClose }) => {
               Object.keys(evaluation_results.statistics.field_accuracy).length * (evaluation_results?.statistics?.total_invoices || processed_items) : 0}</span></span>
           </Elem>
           <Elem name="summary-item">
-            <span><strong>评估时间:</strong> <span className="summary-number">{formatDate(evaluated_at)}</span></span>
+            <span><strong>模型版本:</strong> <span className="summary-number">{evaluation_results?.statistics?.model_version || 'N/A'}</span></span>
+          </Elem>
+          <Elem name="summary-item">
+            <span><strong>时间:</strong> <span className="summary-number">{formatDate(evaluated_at)}</span></span>
           </Elem>
         </Elem>
 

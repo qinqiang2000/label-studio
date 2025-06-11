@@ -26,7 +26,7 @@ def retrieve_tasks_predictions_form(user, project):
     # 安全地获取所有可用的 prompts
     try:
         from prompts.models import Prompt
-        prompts = Prompt.objects.all().order_by('name')
+        prompts = Prompt.objects.all().order_by('-updated_at')
         for prompt in prompts:
             prompt_options.append({
                 "label": prompt.name,

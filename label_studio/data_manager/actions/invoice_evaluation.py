@@ -242,6 +242,7 @@ def _create_overview_section(statistics):
         ['总文档数:', statistics['total_documents']],
         ['总票据数:', statistics['total_invoices']],
         ['总字段数:', statistics['total_invoices'] * len(statistics['field_accuracy'])],
+        ['模型版本:', statistics.get('model_version', 'N/A')],
         ['评估时间:', datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
         ['']  # 空行
     ]
@@ -318,9 +319,8 @@ def _create_details_sheet(writer, all_rows, columns):
     创建详情sheet
     """
     if all_rows:
-        df = pd.DataFrame(all_rows)
-        df = df.reindex(columns=columns)
-        print(f"Excel报告已生成，包含 {len(all_rows)} 行数据")
+        df = pd.DataFrame(all_rows, columns=columns)
+        df.to_excel(writer, sheet_name='Details', index=False)
     else:
         df = pd.DataFrame(columns=columns)
         print("Excel报告已生成，无数据但创建了空工作表")
@@ -463,8 +463,8 @@ def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", 
 # todo: 异常判读
 def get_last_value(task_ann_preds):
     """获取queryset中指定键的最后一个值"""
-    task_annotation = list(task_ann_preds)[-1][-1]
-    return task_annotation['value']['text'][-1]
+    ann_pred = list(task_ann_preds)[-1][-1]
+    return ann_pred['value']['text'][-1]
 
 def calculate_evaluation_statistics(all_rows):
     """
@@ -574,19 +574,29 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
 
     # 收集标注和预测数据
     results = {}
+    model_version = 'N/A'  # 初始化model_version
+    
     for task in tasks_with_both:
         # 获取已完成的标注
         task_annotations = task.annotations.filter(
             was_cancelled=False
         ).values_list('result', flat=True)
         
-        # 获取预测结果
-        task_predictions = task.predictions.all().values_list('result', flat=True)
+        # 获取预测结果对象（包含model_version等完整信息）
+        task_predictions = task.predictions.all()
         
         if task_annotations and task_predictions:
-            # 取最后第一个标注作为真实标签
+            # 取最后一个标注作为真实标签
             ann_text = get_last_value(task_annotations)
-            pred_text = get_last_value(task_predictions)
+            
+            # 获取最后一个预测的完整对象
+            last_prediction = task_predictions.last()
+            pred_text = get_last_value([last_prediction.result])
+            
+            # 提取model_version（如果还没有获取到的话）
+            if model_version == 'N/A' and hasattr(last_prediction, 'model_version'):
+                model_version = last_prediction.model_version or 'N/A'
+            
             task_data_dict = getattr(task, 'data', {})
 
             if 'filename' in task_data_dict:
@@ -598,6 +608,9 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
 
     # 字段明细比对列表
     excel_path, all_rows, statistics = eval_ls(results)
+    
+    # 将从预测对象中获取的model_version添加到统计信息中
+    statistics['model_version'] = model_version
     
     # 构建评估摘要
     evaluation_summary = {

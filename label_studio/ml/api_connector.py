@@ -212,9 +212,15 @@ class MLApi(BaseHTTPAPI):
             'context': context,
         }
         
-        # 只有当 prompt_name 不为空时才添加到参数中
+        # Add prompt content if prompt_name is provided
         if prompt_name:
-            params['prompt_name'] = prompt_name
+            from prompts.models import Prompt
+            try:
+                prompt = Prompt.objects.get(name=prompt_name)
+                params['prompt'] = prompt.content
+                params['prompt_name'] = prompt_name
+            except Prompt.DoesNotExist:
+                logger.warning(f"Prompt with name '{prompt_name}' not found")
             
         request = {
             'tasks': tasks,
