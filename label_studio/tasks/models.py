@@ -1077,6 +1077,13 @@ class Prediction(models.Model):
 
     class Meta:
         db_table = 'prediction'
+        # 确保同一个任务、模型版本和提示名称的组合是唯一的
+        constraints = [
+            models.UniqueConstraint(
+                fields=['task', 'model_version', 'prompt_name'],
+                name='unique_task_model_version_prompt_name'
+            )
+        ]
 
 
 class FailedPrediction(models.Model):

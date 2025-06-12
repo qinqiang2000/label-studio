@@ -335,7 +335,7 @@ def get_prepared_queryset(request, project):
     return queryset
 
 
-def evaluate_predictions(tasks, prompt_name=None):
+def evaluate_predictions(tasks, prompt_name=None, project=None):
     """
     Call the given ML backend to retrieve predictions with the task queryset as an input.
     If backend is not specified, we'll assume the tasks' project only has one associated
@@ -343,6 +343,7 @@ def evaluate_predictions(tasks, prompt_name=None):
     
     :param tasks: task queryset
     :param prompt_name: optional prompt name to use for prediction generation
+    :param project: project instance (optional, will be derived from tasks if not provided)
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -351,14 +352,38 @@ def evaluate_predictions(tasks, prompt_name=None):
         logger.info("🎯 [PROMPT DEBUG] No tasks provided to evaluate_predictions")
         return
 
-    project = tasks[0].project
-    logger.info(f"🎯 [PROMPT DEBUG] evaluate_predictions called for project '{project.title}' with prompt_name: '{prompt_name}'")
+    # 使用传入的项目实例，如果没有则从 tasks 中获取
+    if project is None:
+        project = tasks[0].project
+    
+    logger.info(f"🎯 [PROMPT DEBUG] evaluate_predictions called for project '{project.title}' (ID: {project.id}) with prompt_name: '{prompt_name}'")
 
     backend = project.ml_backend
 
     if backend:
         logger.info(f"🎯 [PROMPT DEBUG] Found ML backend '{backend.title}', calling predict_tasks")
-        return backend.predict_tasks(tasks=tasks, prompt_name=prompt_name)
+        result = backend.predict_tasks(tasks=tasks, prompt_name=prompt_name)
+        
+        # 处理新的返回格式（包含错误信息）
+        if isinstance(result, dict) and 'errors' in result:
+            errors = result.get('errors', [])
+            if errors:
+                logger.warning(f"🎯 [ML ERRORS] evaluate_predictions收到 {len(errors)} 个ML错误")
+                logger.info(f"🎯 [ML ERRORS] 错误详情: {errors}")
+                # 将错误信息存储到项目实例中
+                project._last_ml_errors = errors
+                logger.info(f"🎯 [ML ERRORS] 已将错误信息存储到项目 {project.id}")
+        elif result is None:
+            # 处理没有ML backend的情况
+            logger.info("🎯 [PROMPT DEBUG] No ML backend result")
+        else:
+            # 兼容旧格式（直接返回model_version字符串或instances列表）
+            logger.info(f"🎯 [PROMPT DEBUG] 收到旧格式结果: {type(result)}")
+            # 清除之前的错误信息
+            if hasattr(project, '_last_ml_errors'):
+                delattr(project, '_last_ml_errors')
+        
+        return result
     else:
         logger.warning(f"🎯 [PROMPT DEBUG] No ML backend found for project '{project.title}'")
 

@@ -639,7 +639,7 @@ invoice_actions = [
         'title': 'Evaluate Invoice Extraction',
         'order': 202,
         'dialog': {
-            'text': '这将评估票据提取任务的准确性，包括文档检测、类型分类、字段提取和金额准确性。',
+            'text': '本评估是从标注和预测的结果中提取，如果有多个版本的标注或预测结果，将取最后一个版本的结果来评估。',
             'type': 'confirm',
         },
     },

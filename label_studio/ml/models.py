@@ -296,16 +296,79 @@ class MLBackend(models.Model):
         if result.is_error:
             logger.error(f'Error occurred: {result.error_message}')
             return []
-        elif not isinstance(result.response, dict) or 'results' not in result.response:
+        elif not isinstance(result.response, dict):
             logger.error(f'ML backend returns an incorrect response, it must be a dict: {result.response}')
             return []
-        elif not isinstance(result.response['results'], list) or len(result.response['results']) == 0:
-            logger.error(
-                'ML backend returns an incorrect response, results field must be a list with at least one item'
-            )
+        
+        logger.info(f"🎯 [ML DEBUG] Raw ML backend response: {result.response}")
+        
+        # 处理不同的响应格式
+        response_data = result.response
+        
+        # 检查是否是新的直接格式（model_version, predictions, errors 在顶层）
+        if 'predictions' in response_data and 'errors' in response_data:
+            logger.info(f"🎯 [ML DEBUG] 检测到新的直接格式ML backend响应")
+            predictions = response_data.get('predictions', [])
+            errors = response_data.get('errors', [])
+            
+            # 记录错误信息
+            if errors:
+                logger.warning(f"🎯 [ML ERRORS] ML backend返回了 {len(errors)} 个错误:")
+                for error in errors:
+                    task_idx = error.get('task_index', 'unknown')
+                    task_id = error.get('task_id', 'unknown')
+                    error_type = error.get('error_type', 'unknown')
+                    error_message = error.get('error_message', 'unknown')
+                    logger.warning(f"🎯 [ML ERRORS] 任务 {task_idx} (ID: {task_id}): [{error_type}] {error_message}")
+            
+            # 将错误信息存储到实例中，供后续使用
+            self._last_prediction_errors = errors
+            responses = predictions
+            
+        # 检查是否是包装格式（results 字段包含 predictions 和 errors）
+        elif 'results' in response_data:
+            results_data = response_data['results']
+            logger.info(f"🎯 [ML DEBUG] 检测到包装格式，results内容: {results_data}")
+            
+            if isinstance(results_data, dict) and ('predictions' in results_data or 'errors' in results_data):
+                logger.info(f"🎯 [ML DEBUG] 检测到包装格式的ML backend响应，包含errors字段")
+                predictions = results_data.get('predictions', [])
+                errors = results_data.get('errors', [])
+                
+                # 记录错误信息
+                if errors:
+                    logger.warning(f"🎯 [ML ERRORS] ML backend返回了 {len(errors)} 个错误:")
+                    for error in errors:
+                        task_idx = error.get('task_index', 'unknown')
+                        task_id = error.get('task_id', 'unknown')
+                        error_type = error.get('error_type', 'unknown')
+                        error_message = error.get('error_message', 'unknown')
+                        logger.warning(f"🎯 [ML ERRORS] 任务 {task_idx} (ID: {task_id}): [{error_type}] {error_message}")
+                
+                # 将错误信息存储到实例中，供后续使用
+                self._last_prediction_errors = errors
+                responses = predictions
+            else:
+                # 兼容旧格式（results 直接是 predictions 列表）
+                logger.info(f"🎯 [ML DEBUG] 使用旧格式的ML backend响应")
+                self._last_prediction_errors = []
+                responses = results_data if isinstance(results_data, list) else []
+        else:
+            logger.error(f'ML backend returns an incorrect response format: {response_data}')
             return []
-
-        responses = result.response['results']
+        
+        # 如果没有成功的预测但有错误，这是正常的（全部失败的情况）
+        if not isinstance(responses, list):
+            logger.error(f'ML backend predictions must be a list, got: {type(responses)}')
+            return []
+        
+        if len(responses) == 0:
+            errors = getattr(self, '_last_prediction_errors', [])
+            if errors:
+                logger.info(f'🎯 [ML DEBUG] 没有成功的预测，但有 {len(errors)} 个错误，这是正常的')
+            else:
+                logger.error('ML backend returns empty predictions and no errors')
+            return []
 
         predictions = []
         if len(serialized_tasks) != len(responses):
@@ -354,21 +417,69 @@ class MLBackend(models.Model):
 
             tasks = Task.objects.filter(id__in=[task.id for task in tasks])
 
-        # Filter tasks that already contain the current model version in predictions
-        tasks = tasks.annotate(predictions_count=Count('predictions')).exclude(
-            Q(predictions_count__gt=0) & Q(predictions__model_version=model_version)
-        )
+        # Filter tasks that already contain predictions with the same model_version and prompt_name
+        if prompt_name:
+            # 当有prompt_name时，过滤掉已有相同model_version和prompt_name的预测的任务
+            tasks = tasks.annotate(predictions_count=Count('predictions')).exclude(
+                Q(predictions_count__gt=0) & 
+                Q(predictions__model_version=model_version) & 
+                Q(predictions__prompt_name=prompt_name)
+            )
+            logger.info(f"🎯 [PROMPT DEBUG] Filtering tasks with model_version='{model_version}' and prompt_name='{prompt_name}'")
+        else:
+            # 当没有prompt_name时，过滤掉已有相同model_version且prompt_name为空的预测的任务
+            tasks = tasks.annotate(predictions_count=Count('predictions')).exclude(
+                Q(predictions_count__gt=0) & 
+                Q(predictions__model_version=model_version) & 
+                (Q(predictions__prompt_name__isnull=True) | Q(predictions__prompt_name=''))
+            )
+            logger.info(f"🎯 [PROMPT DEBUG] Filtering tasks with model_version='{model_version}' and no prompt_name")
+        
         if not tasks.exists():
-            logger.debug(f'All tasks already have prediction from model version={self.model_version}')
-            return model_version
+            if prompt_name:
+                logger.debug(f'All tasks already have prediction from model version={self.model_version} with prompt_name={prompt_name}')
+            else:
+                logger.debug(f'All tasks already have prediction from model version={self.model_version} without prompt_name')
+            # 返回兼容格式
+            return {
+                'model_version': model_version,
+                'predictions_count': 0,
+                'errors': [],
+                'instances': []
+            }
+        
         tasks_ser = TaskSimpleSerializer(tasks, many=True).data
         logger.info(f"🎯 [PROMPT DEBUG] Serialized {len(tasks_ser)} tasks, calling _get_predictions_from_ml_backend with prompt_name: '{prompt_name}'")
         predictions = self._get_predictions_from_ml_backend(tasks_ser, prompt_name=prompt_name)
-        with conditional_atomic(predicate=db_is_not_sqlite):
-            prediction_ser = PredictionSerializer(data=predictions, many=True)
-            prediction_ser.is_valid(raise_exception=True)
-            instances = prediction_ser.save()
-        return instances
+        
+        # 获取错误信息
+        errors = getattr(self, '_last_prediction_errors', [])
+        
+        # 即使没有成功的预测，也要处理错误信息
+        instances = []
+        if predictions:
+            with conditional_atomic(predicate=db_is_not_sqlite):
+                prediction_ser = PredictionSerializer(data=predictions, many=True)
+                prediction_ser.is_valid(raise_exception=True)
+                instances = prediction_ser.save()
+                logger.debug(f'Created {len(instances)} predictions for {self}')
+        else:
+            logger.info(f"🎯 [ML DEBUG] 没有成功的预测需要保存")
+        
+        # 返回包含错误信息的结果
+        result = {
+            'model_version': model_version,
+            'predictions_count': len(instances),
+            'errors': errors,
+            'instances': instances  # 保持向后兼容
+        }
+        
+        if errors:
+            logger.info(f"🎯 [ML ERRORS] predict_tasks完成，成功: {len(instances)}, 失败: {len(errors)}")
+        else:
+            logger.info(f"🎯 [ML DEBUG] predict_tasks完成，成功: {len(instances)}, 无错误")
+        
+        return result
 
     def interactive_annotating(self, task, context=None, user=None):
         result = {}

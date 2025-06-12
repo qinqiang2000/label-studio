@@ -105,7 +105,41 @@ export const ActionsButton = injector(
       if (isNoSelection || isSingleTask) {
         console.log('[DEBUG] 单个任务或无选择，使用原有逻辑');
         console.log('[DEBUG] 选择状态 - all:', selectedItems?.all, 'included length:', selectedItems?.included?.length);
-        return store.invokeAction(action.id, params?.body ? params : { body: params });
+        
+        try {
+          const result = await store.invokeAction(action.id, params?.body ? params : { body: params });
+          
+          // 检查是否有ML错误
+          if (result && result.ml_errors && result.ml_errors.length > 0) {
+            console.warn('[ML ERRORS] 单个任务处理有ML错误:', result.ml_errors);
+            
+            // 构建错误摘要
+            const errorSummary = result.error_summary || {};
+            const summaryText = Object.entries(errorSummary)
+              .map(([type, count]) => `${type}: ${count}`)
+              .join(', ');
+            
+            // 显示详细错误信息
+            const errorMessages = result.ml_errors.map(error => {
+              const taskInfo = error.task_id ? ` (Task: ${error.task_id})` : '';
+              return `${error.error_type}: ${error.error_message}${taskInfo}`;
+            });
+            
+            store.SDK.invoke("toast", { 
+              message: `预测完成但有错误: ${summaryText}`, 
+              type: "warning",
+              duration: 8000
+            });
+            
+            // 在控制台显示详细错误
+            console.error('[ML ERRORS] 详细错误信息:', errorMessages);
+          }
+          
+          return result;
+        } catch (error) {
+          console.error('[DEBUG] 单个任务处理失败:', error);
+          throw error;
+        }
       }
   
       // 获取要处理的任务ID列表
@@ -132,6 +166,11 @@ export const ActionsButton = injector(
       
       setBatchProgress({ current: 0, total: taskIds.length });
       
+      // 用于收集批量处理过程中的错误信息
+      const batchErrors = [];
+      let successCount = 0;
+      let failureCount = 0;
+      
       try {
         store.SDK.invoke("toast", { 
           message: `开始处理 ${taskIds.length} 个任务的预测... (1/${taskIds.length})`, 
@@ -156,8 +195,26 @@ export const ActionsButton = injector(
           
           try {
             console.log(`[DEBUG] 开始调用 store.invokeAction，任务ID: ${taskId}`);
-            await store.invokeAction(action.id, { body: singleTaskBody });
-            console.log(`[DEBUG] 任务 ${taskId} 处理成功`);
+            const result = await store.invokeAction(action.id, { body: singleTaskBody });
+            console.log(`[DEBUG] 任务 ${taskId} 处理成功，结果:`, result);
+            
+            // 检查是否有ML错误
+            if (result && result.ml_errors && result.ml_errors.length > 0) {
+              console.warn(`[ML ERRORS] 任务 ${taskId} 有ML错误:`, result.ml_errors);
+              
+              // 收集错误信息到批量错误数组中
+              result.ml_errors.forEach(error => {
+                batchErrors.push({
+                  taskId: taskId,
+                  error_type: error.error_type,
+                  error_message: error.error_message
+                });
+              });
+              
+              failureCount++;
+            } else {
+              successCount++;
+            }
             
             setBatchProgress({ current: i + 1, total: taskIds.length });
             
@@ -175,18 +232,54 @@ export const ActionsButton = injector(
             }
           } catch (error) {
             console.error(`[DEBUG] 任务 ${taskId} 处理失败:`, error);
-            store.SDK.invoke("toast", { 
-              message: `任务 ${taskId} 处理失败，继续处理其他任务...`, 
-              type: "warning" 
+            
+            // 收集处理失败的错误信息
+            batchErrors.push({
+              taskId: taskId,
+              error_type: 'ProcessingError',
+              error_message: error.message || '任务处理失败'
             });
+            
+            failureCount++;
           }
         }
         
         console.log('[DEBUG] 所有任务处理完成');
-        store.SDK.invoke("toast", { 
-          message: `成功处理完成 ${taskIds.length} 个任务的预测！`, 
-          type: "success" 
-        });
+        
+        // 根据处理结果显示不同的消息
+        if (batchErrors.length === 0) {
+          // 全部成功
+          store.SDK.invoke("toast", { 
+            message: `成功处理完成 ${taskIds.length} 个任务的预测！`, 
+            type: "success" 
+          });
+        } else if (successCount > 0) {
+          // 部分成功，部分有错误
+          const errorSummary = {};
+          batchErrors.forEach(error => {
+            errorSummary[error.error_type] = (errorSummary[error.error_type] || 0) + 1;
+          });
+          
+          const summaryText = Object.entries(errorSummary)
+            .map(([type, count]) => `${type}: ${count}`)
+            .join(', ');
+          
+          store.SDK.invoke("toast", { 
+            message: `批量预测完成: ${successCount} 个成功，${failureCount} 个有错误 (${summaryText})`, 
+            type: "warning",
+            duration: 10000
+          });
+          
+          // 在控制台显示详细错误信息
+          console.error('[ML ERRORS] 批量处理详细错误信息:', batchErrors);
+        } else {
+          // 全部失败
+          store.SDK.invoke("toast", { 
+            message: `批量预测失败: ${failureCount} 个任务处理失败`, 
+            type: "error",
+            duration: 8000
+          });
+        }
       } catch (error) {
         console.error('[DEBUG] 批量处理失败:', error);
         store.SDK.invoke("toast", { 

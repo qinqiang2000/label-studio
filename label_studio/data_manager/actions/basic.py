@@ -100,8 +100,45 @@ def retrieve_tasks_predictions(project, queryset, **kwargs):
     
     # 调用 evaluate_predictions 并传递 prompt_name
     logger.info(f"🎯 [PROMPT DEBUG] Calling evaluate_predictions with prompt_name: '{prompt_name}' for {queryset.count()} tasks")
-    evaluate_predictions(queryset, prompt_name=prompt_name)
-    return {'processed_items': queryset.count(), 'detail': 'Retrieved ' + str(queryset.count()) + ' predictions'}
+    
+    # 清除之前的错误信息
+    if hasattr(project, '_last_ml_errors'):
+        delattr(project, '_last_ml_errors')
+    
+    result = evaluate_predictions(queryset, prompt_name=prompt_name, project=project)
+    
+    # 检查是否有ML错误
+    ml_errors = getattr(project, '_last_ml_errors', [])
+    logger.info(f"🎯 [ML ERRORS] Action检查错误信息: 找到 {len(ml_errors)} 个错误")
+    
+    response = {
+        'processed_items': queryset.count(), 
+        'detail': 'Retrieved ' + str(queryset.count()) + ' predictions'
+    }
+    
+    # 如果有错误，添加到响应中
+    if ml_errors:
+        logger.warning(f"🎯 [ML ERRORS] Action完成，发现 {len(ml_errors)} 个ML错误")
+        logger.info(f"🎯 [ML ERRORS] 错误详情: {ml_errors}")
+        response['ml_errors'] = ml_errors
+        response['detail'] += f' (with {len(ml_errors)} errors from ML backend)'
+        
+        # 构建错误摘要
+        error_summary = {}
+        for error in ml_errors:
+            error_type = error.get('error_type', 'unknown')
+            error_summary[error_type] = error_summary.get(error_type, 0) + 1
+        
+        response['error_summary'] = error_summary
+        logger.info(f"🎯 [ML ERRORS] 最终响应: {response}")
+    else:
+        logger.info(f"🎯 [ML ERRORS] 没有发现ML错误，返回标准响应")
+    
+    # 强制调试：直接检查项目对象
+    logger.info(f"🎯 [DEBUG] 项目对象 ID: {project.id}, 类型: {type(project)}")
+    logger.info(f"🎯 [DEBUG] 项目对象属性: {[attr for attr in dir(project) if attr.startswith('_last')]}")
+    
+    return response
 
 
 def delete_tasks(project, queryset, **kwargs):
