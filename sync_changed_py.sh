@@ -15,9 +15,24 @@ REMOTE_BASE=/root/miniconda3/envs/ls-env/lib/python3.10/site-packages
 
 # 后端同步函数
 sync_backend() {
+    LAST_SYNC_COMMIT_FILE=".last_synced_commit"
+    LAST_SYNC_COMMIT=""
+
+    if [ -f "$LAST_SYNC_COMMIT_FILE" ]; then
+        LAST_SYNC_COMMIT=$(cat "$LAST_SYNC_COMMIT_FILE")
+    else
+        # If no previous sync commit, default to the commit before HEAD (last commit)
+        # Or, the user might want to specify a base commit for the very first run.
+        LAST_SYNC_COMMIT=$(git rev-parse HEAD^)
+        echo "No previous sync commit found. Syncing from HEAD^ ($LAST_SYNC_COMMIT) to HEAD."
+    fi
+
+    CURRENT_HEAD=$(git rev-parse HEAD)
+
+    echo "Syncing from $LAST_SYNC_COMMIT to $CURRENT_HEAD"
+
     # 1. 找出所有改动且以 label_studio/ 开头的文件
-    # changed_files=$(git diff --name-only c6d9011..company-custom | grep '^label_studio/')
-    changed_files=$(git diff --name-only $(git rev-parse @{push})..HEAD | grep '^label_studio/')
+    changed_files=$(git diff --name-only "$LAST_SYNC_COMMIT".."$CURRENT_HEAD" | grep '^label_studio/')
 
     echo "后端同步开始！要同步的文件如下："
     echo "$changed_files"
@@ -32,6 +47,10 @@ sync_backend() {
     done
 
     echo "后端全部同步完成！"
+
+    # Update last synced commit
+    echo "$CURRENT_HEAD" > "$LAST_SYNC_COMMIT_FILE"
+    echo "Updated $LAST_SYNC_COMMIT_FILE with $CURRENT_HEAD"
 }
 
 # 前端同步函数
