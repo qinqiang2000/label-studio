@@ -37,7 +37,7 @@ sync_backend() {
 # 前端同步函数
 sync_frontend() {
     echo "前端同步开始！"
-    scp -i $PEM /Users/qinqiang02/colab/codespace/ai/label-studio/web/dist/apps/labelstudio/* $REMOTE:$REMOTE_BASE/web/dist/apps/labelstudio
+    scp -i $PEM ./web/dist/apps/labelstudio/* $REMOTE:$REMOTE_BASE/web/dist/apps/labelstudio
     echo "前端全部同步完成！"
 }
 

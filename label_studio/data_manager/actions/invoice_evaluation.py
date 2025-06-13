@@ -105,7 +105,7 @@ def filter_json_by_fields(json_text: str, fields: List[str]) -> str:
 
 def process_comparison_results(filename: str, standard_invoices: List[dict], 
                              prediction_invoices: List[dict], result: dict, 
-                             compare_fields: List[str], comparer) -> List[dict]:
+                             compare_fields: List[str], comparer, prompt_name: str) -> List[dict]:
     """
     处理比对结果，生成Excel行数据
     只处理docType为'invoice'或'receipt'的票据
@@ -141,7 +141,7 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
             
             if matched_pred_invoice:
                 # 创建数据行
-                row = {'filename': filename}
+                row = {'filename': filename, 'prompt_name': prompt_name}
                 
                 # 添加每个字段的标准值、预测值和检查结果
                 for field in compare_fields:
@@ -168,7 +168,7 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
         if std_doc_type not in valid_doc_types:
             continue
         
-        row = {'filename': filename}
+        row = {'filename': filename, 'prompt_name': prompt_name}
         
         for field in compare_fields:
             std_value = std_invoice.get(field, '')
@@ -191,7 +191,7 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
         if std_doc_type not in valid_doc_types:
             continue
             
-        row = {'filename': filename}
+        row = {'filename': filename, 'prompt_name': prompt_name}
         
         for field in compare_fields:
             std_value = std_invoice.get(field, '')
@@ -255,6 +255,7 @@ def _create_overall_metrics_section(statistics):
         ['整体指标'],
         ['文档准确率:', f"{statistics['document_accuracy']}%"],
         ['票据准确率:', f"{statistics['invoice_accuracy']}%"],
+        ['字段准确率:', f"{statistics['overall_field_accuracy']}%"],
         ['']  # 空行
     ]
 
@@ -320,7 +321,7 @@ def _create_details_sheet(writer, all_rows, columns):
     """
     if all_rows:
         df = pd.DataFrame(all_rows, columns=columns)
-        df.to_excel(writer, sheet_name='Details', index=False)
+        df.to_excel(writer, sheet_name='Invoice_Details', index=False)
     else:
         df = pd.DataFrame(columns=columns)
         print("Excel报告已生成，无数据但创建了空工作表")
@@ -346,7 +347,7 @@ def generate_excel_report(excel_data, compare_fields, statistics):
     os.close(temp_fd)  # 关闭文件描述符
 
     # 创建列顺序
-    columns = ['filename']
+    columns = ['filename', 'prompt_name']
     for field in compare_fields:
         columns.extend([f'std_{field}', f'pred_{field}', f'check_{field}'])
     
@@ -359,6 +360,7 @@ def generate_excel_report(excel_data, compare_fields, statistics):
             annotation_text = data['annotation_text']
             prediction_text = data['prediction_text']
             result = data['result']
+            prompt_name = data['prompt_name']
             
             # 解析JSON数据
             try:
@@ -374,7 +376,7 @@ def generate_excel_report(excel_data, compare_fields, statistics):
             # 处理每种类型的比对结果
             file_rows = process_comparison_results(
                 filename, standard_invoices, prediction_invoices, 
-                result, compare_fields, comparer
+                result, compare_fields, comparer, prompt_name
             )
             all_rows.extend(file_rows)
         
@@ -398,13 +400,13 @@ def generate_excel_report(excel_data, compare_fields, statistics):
 
     return excel_output_path, all_rows
 
-def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"]):
+def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"], model_version='N/A'):
     logger.info(f"开始票据提取评估，可用文档数量: {len(eval_list)}")
     results = []
     excel_data = []  # 用于存储Excel数据
 
     # 遍历每个文件，进行票据比对
-    for i, (filename, (annotation_text, prediction_text)) in enumerate(eval_list.items(), 1):
+    for i, (filename, (annotation_text, prediction_text, prompt_name)) in enumerate(eval_list.items(), 1):
         # 后处理：为缺少totalTaxAmount的发票添加该字段
         prediction_text_processed = post_process_invoices(prediction_text)
         
@@ -426,7 +428,8 @@ def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", 
             'filename': filename,
             'annotation_text': annotation_text_filtered,
             'prediction_text': prediction_text_filtered,
-            'result': result
+            'result': result,
+            'prompt_name': prompt_name
         })
 
     if not results:
@@ -440,6 +443,7 @@ def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", 
         annotation_text = data['annotation_text']
         prediction_text = data['prediction_text']
         result = data['result']
+        prompt_name = data['prompt_name']
         try:
             standard_invoices = json.loads(annotation_text)
             prediction_invoices = json.loads(prediction_text)
@@ -449,12 +453,13 @@ def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", 
         comparer = InvoiceComparer(core_fields=compare_fields, verbose=False)
         file_rows = process_comparison_results(
             filename, standard_invoices, prediction_invoices, 
-            result, compare_fields, comparer
+            result, compare_fields, comparer, prompt_name
         )
         all_rows.extend(file_rows)
     
     # 只算一次统计
     statistics = calculate_evaluation_statistics(all_rows)
+    statistics['model_version'] = model_version  # 添加model_version到统计信息中
     
     # 生成Excel报告
     excel_path, _ = generate_excel_report(excel_data, compare_fields, statistics)
@@ -503,11 +508,13 @@ def calculate_evaluation_statistics(all_rows):
     
     # 1. 计算各字段准确率
     field_accuracy = {}
+    total_correct_fields = 0
     for field in field_names:
         check_field = f'check_{field}'
         correct_count = sum(1 for row in all_rows if row.get(check_field, False))
         total_count = len(all_rows)
         field_accuracy[field] = round(correct_count / total_count * 100, 2) if total_count > 0 else 0.0
+        total_correct_fields += correct_count
     
     # 2. 计算票级别准确率（每张票的所有字段都正确）
     correct_invoices = 0
@@ -550,6 +557,10 @@ def calculate_evaluation_statistics(all_rows):
     
     document_accuracy = round(correct_documents / len(documents) * 100, 2) if documents else 0.0
     
+    # 4. 计算整体字段准确率
+    total_fields_compared = len(all_rows) * len(field_names)
+    overall_field_accuracy = round(total_correct_fields / total_fields_compared * 100, 2) if total_fields_compared > 0 else 0.0
+    
     return {
         'field_accuracy': field_accuracy,
         'invoice_accuracy': invoice_accuracy,
@@ -557,7 +568,8 @@ def calculate_evaluation_statistics(all_rows):
         'total_invoices': len(all_rows),
         'total_documents': len(documents),
         'correct_invoices': correct_invoices,
-        'correct_documents': correct_documents
+        'correct_documents': correct_documents,
+        'overall_field_accuracy': overall_field_accuracy
     }
 
 def evaluate_invoice_extraction_task(project, queryset, **kwargs):
@@ -597,20 +609,20 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
             if model_version == 'N/A' and hasattr(last_prediction, 'model_version'):
                 model_version = last_prediction.model_version or 'N/A'
             
+            # 提取prompt_name
+            prompt_name = getattr(last_prediction, 'prompt_name', 'N/A')
+            
             task_data_dict = getattr(task, 'data', {})
 
             if 'filename' in task_data_dict:
                 filename = task_data_dict['filename']
-                results[filename] = (ann_text, pred_text)
+                results[filename] = (ann_text, pred_text, prompt_name)
             else:
                 id = getattr(task, 'id', 'NO_ID')
                 logger.error(f"任务 {id} 没有文件名信息，跳过")
 
     # 字段明细比对列表
-    excel_path, all_rows, statistics = eval_ls(results)
-    
-    # 将从预测对象中获取的model_version添加到统计信息中
-    statistics['model_version'] = model_version
+    excel_path, all_rows, statistics = eval_ls(results, model_version=model_version)
     
     # 构建评估摘要
     evaluation_summary = {
@@ -621,7 +633,6 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
         'excel_path': excel_path,
         'statistics': statistics
     }
-    
     
     return {
         'processed_items': len(results),
