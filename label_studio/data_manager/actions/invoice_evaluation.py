@@ -321,12 +321,35 @@ def _create_details_sheet(writer, all_rows, columns):
     """
     if all_rows:
         df = pd.DataFrame(all_rows, columns=columns)
-        df.to_excel(writer, sheet_name='Invoice_Details', index=False)
     else:
         df = pd.DataFrame(columns=columns)
         print("Excel报告已生成，无数据但创建了空工作表")
     
     df.to_excel(writer, sheet_name='Invoice_Details', index=False)
+    
+    # 获取工作表对象以添加条件格式
+    worksheet = writer.sheets['Invoice_Details']
+    
+    # 为check_开头的列添加条件格式
+    from openpyxl.styles import Font
+    from openpyxl.formatting.rule import CellIsRule
+    
+    # 找到check_开头的列
+    check_columns = [col for col in columns if col.startswith('check_')]
+    
+    if check_columns and len(all_rows) > 0:
+        # 为每个check列添加条件格式
+        for col_name in check_columns:
+            col_index = columns.index(col_name) + 1  # Excel列索引从1开始
+            col_letter = chr(64 + col_index)  # 转换为Excel列字母
+            
+            # 定义条件格式规则：当值为FALSE时字体为红色
+            red_font = Font(color="FF0000")  # 红色字体
+            rule = CellIsRule(operator='equal', formula=[False], font=red_font)
+            
+            # 应用到整列（从第2行开始，第1行是标题）
+            range_string = f"{col_letter}2:{col_letter}{len(all_rows) + 1}"
+            worksheet.conditional_formatting.add(range_string, rule)
 
 def generate_excel_report(excel_data, compare_fields, statistics):
     """

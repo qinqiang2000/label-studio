@@ -16,8 +16,8 @@ REMOTE_BASE=/root/miniconda3/envs/ls-env/lib/python3.10/site-packages
 # 后端同步函数
 sync_backend() {
     # 1. 找出所有改动且以 label_studio/ 开头的文件
-    changed_files=$(git diff --name-only c6d9011..company-custom | grep '^label_studio/')
-    # changed_files=$(git diff --name-only HEAD^ HEAD | grep '^label_studio/')
+    # changed_files=$(git diff --name-only c6d9011..company-custom | grep '^label_studio/')
+    changed_files=$(git diff --name-only $(git rev-parse @{push})..HEAD | grep '^label_studio/')
 
     echo "后端同步开始！要同步的文件如下："
     echo "$changed_files"
