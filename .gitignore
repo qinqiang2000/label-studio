@@ -92,3 +92,5 @@ label_studio/core/static/js/*.js.map
 # Temporary files
 **/.*copy*.jsx
 **/.*copy*.tsx
+
+.last_synced_commit
