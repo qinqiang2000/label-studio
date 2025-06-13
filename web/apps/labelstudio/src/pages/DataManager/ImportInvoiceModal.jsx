@@ -483,14 +483,18 @@ export const ImportInvoiceModal = ({ project, onClose, dataManager }) => {
         
         fields.forEach(field => {
           if (row[field] !== undefined && row[field] !== null && row[field] !== '') {
-            if (field === 'page' || field === 'detailOfGoodsOrServices' || field === 'detailOfTaxSummary') {
-              // 这些字段是数组类型
-              if (field === 'page') {
-                annotationData[field] = [row[field]];
-              } else {
-                annotationData[field] = Array.isArray(row[field]) ? row[field] : [];
+            if (field === 'page') {
+              // Handle page field specially - convert to array of numbers
+              let pageValue = row[field];
+              if (typeof pageValue === 'string') {
+                pageValue = JSON.parse(pageValue);
               }
+              annotationData[field] = Array.isArray(pageValue) ? pageValue : [Number(pageValue)];
+            } else if (['detailOfGoodsOrServices', 'detailOfTaxSummary'].includes(field)) {
+              // These fields should always be arrays
+              annotationData[field] = Array.isArray(row[field]) ? row[field] : [];
             } else {
+              // All other fields stored as-is
               annotationData[field] = row[field];
             }
           }
