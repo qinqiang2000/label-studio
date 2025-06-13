@@ -106,18 +106,24 @@ export const removePrefix = (path: string) => {
   return path || "/";
 };
 
-export const copyText = (text: string) => {
-  const input = document.createElement("textarea");
+export const copyText = async (text: string) => {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    console.error('Failed to copy text: ', err);
+    // Fallback for older browsers or if Clipboard API is not available/permission denied
+    const input = document.createElement("textarea");
+    input.style.position = "fixed"; // don't mess up with scroll
+    input.style.opacity = "0"; // Make it invisible
+    document.body.appendChild(input);
 
-  input.style.position = "fixed"; // don't mess up with scroll
-  document.body.appendChild(input);
+    input.value = text;
+    input.focus();
+    input.select();
 
-  input.value = text;
-  input.focus();
-  input.select();
-
-  document.execCommand("copy");
-  input.remove();
+    document.execCommand("copy");
+    input.remove();
+  }
 };
 
 export const delay = (time = 0) => {

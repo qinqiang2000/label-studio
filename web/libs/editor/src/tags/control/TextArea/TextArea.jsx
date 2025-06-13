@@ -396,6 +396,8 @@ const HtxTextArea = observer(({ item }) => {
     [item],
   );
 
+  console.log('[AutoFill Debug] HtxTextArea rendered. Item name:', item.name, 'Item value:', item._value);
+
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
   // 仅当当前值为空且 name 包含 json 时显示按钮
@@ -404,6 +406,22 @@ const HtxTextArea = observer(({ item }) => {
     item.displaymode === PER_REGION_MODES.TAG &&
     item.name &&
     item.name.toLowerCase().includes("json");
+
+  console.log('[AutoFill Debug] showAutoFill components:', {
+    is_value_empty: !item._value,
+    is_displaymode_tag: item.displaymode === PER_REGION_MODES.TAG,
+    item_name_exists: !!item.name,
+    item_name_includes_json: item.name ? item.name.toLowerCase().includes("json") : false,
+    final_showAutoFill: showAutoFill,
+  });
+
+  // 检查是否应该执行自动更新（不仅是空字段，切换tab时也要更新）
+  const shouldAutoUpdate =
+    item.displaymode === PER_REGION_MODES.TAG &&
+    item.name &&
+    item.name.toLowerCase().includes("json");
+
+  console.log('[AutoFill Debug] shouldAutoUpdate:', shouldAutoUpdate, 'current annotation type:', item.annotation?.type);
 
   // 辅助函数：提取(id: xxx)中的xxx
   const extractName = (str) => {
@@ -421,105 +439,223 @@ const HtxTextArea = observer(({ item }) => {
       const preds = annotationStore?.predictions?.toJSON ? annotationStore.predictions.toJSON() : annotationStore.predictions;
       let filled = false;
 
-      // 1. 先用 annotations
-      if (annotationStore?.annotations) {
-        const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
-        let lastMatchedValue = null;
-        for (const ann of anns) {
-          let results = ann.result;
-          if (!results && ann.resultSnapshot) results = ann.resultSnapshot;
-          if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result) results = ann._initialAnnotationObj.result;
-          // If still no results, treat _initialAnnotationObj as an array of result items
-          if (
-            !results &&
-            ann._initialAnnotationObj &&
-            (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === 'object')
-          ) {
-            // Convert to array if it's an object with numeric keys
-            const arr = Array.isArray(ann._initialAnnotationObj)
-              ? ann._initialAnnotationObj
-              : Object.values(ann._initialAnnotationObj).filter(v => v && typeof v === 'object' && v.type);
-            if (arr.length > 0) results = arr;
-          }
-          if (results && typeof results.toJSON === 'function') {
-            results = results.toJSON();
-          }
-          if (Array.isArray(results)) {
-            for (const r of results) {
-              const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-              const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
-              if (
-                fromName === item.name &&
-                toName === item.toname &&
-                r.type === "textarea" &&
-                r.value && r.value.text && r.value.text.length > 0
-              ) {
-                const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                lastMatchedValue = value;
-              }
-            }
-          }
-        }
-        if (lastMatchedValue !== null) {
-          item.setValue(lastMatchedValue);
-          validateJsonAndFields(lastMatchedValue);
-          filled = true;
-        }
-      }
+      console.log('[AutoFill Debug] handleAutoFill called for item:', item.name, 'toname:', item.toname);
+      console.log('[AutoFill Debug] Current item._value:', item._value);
 
-      // 2. annotations 没命中再用 predictions
-      if (!filled && Array.isArray(preds)) {
-        for (const pred of preds) {
-          if (pred.trackedState && pred.trackedState.areas) {
-            Array.from(pred.trackedState.areas.values()).forEach(area => {
-              if (Array.isArray(area.results)) {
-                area.results.forEach(r => {
-                  const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-                  const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
-                  if (
-                    fromName === item.name &&
-                    toName === item.toname &&
-                    r.type === "textarea" &&
-                    r.value && r.value.text && r.value.text.length > 0
-                  ) {
-                    const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                    item.setValue(value);
-                    validateJsonAndFields(value);
-                    filled = true;
-                  }
-                });
+      // 检查当前选中的是否为prediction
+      const isPredictionSelected = item.annotation?.type === "prediction";
+      console.log('[AutoFill Debug] isPredictionSelected:', isPredictionSelected);
+
+      if (isPredictionSelected) {
+        // 当前在查看prediction时，优先使用predictions数据
+        console.log('[AutoFill Debug] Mode: Prediction tab. Trying predictions first.');
+        // 1. 先用 predictions
+        if (Array.isArray(preds)) {
+          console.log('[AutoFill Debug] Available predictions:', preds.length, preds);
+          for (const pred of preds) {
+            if (pred.trackedState && pred.trackedState.areas) {
+              Array.from(pred.trackedState.areas.values()).forEach(area => {
+                if (Array.isArray(area.results)) {
+                  area.results.forEach(r => {
+                    const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+                    const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                    if (
+                      fromName === item.name &&
+                      toName === item.toname &&
+                      r.type === "textarea" &&
+                      r.value && r.value.text && r.value.text.length > 0
+                    ) {
+                      const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                      console.log('[AutoFill Debug] Found match in prediction (trackedState.areas), setting value:', value);
+                      item.setValue(value);
+                      validateJsonAndFields(value);
+                      filled = true;
+                    }
+                  });
+                }
+              });
+            }
+            if (pred.result) {
+              for (const r of pred.result) {
+                const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+                const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                if (
+                  fromName === item.name &&
+                  toName === item.toname &&
+                  r.type === "textarea" &&
+                  r.value && r.value.text && r.value.text.length > 0
+                ) {
+                  const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                  console.log('[AutoFill Debug] Found match in prediction (pred.result), setting value:', value);
+                  item.setValue(value);
+                  validateJsonAndFields(value);
+                  filled = true;
+                }
               }
-            });
+            }
           }
-          if (pred.result) {
-            for (const r of pred.result) {
-              const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-              const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
-              if (
-                fromName === item.name &&
-                toName === item.toname &&
-                r.type === "textarea" &&
-                r.value && r.value.text && r.value.text.length > 0
-              ) {
-                const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                item.setValue(value);
-                validateJsonAndFields(value);
-                filled = true;
+        }
+
+        // 2. predictions 没命中再用 annotations
+        if (!filled && annotationStore?.annotations) {
+          console.log('[AutoFill Debug] Predictions not found, trying annotations. Available annotations:', annotationStore.annotations.length, annotationStore.annotations.toJSON());
+          const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
+          let lastMatchedValue = null;
+          for (const ann of anns) {
+            let results = ann.result;
+            if (!results && ann.resultSnapshot) results = ann.resultSnapshot;
+            if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result) results = ann._initialAnnotationObj.result;
+            // If still no results, treat _initialAnnotationObj as an array of result items
+            if (
+              !results &&
+              ann._initialAnnotationObj &&
+              (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === 'object')
+            ) {
+              // Convert to array if it's an object with numeric keys
+              const arr = Array.isArray(ann._initialAnnotationObj)
+                ? ann._initialAnnotationObj
+                : Object.values(ann._initialAnnotationObj).filter(v => v && typeof v === 'object' && v.type);
+              if (arr.length > 0) results = arr;
+            }
+            if (results && typeof results.toJSON === 'function') {
+              results = results.toJSON();
+            }
+            if (Array.isArray(results)) {
+              for (const r of results) {
+                const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+                const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                if (
+                  fromName === item.name &&
+                  toName === item.toname &&
+                  r.type === "textarea" &&
+                  r.value && r.value.text && r.value.text.length > 0
+                ) {
+                  const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                  lastMatchedValue = value;
+                }
+              }
+            }
+          }
+          if (lastMatchedValue !== null) {
+            console.log('[AutoFill Debug] Found match in annotation, setting value (fallback):', lastMatchedValue);
+            item.setValue(lastMatchedValue);
+            validateJsonAndFields(lastMatchedValue);
+            filled = true;
+          }
+        }
+      } else {
+        // 当前在查看annotation时，保持原有逻辑：优先使用annotations数据
+        console.log('[AutoFill Debug] Mode: Annotation tab. Trying annotations first.');
+        // 1. 先用 annotations
+        if (annotationStore?.annotations) {
+          console.log('[AutoFill Debug] Available annotations:', annotationStore.annotations.length, annotationStore.annotations.toJSON());
+          const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
+          let lastMatchedValue = null;
+          for (const ann of anns) {
+            let results = ann.result;
+            if (!results && ann.resultSnapshot) results = ann.resultSnapshot;
+            if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result) results = ann._initialAnnotationObj.result;
+            // If still no results, treat _initialAnnotationObj as an array of result items
+            if (
+              !results &&
+              ann._initialAnnotationObj &&
+              (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === 'object')
+            ) {
+              // Convert to array if it's an object with numeric keys
+              const arr = Array.isArray(ann._initialAnnotationObj)
+                ? ann._initialAnnotationObj
+                : Object.values(ann._initialAnnotationObj).filter(v => v && typeof v === 'object' && v.type);
+              if (arr.length > 0) results = arr;
+            }
+            if (results && typeof results.toJSON === 'function') {
+              results = results.toJSON();
+            }
+            if (Array.isArray(results)) {
+              for (const r of results) {
+                const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+                const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                if (
+                  fromName === item.name &&
+                  toName === item.toname &&
+                  r.type === "textarea" &&
+                  r.value && r.value.text && r.value.text.length > 0
+                ) {
+                  const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                  lastMatchedValue = value;
+                }
+              }
+            }
+          }
+          if (lastMatchedValue !== null) {
+            console.log('[AutoFill Debug] Found match in annotation, setting value:', lastMatchedValue);
+            item.setValue(lastMatchedValue);
+            validateJsonAndFields(lastMatchedValue);
+            filled = true;
+          }
+        }
+
+        // 2. annotations 没命中再用 predictions
+        if (!filled && Array.isArray(preds)) {
+          console.log('[AutoFill Debug] Annotations not found, trying predictions. Available predictions:', preds.length, preds);
+          for (const pred of preds) {
+            if (pred.trackedState && pred.trackedState.areas) {
+              Array.from(pred.trackedState.areas.values()).forEach(area => {
+                if (Array.isArray(area.results)) {
+                  area.results.forEach(r => {
+                    const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+                    const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                    if (
+                      fromName === item.name &&
+                      toName === item.toname &&
+                      r.type === "textarea" &&
+                      r.value && r.value.text && r.value.text.length > 0
+                    ) {
+                      const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                      console.log('[AutoFill Debug] Found match in prediction (trackedState.areas), setting value (fallback):', value);
+                      item.setValue(value);
+                      validateJsonAndFields(value);
+                      filled = true;
+                    }
+                  });
+                }
+              });
+            }
+            if (pred.result) {
+              for (const r of pred.result) {
+                const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
+                const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                if (
+                  fromName === item.name &&
+                  toName === item.toname &&
+                  r.type === "textarea" &&
+                  r.value && r.value.text && r.value.text.length > 0
+                ) {
+                  const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                  console.log('[AutoFill Debug] Found match in prediction (pred.result), setting value (fallback):', value);
+                  item.setValue(value);
+                  validateJsonAndFields(value);
+                  filled = true;
+                }
               }
             }
           }
         }
       }
+      
       if (filled) {
-        console.log('[AutoFill] 自动填充成功');
+        console.log('[AutoFill Debug] Auto-fill successful. Final filled status:', filled);
+      } else {
+        console.log('[AutoFill Debug] Auto-fill did not find a match. Final filled status:', filled);
       }
     } finally {
       setAutoFillLoading(false);
+      console.log('[AutoFill Debug] handleAutoFill finished.');
     }
   };
 
   // 新增：labelstream/Label All Tasks模式下自动触发自动填充
   useEffect(() => {
+    console.log('[AutoFill Debug] useEffect triggered. showAutoFill:', showAutoFill);
     // 关键节点日志：自动填充触发
     if (showAutoFill) {
       console.log('[AutoFill] 自动填充触发');
@@ -528,6 +664,15 @@ const HtxTextArea = observer(({ item }) => {
       handleAutoFill();
     }
   }, [showAutoFill]);
+
+  // 新增：监听annotation类型变化，当切换tab时自动更新内容
+  useEffect(() => {
+    console.log('[AutoFill Debug] annotation type change useEffect triggered. shouldAutoUpdate:', shouldAutoUpdate, 'annotation type:', item.annotation?.type);
+    if (shouldAutoUpdate) {
+      console.log('[AutoFill Debug] Triggering auto-update due to annotation type change');
+      handleAutoFill();
+    }
+  }, [item.annotation?.type, shouldAutoUpdate]);
 
   // 校验JSON和必填字段的复用函数
   const validateJsonAndFields = useCallback(

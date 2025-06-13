@@ -166,31 +166,13 @@ def samples_paragraphs(request):
     return HttpResponse(json.dumps(result), content_type='application/json')
 
 
+@csrf_exempt
 def heidi_tips(request):
-    """Fetch live tips from github raw liveContent.json to avoid caching and client side CORS issues"""
-    url = 'https://raw.githubusercontent.com/HumanSignal/label-studio/refs/heads/develop/web/apps/labelstudio/src/components/HeidiTips/liveContent.json'
-
-    response = None
-    try:
-        response = requests.get(
-            url,
-            headers={'Cache-Control': 'no-cache', 'Content-Type': 'application/json', 'Accept': 'application/json'},
-            timeout=5,
-        )
-        # Raise an exception for bad status codes to avoid caching
-        response.raise_for_status()
-    # Catch all exceptions and return either the status code if there was a response, or default to 404 if there are network issues
-    # This is done this way to catch thrown exceptions from the request itself which will occur for air-gapped environments
-    except Exception:
-        # Any other HTTP error will return the error code, and other errors like connection/timeout errors will be a 404
-        content = {}
-        status_code = 404
-        if response is not None:
-            content['detail'] = response.reason
-            status_code = response.status_code
-        return HttpResponse(json.dumps(content), content_type='application/json', status=status_code)
-
-    return HttpResponse(response.content, content_type='application/json')
+    """Serve live tips from local static file."""
+    file_path = os.path.join(settings.BASE_DIR, 'core', 'static', 'heidi_tips', 'liveContent.json')
+    with open(file_path, 'r') as f:
+        content = f.read()
+    return HttpResponse(content, content_type='application/json')
 
 
 @swagger_auto_schema(methods=['GET'], auto_schema=None)
