@@ -26,6 +26,7 @@ export const API_CONFIG = {
     removeWorkspaceMember: "POST:/workspaces/:pk/remove_member",
     archiveWorkspace: "POST:/workspaces/:pk/archive",
     archivedWorkspaces: "/workspaces/archived",
+    workspaceProjects: "/workspaces/:pk/projects",
 
     // Project
     projects: "/projects",

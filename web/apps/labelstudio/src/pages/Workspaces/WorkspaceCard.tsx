@@ -1,7 +1,7 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Block, Elem } from '../../utils/bem';
 import { Button } from '@humansignal/ui';
-import { IconChevron, IconGear, IconEllipsisVertical } from '@humansignal/icons';
+import { IconChevron, IconGear, IconEllipsisVertical, IconChevronDown, IconChevronRight } from '@humansignal/icons';
 import { useAPI } from '../../providers/ApiProvider';
 import { modal } from '../../components/Modal/Modal';
 import { Dropdown } from '../../components/Dropdown/Dropdown';
@@ -29,6 +29,15 @@ interface Workspace {
   updated_at: string;
 }
 
+interface Project {
+  id: number;
+  title: string;
+  description: string;
+  color: string;
+  task_number: number;
+  created_at: string;
+}
+
 interface WorkspaceCardProps {
   workspace: Workspace;
   onUpdate: () => void;
@@ -40,6 +49,9 @@ interface WorkspaceCardProps {
 export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdate, currentUser }) => {
   const api = useAPI();
   const isAdmin = currentUser?.is_superuser || false;
+  const [showProjects, setShowProjects] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
 
   const handleEditWorkspace = useCallback(() => {
     const modalInstance = modal({
@@ -108,10 +120,29 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
     }
   }, [workspace, api, onUpdate]);
 
-  const handleViewProjects = useCallback(() => {
-    // Navigate to projects filtered by workspace
-    window.location.href = `/projects?workspace=${workspace.id}`;
-  }, [workspace.id]);
+  const handleToggleProjects = useCallback(async () => {
+    if (!showProjects && projects.length === 0) {
+      // Fetch projects if not already loaded
+      try {
+        setProjectsLoading(true);
+        const response = await api.callApi('workspaceProjects', {
+          params: { pk: workspace.id }
+        });
+        setProjects(response || []);
+      } catch (error) {
+        console.error('Failed to fetch workspace projects:', error);
+        alert('Failed to load projects. Please try again.');
+        return;
+      } finally {
+        setProjectsLoading(false);
+      }
+    }
+    setShowProjects(!showProjects);
+  }, [showProjects, projects.length, workspace.id, api]);
+
+  const handleViewProject = useCallback((projectId: number) => {
+    window.location.href = `/projects/${projectId}`;
+  }, []);
 
   return (
     <Block name="workspace-card">
@@ -155,14 +186,43 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
         <Button
           look="alt"
           size="small"
-          onClick={handleViewProjects}
+          onClick={handleToggleProjects}
+          disabled={projectsLoading}
+          icon={showProjects ? <IconChevronDown /> : <IconChevronRight />}
         >
-          View Projects <IconChevron />
+          {projectsLoading ? 'Loading...' : showProjects ? 'Hide Projects' : 'Show Projects'}
         </Button>
         <Elem name="created-info">
           Created {timeAgo(workspace.created_at)} by {workspace.created_by.email}
         </Elem>
       </Elem>
+
+      {showProjects && (
+        <Elem name="projects-list">
+          {projects.length === 0 ? (
+            <Elem name="no-projects">No projects in this workspace yet</Elem>
+          ) : (
+            projects.map((project) => (
+              <Elem 
+                key={project.id} 
+                name="project-item"
+                onClick={() => handleViewProject(project.id)}
+              >
+                <Elem name="project-color" style={{ backgroundColor: project.color }} />
+                <Elem name="project-info">
+                  <Elem name="project-title">{project.title}</Elem>
+                  <Elem name="project-description">
+                    {project.description || 'No description'} • {project.task_number} tasks
+                  </Elem>
+                </Elem>
+                <Elem name="project-created">
+                  {timeAgo(project.created_at)}
+                </Elem>
+              </Elem>
+            ))
+          )}
+        </Elem>
+      )}
     </Block>
   );
 }; 

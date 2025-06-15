@@ -82,8 +82,8 @@ const ProjectName = ({
                   <Elem name="title">Workspace</Elem>
                 </Elem>
         <WorkspaceSelector
-          value={workspace?.id || ""}
-          onChange={(value) => setWorkspace(value ? { id: value } : null)}
+          value={workspace || ""}
+          onChange={(value) => setWorkspace(value || null)}
         />
         <Caption>
           Organize your projects by grouping them into workspaces.

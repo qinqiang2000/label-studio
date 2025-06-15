@@ -41,7 +41,10 @@ export const GeneralSettings = () => {
                   <Elem name="title">Workspace</Elem>
                   {isFF(FF_LSDV_E_297) && <EnterpriseBadge className="ml-2" />}
                 </Elem>
-                <WorkspaceSelector name="workspace" />
+                <WorkspaceSelector 
+                  name="workspace" 
+                  value={project?.workspace?.id || project?.workspace || ""}
+                />
                 <Caption>
                   Simplify project management by organizing projects into workspaces.{" "}
                   <a

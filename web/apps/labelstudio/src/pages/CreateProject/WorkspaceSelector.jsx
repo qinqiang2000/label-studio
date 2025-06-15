@@ -1,8 +1,9 @@
 import React, { useEffect, useState, forwardRef } from 'react';
 import { Select } from '@humansignal/ui';
 import { useAPI } from '../../providers/ApiProvider';
+import { FormField } from '../../components/Form/FormField';
 
-const WorkspaceSelector = forwardRef(({ value, onChange, disabled, showLabel = false, children, name, ...props }, ref) => {
+const WorkspaceSelector = forwardRef(({ value, onChange, disabled, showLabel = false, children, name, validate, required, skip, ...props }, ref) => {
   const [workspaces, setWorkspaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const api = useAPI();
@@ -46,10 +47,35 @@ const WorkspaceSelector = forwardRef(({ value, onChange, disabled, showLabel = f
     }))
   ];
 
+  // If this component has a name prop, it should be integrated with Form
+  if (name) {
+    return (
+      <FormField
+        name={name}
+        validate={validate}
+        required={required}
+        skip={skip}
+        {...props}
+      >
+        {(fieldRef) => (
+          <Select
+            ref={fieldRef}
+            placeholder={loading ? "Loading workspaces..." : "Select a workspace"}
+            disabled={disabled || loading}
+            options={options}
+            value={value}
+            onChange={onChange}
+            {...props}
+          />
+        )}
+      </FormField>
+    );
+  }
+
+  // Standalone component
   return (
     <Select
       ref={ref}
-      name={name}
       placeholder={loading ? "Loading workspaces..." : "Select a workspace"}
       disabled={disabled || loading}
       options={options}
