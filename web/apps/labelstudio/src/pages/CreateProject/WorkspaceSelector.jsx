@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, forwardRef } from 'react';
 import { Select } from '@humansignal/ui';
 import { useAPI } from '../../providers/ApiProvider';
-import { Caption } from '../../components/Caption/Caption';
 
-const WorkspaceSelector = ({ value, onChange, disabled }) => {
+const WorkspaceSelector = forwardRef(({ value, onChange, disabled, showLabel = false, children, name, ...props }, ref) => {
   const [workspaces, setWorkspaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const api = useAPI();
@@ -25,6 +24,20 @@ const WorkspaceSelector = ({ value, onChange, disabled }) => {
     fetchWorkspaces();
   }, [api]);
 
+  // If used as children for another Select component
+  if (children !== undefined) {
+    return (
+      <>
+        <Select.Option value="">Select an option</Select.Option>
+        {workspaces.map(workspace => (
+          <Select.Option key={workspace.id} value={workspace.id}>
+            {workspace.name}
+          </Select.Option>
+        ))}
+      </>
+    );
+  }
+
   const options = [
     { value: '', label: 'No workspace' },
     ...workspaces.map(workspace => ({
@@ -34,29 +47,17 @@ const WorkspaceSelector = ({ value, onChange, disabled }) => {
   ];
 
   return (
-    <div className="w-full flex flex-col gap-2">
-      <label htmlFor="workspace_select">
-        Workspace
-      </label>
-      <Select
-        id="workspace_select"
-        placeholder={loading ? "Loading workspaces..." : "Select a workspace"}
-        disabled={disabled || loading}
-        options={options}
-        value={value}
-        onChange={onChange}
-        className="!flex-1"
-      />
-      <Caption>
-        Organize your projects by grouping them into workspaces.{" "}
-        {workspaces.length === 0 && !loading && (
-          <span>
-            <a href="/workspaces">Create a workspace</a> to get started.
-          </span>
-        )}
-      </Caption>
-    </div>
+    <Select
+      ref={ref}
+      name={name}
+      placeholder={loading ? "Loading workspaces..." : "Select a workspace"}
+      disabled={disabled || loading}
+      options={options}
+      value={value}
+      onChange={onChange}
+      {...props}
+    />
   );
-};
+});
 
 export default WorkspaceSelector; 

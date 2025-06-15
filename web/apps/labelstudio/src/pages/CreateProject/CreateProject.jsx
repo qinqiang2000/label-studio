@@ -6,7 +6,7 @@ import { Modal } from "../../components/Modal/Modal";
 import { Space } from "../../components/Space/Space";
 import { HeidiTips } from "../../components/HeidiTips/HeidiTips";
 import { useAPI } from "../../providers/ApiProvider";
-
+import { Block, Elem } from "../../utils/bem";
 import { cn } from "../../utils/bem";
 import { ConfigPage } from "./Config/Config";
 import "./CreateProject.scss";
@@ -19,52 +19,83 @@ import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
 import { createURL } from "../../components/HeidiTips/utils";
 import WorkspaceSelector from './WorkspaceSelector';
 
-const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, setDescription, workspace, setWorkspace, show = true }) =>
-  show && (
-    <div style={{ width: 480 }}>
-      <input
-        className="ant-input"
-        placeholder="Project Name"
-        value={name}
-        onChange={({ target }) => setName(target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") onSubmit();
-        }}
-        style={{
-          fontSize: 16,
-          height: 40,
-          marginBottom: 16,
-        }}
-      />
+const ProjectName = ({
+  name,
+  setName,
+  onSaveName,
+  onSubmit,
+  error,
+  description,
+  setDescription,
+  workspace,
+  setWorkspace,
+  show = true,
+}) => {
+  if (!show) return null;
 
-      <textarea
-        className="ant-input"
-        placeholder="Description (optional)"
-        value={description}
-        onChange={({ target }) => setDescription(target.value)}
-        style={{
-          fontSize: 14,
-          marginBottom: 16,
-          minHeight: 80,
-        }}
-      />
-
-      <div style={{ marginBottom: 16 }}>
-        <label style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 500 }}>
-          Workspace (optional)
+  return (
+    <form
+      className={cn("project-name")}
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+    >
+      
+      {/* Project title */}
+      <div className="w-full flex flex-col gap-2">
+        <label className="w-full" htmlFor="project_name">
+          Project Name
         </label>
-        <WorkspaceSelector
-          value={workspace}
-          onChange={setWorkspace}
+        <Input
+          name="name"
+          id="project_name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={onSaveName}
+          className="project-title w-full"
+        />
+        {error && <span className="-mt-1 text-negative-content">{error}</span>}
+      </div>
+
+      {/* Description */}
+      <div className="w-full flex flex-col gap-2">
+        <label className="w-full" htmlFor="project_description">
+          Description
+        </label>
+        <TextArea
+          name="description"
+          id="project_description"
+          placeholder="Optional description of your project"
+          rows={4}
+          style={{ minHeight: 100 }}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="project-description w-full"
         />
       </div>
 
-      {error && <div style={{ color: "red", marginBottom: 16 }}>{error}</div>}
-      <Button onClick={onSubmit} look="primary" style={{ width: "100%" }}>
+      {/* Workspace selector */}
+      {/* <div className="w-full flex flex-col gap-2"> */}
+      <Block name="workspace-section">
+      <Elem name="badge-wrapper">
+                  <Elem name="title">Workspace</Elem>
+                </Elem>
+        <WorkspaceSelector
+          value={workspace?.id || ""}
+          onChange={(value) => setWorkspace(value ? { id: value } : null)}
+        />
+        <Caption>
+          Organize your projects by grouping them into workspaces.
+        </Caption></Block>
+      {/* </div> */}
+
+      <Button type="submit" look="primary" className="w-full mt-8">
         Save Project
       </Button>
-    </div>
+    </form>
   );
+};
 
 export const CreateProject = ({ onClose }) => {
   const [step, _setStep] = React.useState("name"); // name | import | config

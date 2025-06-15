@@ -249,6 +249,7 @@ class ProjectListAPI(generics.ListCreateAPIView):
     pagination_class = ProjectListPagination
 
     def get_queryset(self):
+        from django.db.models import Q
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
@@ -256,6 +257,14 @@ class ProjectListAPI(generics.ListCreateAPIView):
         projects = Project.objects.filter(organization=self.request.user.active_organization).order_by(
             F('pinned_at').desc(nulls_last=True), '-created_at'
         )
+        
+        # Filter projects based on workspace membership (unless user is superuser)
+        if not self.request.user.is_superuser:
+            projects = projects.filter(
+                Q(workspace__isnull=True) |  # Projects without workspace
+                Q(workspace__members=self.request.user)  # Projects in workspaces where user is a member
+            )
+        
         if filter in ['pinned_only', 'exclude_pinned']:
             projects = projects.filter(pinned_at__isnull=filter == 'exclude_pinned')
         return ProjectManager.with_counts_annotate(projects, fields=fields).prefetch_related('members', 'created_by')
@@ -307,10 +316,20 @@ class ProjectCountsListAPI(generics.ListAPIView):
     pagination_class = ProjectListPagination
 
     def get_queryset(self):
+        from django.db.models import Q
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
-        return Project.objects.with_counts(fields=fields).filter(organization=self.request.user.active_organization)
+        projects = Project.objects.with_counts(fields=fields).filter(organization=self.request.user.active_organization)
+        
+        # Filter projects based on workspace membership (unless user is superuser)  
+        if not self.request.user.is_superuser:
+            projects = projects.filter(
+                Q(workspace__isnull=True) |  # Projects without workspace
+                Q(workspace__members=self.request.user)  # Projects in workspaces where user is a member
+            )
+        
+        return projects
 
 
 @method_decorator(
@@ -421,10 +440,20 @@ class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
     redirect_kwarg = 'pk'
 
     def get_queryset(self):
+        from django.db.models import Q
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
-        return Project.objects.with_counts(fields=fields).filter(organization=self.request.user.active_organization)
+        projects = Project.objects.with_counts(fields=fields).filter(organization=self.request.user.active_organization)
+        
+        # Filter projects based on workspace membership (unless user is superuser)  
+        if not self.request.user.is_superuser:
+            projects = projects.filter(
+                Q(workspace__isnull=True) |  # Projects without workspace
+                Q(workspace__members=self.request.user)  # Projects in workspaces where user is a member
+            )
+        
+        return projects
 
     def get(self, request, *args, **kwargs):
         return super(ProjectAPI, self).get(request, *args, **kwargs)

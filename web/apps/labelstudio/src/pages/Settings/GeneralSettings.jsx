@@ -10,6 +10,7 @@ import { HeidiTips } from "../../components/HeidiTips/HeidiTips";
 import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
 import { createURL } from "../../components/HeidiTips/utils";
 import { Caption } from "../../components/Caption/Caption";
+import WorkspaceSelector from "../CreateProject/WorkspaceSelector";
 
 export const GeneralSettings = () => {
   const { project, fetchProject } = useContext(ProjectContext);
@@ -35,31 +36,29 @@ export const GeneralSettings = () => {
               <Input name="title" label="Project Name" />
 
               <TextArea name="description" label="Description" style={{ minHeight: 128 }} />
-              {isFF(FF_LSDV_E_297) && (
-                <Block name="workspace-placeholder">
-                  <Elem name="badge-wrapper">
-                    <Elem name="title">Workspace</Elem>
-                    <EnterpriseBadge className="ml-2" />
-                  </Elem>
-                  <Select placeholder="Select an option" disabled options={[]} />
-                  <Caption>
-                    Simplify project management by organizing projects into workspaces.{" "}
-                    <a
-                      target="_blank"
-                      href={createURL(
-                        "https://docs.humansignal.com/guide/manage_projects#Create-workspaces-to-organize-projects",
-                        {
-                          experiment: "project_settings_tip",
-                          treatment: "simplify_project_management",
-                        },
-                      )}
-                      rel="noreferrer"
-                    >
-                      Learn more
-                    </a>
-                  </Caption>
-                </Block>
-              )}
+              <Block name="workspace-section">
+                <Elem name="badge-wrapper">
+                  <Elem name="title">Workspace</Elem>
+                  {isFF(FF_LSDV_E_297) && <EnterpriseBadge className="ml-2" />}
+                </Elem>
+                <WorkspaceSelector name="workspace" />
+                <Caption>
+                  Simplify project management by organizing projects into workspaces.{" "}
+                  <a
+                    target="_blank"
+                    href={createURL(
+                      "https://docs.humansignal.com/guide/manage_projects#Create-workspaces-to-organize-projects",
+                      {
+                        experiment: "project_settings_tip",
+                        treatment: "simplify_project_management",
+                      },
+                    )}
+                    rel="noreferrer"
+                  >
+                    Learn more
+                  </a>
+                </Caption>
+              </Block>
               <RadioGroup name="color" label="Color" size="large" labelProps={{ size: "large" }}>
                 {colors.map((color) => (
                   <RadioGroup.Button key={color} value={color}>
