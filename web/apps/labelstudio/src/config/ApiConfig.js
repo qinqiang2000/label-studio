@@ -7,12 +7,25 @@ export const API_CONFIG = {
     updateUserAvatar: "POST:/users/:pk/avatar",
     deleteUserAvatar: "DELETE:/users/:pk/avatar",
     me: "/current-user/whoami",
+    currentUser: "/current-user/whoami",
 
     // Organization
     memberships: "/organizations/:pk/memberships",
     userMemberships: "/organizations/:pk/memberships/:userPk",
     inviteLink: "/invite",
     resetInviteLink: "POST:/invite/reset-token",
+
+    // Workspaces
+    workspaces: "/workspaces",
+    workspace: "/workspaces/:pk",
+    createWorkspace: "POST:/workspaces",
+    updateWorkspace: "PATCH:/workspaces/:pk",
+    deleteWorkspace: "DELETE:/workspaces/:pk",
+    workspaceMembers: "/workspaces/:pk/members",
+    addWorkspaceMember: "POST:/workspaces/:pk/add_member",
+    removeWorkspaceMember: "POST:/workspaces/:pk/remove_member",
+    archiveWorkspace: "POST:/workspaces/:pk/archive",
+    archivedWorkspaces: "/workspaces/archived",
 
     // Project
     projects: "/projects",

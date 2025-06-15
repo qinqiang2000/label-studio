@@ -3,6 +3,7 @@ import { StaticContent } from "../../app/StaticContent/StaticContent";
 import {
   IconBook,
   IconFolder,
+  IconGrid,
   IconHome,
   IconPersonInCircle,
   IconPin,
@@ -199,6 +200,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
               <Menu>
                 {isFF(FF_HOMEPAGE) && <Menu.Item label="Home" to="/" icon={<IconHome />} data-external exact />}
                 <Menu.Item label="Projects" to="/projects" icon={<IconFolder />} data-external exact />
+                <Menu.Item label="Workspaces" to="/workspaces" icon={<IconGrid />} data-external exact />
                 <Menu.Item label="Prompts" to="/prompts" icon={<IconSparks />} data-external exact />
                 <Menu.Item label="Organization" to="/organization" icon={<IconPersonInCircle />} data-external exact />
 

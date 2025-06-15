@@ -219,6 +219,7 @@ INSTALLED_APPS = [
     'core',
     'users',
     'organizations',
+    'workspaces',
     'data_import',
     'data_export',
     'projects.apps.ProjectsConfig',

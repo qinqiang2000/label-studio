@@ -141,6 +141,10 @@ class Project(ProjectMixin, models.Model):
     organization = models.ForeignKey(
         'organizations.Organization', on_delete=models.CASCADE, related_name='projects', null=True
     )
+    workspace = models.ForeignKey(
+        'workspaces.Workspace', on_delete=models.SET_NULL, related_name='projects', null=True, blank=True,
+        help_text='Workspace this project belongs to'
+    )
     label_config = models.TextField(
         _('label config'),
         blank=True,

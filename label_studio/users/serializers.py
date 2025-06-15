@@ -101,6 +101,7 @@ class BaseUserSerializer(FlexFieldsModelSerializer):
             'active_organization_meta',
             'allow_newsletters',
             'date_joined',
+            'is_superuser',
         )
 
 

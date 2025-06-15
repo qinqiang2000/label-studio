@@ -6,6 +6,7 @@ import { Modal } from "../../components/Modal/Modal";
 import { Space } from "../../components/Space/Space";
 import { HeidiTips } from "../../components/HeidiTips/HeidiTips";
 import { useAPI } from "../../providers/ApiProvider";
+
 import { cn } from "../../utils/bem";
 import { ConfigPage } from "./Config/Config";
 import "./CreateProject.scss";
@@ -16,72 +17,53 @@ import { Input, TextArea } from "../../components/Form";
 import { Caption } from "../../components/Caption/Caption";
 import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
 import { createURL } from "../../components/HeidiTips/utils";
+import WorkspaceSelector from './WorkspaceSelector';
 
-const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, setDescription, show = true }) =>
-  !show ? null : (
-    <form
-      className={cn("project-name")}
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit();
-      }}
-    >
-      <div className="w-full flex flex-col gap-2">
-        <label className="w-full" htmlFor="project_name">
-          Project Name
+const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, setDescription, workspace, setWorkspace, show = true }) =>
+  show && (
+    <div style={{ width: 480 }}>
+      <input
+        className="ant-input"
+        placeholder="Project Name"
+        value={name}
+        onChange={({ target }) => setName(target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSubmit();
+        }}
+        style={{
+          fontSize: 16,
+          height: 40,
+          marginBottom: 16,
+        }}
+      />
+
+      <textarea
+        className="ant-input"
+        placeholder="Description (optional)"
+        value={description}
+        onChange={({ target }) => setDescription(target.value)}
+        style={{
+          fontSize: 14,
+          marginBottom: 16,
+          minHeight: 80,
+        }}
+      />
+
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 500 }}>
+          Workspace (optional)
         </label>
-        <Input
-          name="name"
-          id="project_name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={onSaveName}
-          className="project-title w-full"
-        />
-        {error && <span className="-mt-1 text-negative-content">{error}</span>}
-      </div>
-      <div className="w-full flex flex-col gap-2">
-        <label className="w-full" htmlFor="project_description">
-          Description
-        </label>
-        <TextArea
-          name="description"
-          id="project_description"
-          placeholder="Optional description of your project"
-          rows="4"
-          style={{ minHeight: 100 }}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="project-description w-full"
+        <WorkspaceSelector
+          value={workspace}
+          onChange={setWorkspace}
         />
       </div>
-      {isFF(FF_LSDV_E_297) && (
-        <div className="w-full flex flex-col gap-2">
-          <label>
-            Workspace
-            <EnterpriseBadge className="ml-2" />
-          </label>
-          <Select placeholder="Select an option" disabled options={[]} className="!flex-1" />
-          <Caption>
-            Simplify project management by organizing projects into workspaces.{" "}
-            <a
-              href={createURL(
-                "https://docs.humansignal.com/guide/manage_projects#Create-workspaces-to-organize-projects",
-                {
-                  experiment: "project_creation_dropdown",
-                  treatment: "simplify_project_management",
-                },
-              )}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Learn more
-            </a>
-          </Caption>
-          <HeidiTips collection="projectCreation" />
-        </div>
-      )}
-    </form>
+
+      {error && <div style={{ color: "red", marginBottom: 16 }}>{error}</div>}
+      <Button onClick={onSubmit} look="primary" style={{ width: "100%" }}>
+        Save Project
+      </Button>
+    </div>
   );
 
 export const CreateProject = ({ onClose }) => {
@@ -92,10 +74,13 @@ export const CreateProject = ({ onClose }) => {
   const history = useHistory();
   const api = useAPI();
 
+
   const [name, setName] = React.useState("");
   const [error, setError] = React.useState();
   const [description, setDescription] = React.useState("");
   const [sample, setSample] = React.useState(null);
+  const [workspace, setWorkspace] = React.useState(null);
+
 
   const setStep = React.useCallback((step) => {
     _setStep(step);
@@ -131,10 +116,13 @@ export const CreateProject = ({ onClose }) => {
     () => ({
       title: name,
       description,
+      workspace: workspace,
       label_config: project?.label_config ?? "<View></View>",
     }),
-    [name, description, project?.label_config],
+    [name, description, workspace, project?.label_config],
   );
+
+
 
   const onCreate = React.useCallback(async () => {
     const imported = await finishUpload();
@@ -223,6 +211,8 @@ export const CreateProject = ({ onClose }) => {
           onSubmit={onCreate}
           description={description}
           setDescription={setDescription}
+          workspace={workspace}
+          setWorkspace={setWorkspace}
           show={step === "name"}
         />
         <ImportPage
@@ -242,6 +232,7 @@ export const CreateProject = ({ onClose }) => {
           columns={columns}
           disableSaveButton={true}
         />
+
       </div>
     </Modal>
   );

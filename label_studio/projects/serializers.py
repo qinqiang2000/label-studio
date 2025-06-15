@@ -215,6 +215,7 @@ class ProjectSerializer(FlexFieldsModelSerializer):
             'enable_empty_annotation',
             'show_annotation_history',
             'organization',
+            'workspace',
             'color',
             'maximum_annotations',
             'is_published',
