@@ -48,9 +48,9 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         if not user.is_superuser:
             queryset = queryset.filter(members=user)
         
-        # Filter archived workspaces unless specifically requested
+        # Filter archived workspaces unless specifically requested or for archive action
         show_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
-        if not show_archived:
+        if not show_archived and self.action != 'archive':
             queryset = queryset.filter(is_archived=False)
             
         return queryset.prefetch_related('members', 'projects', 'created_by').distinct()
@@ -89,6 +89,18 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     
     def destroy(self, request, *args, **kwargs):
         self.check_admin_permission()
+        workspace = self.get_object()
+        
+        # Check if workspace has projects
+        project_count = workspace.projects.count()
+        if project_count > 0:
+            return Response(
+                {
+                    'error': f'Cannot delete workspace with {project_count} project(s). Please delete or move all projects to another workspace first.'
+                }, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         return super().destroy(request, *args, **kwargs)
     
     @action(detail=True, methods=['get'])

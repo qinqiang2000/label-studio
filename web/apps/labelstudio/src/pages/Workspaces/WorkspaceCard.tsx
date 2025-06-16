@@ -79,7 +79,7 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
           onClose={() => modalInstance.close()}
           onMembersUpdated={() => {
             onUpdate();
-            modalInstance.close();
+            // Don't close modal to allow multiple operations
           }}
         />
       ),
@@ -94,13 +94,17 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
     if (!confirmed) return;
 
     try {
-      await api.callApi('archiveWorkspace', {
+      const response = await api.callApi('archiveWorkspace', {
         params: { pk: workspace.id }
       });
+      
       onUpdate();
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Failed to ${action} workspace:`, error);
-      alert(`Failed to ${action} workspace. Please try again.`);
+      
+      // Show specific error message if available
+      const errorMessage = error?.response?.data?.error || `Failed to ${action} workspace. Please try again.`;
+      alert(errorMessage);
     }
   }, [workspace, api, onUpdate]);
 
@@ -109,14 +113,31 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
     
     if (!confirmed) return;
 
-    try {
-      await api.callApi('deleteWorkspace', {
-        params: { pk: workspace.id }
-      });
+    const result = await api.callApi('deleteWorkspace', {
+      params: { pk: workspace.id },
+      suppressError: true
+    });
+    
+    if (result?.error) {
+      console.error('Failed to delete workspace:', result);
+      
+      // Show specific error message if available, otherwise show a generic message
+      let errorMessage = 'Failed to delete workspace. Please try again.';
+      
+      if (result?.response?.error) {
+        // If it's the specific error about projects, show a more user-friendly message
+        const serverError = result.response.error;
+        if (serverError.includes('project(s)')) {
+          errorMessage = 'If you want to delete a workspace, first delete the projects or move them to another workspace from the project settings.';
+        } else {
+          errorMessage = serverError;
+        }
+      }
+      
+      alert(errorMessage);
+    } else {
+      // Success - update the workspace list
       onUpdate();
-    } catch (error) {
-      console.error('Failed to delete workspace:', error);
-      alert('Failed to delete workspace. Please try again.');
     }
   }, [workspace, api, onUpdate]);
 
@@ -128,7 +149,7 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
         const response = await api.callApi('workspaceProjects', {
           params: { pk: workspace.id }
         });
-        setProjects(response || []);
+        setProjects((response as unknown as Project[]) || []);
       } catch (error) {
         console.error('Failed to fetch workspace projects:', error);
         alert('Failed to load projects. Please try again.');

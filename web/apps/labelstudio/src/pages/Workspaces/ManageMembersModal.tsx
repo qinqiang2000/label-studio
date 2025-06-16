@@ -38,6 +38,9 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [addingUserId, setAddingUserId] = useState<number | null>(null);
+  const [removingUserId, setRemovingUserId] = useState<number | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string>('');
   
   const api = useAPI();
 
@@ -64,7 +67,16 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
     fetchData();
   }, [fetchData]);
 
+  // Clear success message after 3 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(''), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   const handleAddMember = useCallback(async (userId: number) => {
+    setAddingUserId(userId);
     try {
       await api.callApi('addWorkspaceMember', {
         params: { pk: workspace.id },
@@ -73,16 +85,27 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
       
       await fetchData();
       onMembersUpdated();
+      
+      // Find the user name for success message
+      const user = availableUsers.find(u => u.id === userId);
+      const userName = user ? `${user.first_name} ${user.last_name}` : 'User';
+      setSuccessMessage(`${userName} has been added to the workspace`);
     } catch (error) {
       console.error('Failed to add member:', error);
       alert('Failed to add member. Please try again.');
+    } finally {
+      setAddingUserId(null);
     }
-  }, [api, workspace.id, fetchData, onMembersUpdated]);
+  }, [api, workspace.id, fetchData, onMembersUpdated, availableUsers]);
 
   const handleRemoveMember = useCallback(async (userId: number) => {
-    const confirmed = confirm('Are you sure you want to remove this member?');
+    const member = members.find(m => m.user.id === userId);
+    const userName = member ? `${member.user.first_name} ${member.user.last_name}` : 'this member';
+    
+    const confirmed = confirm(`Are you sure you want to remove ${userName} from the workspace?`);
     if (!confirmed) return;
 
+    setRemovingUserId(userId);
     try {
       await api.callApi('removeWorkspaceMember', {
         params: { pk: workspace.id },
@@ -91,11 +114,14 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
       
       await fetchData();
       onMembersUpdated();
+      setSuccessMessage(`${userName} has been removed from the workspace`);
     } catch (error) {
       console.error('Failed to remove member:', error);
       alert('Failed to remove member. Please try again.');
+    } finally {
+      setRemovingUserId(null);
     }
-  }, [api, workspace.id, fetchData, onMembersUpdated]);
+  }, [api, workspace.id, fetchData, onMembersUpdated, members]);
 
   const filteredAvailableUsers = availableUsers.filter(user => {
     const isNotMember = !members.some(member => member.user.id === user.id);
@@ -114,6 +140,12 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
 
   return (
     <Block name="manage-members-modal">
+      {successMessage && (
+        <Elem name="success-message">
+          {successMessage}
+        </Elem>
+      )}
+      
       <Elem name="section">
         <Elem name="section-title">Current Members ({members.length})</Elem>
         <Elem name="members-list">
@@ -128,8 +160,9 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
               <Button
                 size="small"
                 onClick={() => handleRemoveMember(member.user.id)}
+                disabled={removingUserId === member.user.id}
               >
-                Remove
+                {removingUserId === member.user.id ? 'Removing...' : 'Remove'}
               </Button>
             </Elem>
           ))}
@@ -163,8 +196,9 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
                 size="small"
                 look="filled"
                 onClick={() => handleAddMember(user.id)}
+                disabled={addingUserId === user.id}
               >
-                Add
+                {addingUserId === user.id ? 'Adding...' : 'Add'}
               </Button>
             </Elem>
           ))}
