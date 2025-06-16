@@ -1,5 +1,5 @@
 import React, { useEffect, useState, forwardRef } from 'react';
-import { Select } from '@humansignal/ui';
+import { Select, Tooltip } from '@humansignal/ui';
 import { useAPI } from '../../providers/ApiProvider';
 import { FormField } from '../../components/Form/FormField';
 
@@ -40,7 +40,7 @@ const WorkspaceSelector = forwardRef(({ value, onChange, disabled, showLabel = f
   }
 
   const options = [
-    { value: '', label: 'No workspace' },
+    { value: '', label: <Tooltip title="[Notice] This project will be visible to all users in the organization!"><span>No workspace (visible to all users!)</span></Tooltip> },
     ...workspaces.map(workspace => ({
       value: workspace.id,
       label: workspace.name

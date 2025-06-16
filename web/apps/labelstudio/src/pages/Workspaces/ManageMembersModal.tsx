@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Block, Elem } from '../../utils/bem';
-import { Button, Modal } from '@humansignal/ui';
-import { Input } from '../../components/Form/Elements';
+import { Button } from '@humansignal/ui';
+import { Input } from '../../components/Form';
 import { useAPI } from '../../providers/ApiProvider';
+import './ManageMembersModal.scss';
 
 interface User {
   id: number;
@@ -47,11 +48,11 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
       const membersResponse = await api.callApi('workspaceMembers', {
         params: { pk: workspace.id }
       });
-      setMembers(membersResponse || []);
+      setMembers(Array.isArray(membersResponse) ? membersResponse : []);
       
       // Fetch all users for adding
       const usersResponse = await api.callApi('users');
-      setAvailableUsers(usersResponse || []);
+      setAvailableUsers(Array.isArray(usersResponse) ? usersResponse : []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -126,7 +127,6 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
               </Elem>
               <Button
                 size="small"
-                look="destructive"
                 onClick={() => handleRemoveMember(member.user.id)}
               >
                 Remove
@@ -142,11 +142,12 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
       <Elem name="section">
         <Elem name="section-title">Add Members</Elem>
         <Elem name="search-box">
-          <Input
+          <input
             type="text"
             placeholder="Search users..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+            className="w-full"
           />
         </Elem>
         <Elem name="available-users">
@@ -160,7 +161,7 @@ export const ManageMembersModal: React.FC<ManageMembersModalProps> = ({
               </Elem>
               <Button
                 size="small"
-                look="primary"
+                look="filled"
                 onClick={() => handleAddMember(user.id)}
               >
                 Add
