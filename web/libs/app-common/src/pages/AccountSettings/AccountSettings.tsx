@@ -6,6 +6,7 @@ import { accountSettingsSections } from "./sections";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { settingsAtom } from "./atoms";
+import { useCurrentUserAtom } from "@humansignal/core/lib/hooks/useCurrentUser";
 
 /**
  * FIXME: This is legacy imports. We're not supposed to use such statements
@@ -15,12 +16,13 @@ import { SidebarMenu } from "apps/labelstudio/src/components/SidebarMenu/Sidebar
 
 const AccountSettingsPage = () => {
   const settings = useAtomValue(settingsAtom);
+  const { user } = useCurrentUserAtom();
   const contentClassName = clsx(styles.accountSettings__content, {
     [styles.accountSettingsPadding]: window.APP_SETTINGS.billing !== undefined,
   });
   const resolvedSections = useMemo(() => {
-    return settings.data ? accountSettingsSections(settings.data) : [];
-  }, [settings.data]);
+    return settings.data ? accountSettingsSections(settings.data, user) : [];
+  }, [settings.data, user]);
 
   const menuItems = useMemo(
     () =>
@@ -31,7 +33,7 @@ const AccountSettingsPage = () => {
           window.location.hash = `#${id}`;
         },
       })),
-    [accountSettingsSections, settings.data],
+    [resolvedSections],
   );
 
   return (

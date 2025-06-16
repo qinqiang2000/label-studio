@@ -7,6 +7,7 @@ import { modal } from "../../../components/Modal/Modal";
 import { Space } from "../../../components/Space/Space";
 import { useAPI } from "../../../providers/ApiProvider";
 import { useConfig } from "../../../providers/ConfigProvider";
+import { useCurrentUser } from "../../../providers/CurrentUser";
 import { Block, Elem } from "../../../utils/bem";
 import { FF_AUTH_TOKENS, FF_LSDV_E_297, isFF } from "../../../utils/feature-flags";
 import "./PeopleInvitation.scss";
@@ -55,6 +56,7 @@ export const PeoplePage = () => {
   const apiSettingsModal = useRef();
   const config = useConfig();
   const toast = useToast();
+  const { user } = useCurrentUser();
   const [selectedUser, setSelectedUser] = useState(null);
   const [invitationOpen, setInvitationOpen] = useState(false);
 
@@ -101,7 +103,9 @@ export const PeoplePage = () => {
           <Space />
 
           <Space>
-            {isFF(FF_AUTH_TOKENS) && <Button onClick={showApiTokenSettingsModal}>API Tokens Settings</Button>}
+            {isFF(FF_AUTH_TOKENS) && user?.is_superuser && (
+              <Button onClick={showApiTokenSettingsModal}>API Tokens Settings</Button>
+            )}
             <Button icon={<IconPlus />} primary onClick={() => setInvitationOpen(true)}>
               Add People
             </Button>

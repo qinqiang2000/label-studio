@@ -14,7 +14,14 @@ type SectionType = {
   description?: React.FC;
 };
 
-export const accountSettingsSections = (settings: AuthTokenSettings): SectionType[] => {
+type UserInfo = {
+  is_superuser: boolean;
+};
+
+export const accountSettingsSections = (
+  settings: AuthTokenSettings,
+  user?: UserInfo | null
+): SectionType[] => {
   return [
     {
       title: "Personal Info",
@@ -31,18 +38,21 @@ export const accountSettingsSections = (settings: AuthTokenSettings): SectionTyp
       id: "membership-info",
       component: MembershipInfo,
     },
-    settings.api_tokens_enabled &&
+    // Only show token sections to superusers
+    user?.is_superuser &&
+      settings.api_tokens_enabled &&
       ff.isActive(ff.FF_AUTH_TOKENS) && {
         title: "Personal Access Token",
         id: "personal-access-token",
         component: PersonalJWTToken,
         description: PersonalAccessTokenDescription,
       },
-    settings.legacy_api_tokens_enabled && {
-      title: ff.isActive(ff.FF_AUTH_TOKENS) ? "Legacy Token" : "Access Token",
-      id: "legacy-token",
-      component: PersonalAccessToken,
-      description: PersonalAccessTokenDescription,
-    },
+    user?.is_superuser &&
+      settings.legacy_api_tokens_enabled && {
+        title: ff.isActive(ff.FF_AUTH_TOKENS) ? "Legacy Token" : "Access Token",
+        id: "legacy-token",
+        component: PersonalAccessToken,
+        description: PersonalAccessTokenDescription,
+      },
   ].filter(Boolean) as SectionType[];
 };

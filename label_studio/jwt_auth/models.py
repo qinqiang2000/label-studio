@@ -36,30 +36,16 @@ class JWTSettings(models.Model):
     updated_at = models.DateTimeField(_('updated at'), auto_now=True)
 
     def has_view_permission(self, user):
-        """Any member of the organization can view JWT settings."""
-        return self.organization.has_permission(user)
+        """Only superusers can view JWT settings."""
+        return user.is_superuser
 
     def has_modify_permission(self, user):
-        """Determine who can modify JWT settings.
-
-        In label studio enterprise: Only organization owners/admins can modify JWT settings.
-        In label studio open-source: Any organization member can modify JWT settings.
-        """
-        if not self.organization.has_permission(user):
-            return False
-
-        # open-source
-        if is_community():
-            return True
-
-        # enterprise
-        is_owner = user.is_owner if hasattr(user, 'is_owner') else (user.id == self.organization.created_by.id)
-        is_administrator = hasattr(user, 'is_administrator') and user.is_administrator
-        return is_owner or is_administrator
+        """Only superusers can modify JWT settings."""
+        return user.is_superuser
 
     def has_permission(self, user):
-        """Only organization owners/admins can modify JWT settings."""
-        return self.has_modify_permission(user)
+        """Only superusers can access JWT settings."""
+        return user.is_superuser
 
 
 class LSTokenBackend(TokenBackend):
