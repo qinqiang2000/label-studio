@@ -3,6 +3,7 @@ import { Block, Elem } from '../../utils/bem';
 import { Button, Form, Modal } from '@humansignal/ui';
 import { Input, TextArea } from '../../components/Form/Elements';
 import { useAPI } from '../../providers/ApiProvider';
+import './CreateWorkspaceModal.scss';
 
 interface Workspace {
   id: number;
@@ -66,7 +67,7 @@ export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
   }, [name, description, color, api, workspace.id, onWorkspaceUpdated, onClose]);
 
   return (
-    <Block name="edit-workspace-modal">
+    <Block name="create-workspace-modal">
       <form onSubmit={handleSubmit}>
         <Elem name="form-group">
           <label htmlFor="workspace-name">Name *</label>
@@ -78,6 +79,7 @@ export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
             placeholder="Enter workspace name"
             disabled={isSubmitting}
             required
+            className="project-title w-full"
           />
         </Elem>
 
@@ -89,7 +91,9 @@ export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Enter workspace description (optional)"
             disabled={isSubmitting}
-            rows={3}
+            rows={4}
+            style={{ minHeight: 100 }}
+            className="project-description w-full"
           />
         </Elem>
 
@@ -101,9 +105,36 @@ export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
                 key={colorOption}
                 name="color-option"
                 mod={{ selected: color === colorOption }}
-                style={{ backgroundColor: colorOption }}
+                style={{ backgroundColor: colorOption, position: 'relative' }}
                 onClick={() => !isSubmitting && setColor(colorOption)}
-              />
+              >
+                {color === colorOption && (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      pointerEvents: 'none',
+                      zIndex: 2,
+                    }}
+                  >
+                    <circle cx="10" cy="10" r="9" fill="rgba(0,0,0,0.18)" />
+                    <path
+                      d="M6 10.5L9 13.5L14 8.5"
+                      stroke="#fff"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </Elem>
             ))}
           </Elem>
         </Elem>
