@@ -169,7 +169,7 @@ def samples_paragraphs(request):
 @csrf_exempt
 def heidi_tips(request):
     """Serve live tips from local static file."""
-    file_path = os.path.join(settings.BASE_DIR, 'core', 'static', 'heidi_tips', 'liveContent.json')
+    file_path = os.path.join(settings.BASE_DIR, 'static', 'heidi_tips', 'liveContent.json')
     with open(file_path, 'r') as f:
         content = f.read()
     return HttpResponse(content, content_type='application/json')
