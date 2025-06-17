@@ -107,7 +107,52 @@ export const ActionsButton = injector(
         console.log('[DEBUG] 选择状态 - all:', selectedItems?.all, 'included length:', selectedItems?.included?.length);
         
         try {
-          const result = await store.invokeAction(action.id, params?.body ? params : { body: params });
+          // 对于retrieve_tasks_predictions，我们需要特殊处理以避免全局错误弹窗
+          let result;
+          if (action.id === 'retrieve_tasks_predictions') {
+            // 使用suppressError来避免全局错误处理
+            result = await store.invokeAction(action.id, {
+              ...params,
+              suppressError: true  // 阻止全局错误处理
+            });
+          } else {
+            result = await store.invokeAction(action.id, params?.body ? params : { body: params });
+          }
+          
+          // 检查是否有ML后端配置相关的错误
+          if (result && result.error) {
+            const errorMessage = result.error_message || result.detail || result.error;
+            
+            if (result.error === 'no_ml_backend') {
+              store.SDK.invoke("toast", { 
+                message: errorMessage,
+                type: "error",
+                duration: 8000
+              });
+              return result;
+            } else if (result.error === 'ml_backend_disconnected') {
+              store.SDK.invoke("toast", { 
+                message: errorMessage,
+                type: "error", 
+                duration: 8000
+              });
+              return result;
+            } else if (result.error === 'ml_backend_error') {
+              store.SDK.invoke("toast", { 
+                message: errorMessage,
+                type: "error",
+                duration: 8000
+              });
+              return result;
+            } else if (result.error === 'ml_backend_not_ready') {
+              store.SDK.invoke("toast", { 
+                message: errorMessage,
+                type: "warning",
+                duration: 8000
+              });
+              return result;
+            }
+          }
           
           // 检查是否有ML错误
           if (result && result.ml_errors && result.ml_errors.length > 0) {
@@ -138,6 +183,24 @@ export const ActionsButton = injector(
           return result;
         } catch (error) {
           console.error('[DEBUG] 单个任务处理失败:', error);
+          
+          // 检查是否是store.invokeAction返回的错误信息
+          if (error && typeof error === 'object') {
+            const errorMessage = error.error_message || error.detail || error.message || error.error || '任务处理失败';
+            
+            store.SDK.invoke("toast", { 
+              message: errorMessage,
+              type: "error",
+              duration: 8000
+            });
+          } else {
+            store.SDK.invoke("toast", { 
+              message: error?.message || '任务处理失败',
+              type: "error",
+              duration: 8000
+            });
+          }
+          
           throw error;
         }
       }

@@ -37,6 +37,7 @@ def test_columns_api_returns_expected_ids(business_client):
         'predictions_score',
         'predictions_model_versions',
         'predictions_results',
+        'predictions_prompt_names',
         'file_upload',
         'storage_filename',
         'created_at',

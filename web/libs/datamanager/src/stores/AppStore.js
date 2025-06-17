@@ -749,6 +749,8 @@ export const AppStore = types
 
       const result = yield self.apiCall("invokeAction", requestParams, {
         body: actionParams,
+      }, {
+        errorHandler: options.suppressError ? () => true : undefined
       });
 
       if (result.async) {

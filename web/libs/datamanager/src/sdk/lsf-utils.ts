@@ -51,6 +51,7 @@ export const predictionToLSF = (prediction: APIPrediction) => {
     createdAgo: prediction.created_ago,
     createdBy: prediction.model_version?.trim() ?? "",
     createdDate: prediction.created_at,
+    promptName: prediction.prompt_name,
   };
 };
 

@@ -353,6 +353,7 @@ class DataManagerTaskSerializer(TaskSerializer):
     storage_filename = serializers.SerializerMethodField(required=False)
     annotations_ids = serializers.SerializerMethodField(required=False)
     predictions_model_versions = serializers.SerializerMethodField(required=False)
+    predictions_prompt_names = serializers.SerializerMethodField(required=False)
     avg_lead_time = serializers.FloatField(required=False)
     draft_exists = serializers.BooleanField(required=False)
     updated_by = UpdatedByDMFieldSerializer(required=False, read_only=True)
@@ -468,6 +469,9 @@ class DataManagerTaskSerializer(TaskSerializer):
 
     def get_predictions_model_versions(self, task):
         return self._pretty_results(task, 'predictions_model_versions', unique=True)
+
+    def get_predictions_prompt_names(self, task):
+        return self._pretty_results(task, 'predictions_prompt_names', unique=True)
 
     def get_drafts_serializer(self):
         return AnnotationDraftSerializer

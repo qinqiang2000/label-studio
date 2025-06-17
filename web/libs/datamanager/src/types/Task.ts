@@ -24,6 +24,7 @@ export interface APIAnnotation {
 export interface APIPrediction {
   id: number;
   model_version: string;
+  prompt_name?: string;
 
   created_ago: string;
 

@@ -22,6 +22,7 @@ def retrieve_tasks_predictions_form(user, project):
     """Form for retrieve predictions action with prompt selection"""
     # 构建 prompt 选项
     prompt_options = [{"label": "None", "value": ""}]  # 默认"无"选项
+    default_value = ""
     
     # 安全地获取所有可用的 prompts
     try:
@@ -33,12 +34,17 @@ def retrieve_tasks_predictions_form(user, project):
                 "value": prompt.name
             })
         logger.debug(f"Found {len(prompts)} prompts for selection")
+        
+        # 如果有可用的 prompts，默认选择第一个（最新的）
+        if prompts.exists():
+            default_value = prompts.first().name
+            logger.debug(f"Setting default prompt to: {default_value}")
+            
     except (ImportError, AttributeError, Exception):
         # 如果 prompts 模块不存在或有其他错误，只显示"无"选项
         logger.debug("Prompts model not available, using empty prompt list")
     
-    # 安全地获取用户和项目的默认选择
-    default_value = ""
+    # 如果用户有保存的偏好，使用用户偏好而不是默认值
     try:
         from users.models import UserPreference
         preference = UserPreference.objects.filter(
@@ -46,11 +52,14 @@ def retrieve_tasks_predictions_form(user, project):
             project=project,
             preference_key='last_selected_prompt'
         ).first()
-        if preference:
-            default_value = preference.preference_value
+        if preference and preference.preference_value:
+            # 检查用户偏好的prompt是否还存在
+            if any(option['value'] == preference.preference_value for option in prompt_options):
+                default_value = preference.preference_value
+                logger.debug(f"Using user preference: {default_value}")
     except (ImportError, AttributeError, Exception):
-        # 如果 UserPreference 模型不存在或有其他错误，使用空默认值
-        logger.debug("UserPreference model not available, using empty default")
+        # 如果 UserPreference 模型不存在或有其他错误，使用默认值
+        logger.debug("UserPreference model not available, using default prompt")
     
     return [
         {
@@ -77,6 +86,46 @@ def retrieve_tasks_predictions(project, queryset, **kwargs):
     """
     request = kwargs.get('request')
     prompt_name = None
+    
+    # 首先检查项目是否有ML后端配置
+    if not project.has_ml_backend():
+        logger.warning(f"Project '{project.title}' (ID: {project.id}) has no ML backend configured")
+        return {
+            'processed_items': 0,
+            'detail': 'No ML backend configured for this project. Please configure an ML backend in project settings.',
+            'error': 'no_ml_backend',
+            'error_message': 'No ML backend configured for this project. Please configure an ML backend in project settings.'
+        }
+    
+    # 检查ML后端状态
+    ml_backend = project.ml_backend
+    if ml_backend:
+        from ml.models import MLBackendState
+        if ml_backend.state == MLBackendState.DISCONNECTED:
+            logger.warning(f"ML backend '{ml_backend.title}' for project '{project.title}' is disconnected")
+            return {
+                'processed_items': 0,
+                'detail': f'ML backend "{ml_backend.title}" is disconnected. Please check the backend connection.',
+                'error': 'ml_backend_disconnected',
+                'error_message': f'ML backend "{ml_backend.title}" is disconnected. Please check the backend connection in project settings.'
+            }
+        elif ml_backend.state == MLBackendState.ERROR:
+            error_msg = ml_backend.error_message or 'Unknown error'
+            logger.warning(f"ML backend '{ml_backend.title}' for project '{project.title}' has error: {error_msg}")
+            return {
+                'processed_items': 0,
+                'detail': f'ML backend "{ml_backend.title}" has an error: {error_msg}',
+                'error': 'ml_backend_error',
+                'error_message': f'ML backend "{ml_backend.title}" has an error: {error_msg}'
+            }
+        elif ml_backend.state not in [MLBackendState.CONNECTED, MLBackendState.TRAINING, MLBackendState.PREDICTING]:
+            logger.warning(f"ML backend '{ml_backend.title}' for project '{project.title}' is not ready (state: {ml_backend.state})")
+            return {
+                'processed_items': 0,
+                'detail': f'ML backend "{ml_backend.title}" is not ready (state: {ml_backend.get_state_display()}). Please wait or check the backend status.',
+                'error': 'ml_backend_not_ready',
+                'error_message': f'ML backend "{ml_backend.title}" is not ready (state: {ml_backend.get_state_display()}). Please wait or check the backend status.'
+            }
     
     # 从请求中获取 prompt_name
     if request and hasattr(request, 'data'):
