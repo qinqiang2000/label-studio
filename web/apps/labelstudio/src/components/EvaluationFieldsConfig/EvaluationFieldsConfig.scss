@@ -1,0 +1,113 @@
+.evaluation-fields-config {
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 16px 0;
+  background: white;
+
+  &__header {
+    margin-bottom: 16px;
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+  }
+
+  &__description {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 16px;
+  }
+
+  &__display {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  &__current-config {
+    flex: 1;
+  }
+
+  &__item {
+    display: flex;
+    margin-bottom: 8px;
+    align-items: flex-start;
+  }
+
+  &__label {
+    min-width: 120px;
+    font-weight: 500;
+    color: #374151;
+  }
+
+  &__value {
+    color: #1f2937;
+    flex: 1;
+  }
+
+  &__editor {
+    .form-row {
+      margin-bottom: 16px;
+    }
+  }
+
+  &__predefined-fields {
+    margin: 16px 0;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+  }
+
+  &__fields-label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #374151;
+  }
+
+  &__fields-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__field-tag {
+    background: #e5e7eb;
+    color: #374151;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+  }
+
+  &__preview {
+    margin: 16px 0;
+    padding: 12px;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+  }
+
+  &__preview-label {
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: #0369a1;
+  }
+
+  &__preview-fields {
+    font-family: monospace;
+    color: #0c4a6e;
+    font-size: 13px;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+  }
+} 

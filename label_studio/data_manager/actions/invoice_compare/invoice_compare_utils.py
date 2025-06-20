@@ -264,6 +264,49 @@ class InvoiceComparer:
         """判断字段是否为Name字段（不区分大小写）"""
         return 'name' in field_name.lower()
     
+    def is_amount_field(self, field_name: str) -> bool:
+        """判断字段是否为金额字段（不区分大小写）"""
+        field_lower = field_name.lower()
+        # 支持各种金额字段名
+        amount_keywords = ['amount', 'tax', 'total', 'sum', 'money', 'price', 'cost', 'fee']
+        return any(keyword in field_lower for keyword in amount_keywords)
+    
+    def is_date_field(self, field_name: str) -> bool:
+        """判断字段是否为日期字段（不区分大小写）"""
+        field_lower = field_name.lower()
+        # 支持各种日期字段名
+        date_keywords = ['date', 'time', 'when', 'day', 'month', 'year']
+        return any(keyword in field_lower for keyword in date_keywords)
+    
+    def get_key_fields_for_comparison(self) -> List[str]:
+        """
+        根据当前的核心字段动态确定主键字段
+        用于识别同一张票据的关键字段
+        """
+        key_fields = []
+        
+        # 优先选择金额字段作为主键
+        for field in self.core_fields:
+            if self.is_amount_field(field):
+                key_fields.append(field)
+                break
+        
+        # 选择日期字段作为主键
+        for field in self.core_fields:
+            if self.is_date_field(field):
+                key_fields.append(field)
+                break
+        
+        # 如果有docType字段，也加入主键
+        if 'docType' in self.core_fields:
+            key_fields.append('docType')
+        
+        # 如果没有找到合适的主键字段，使用前几个字段
+        if not key_fields:
+            key_fields = self.core_fields[:3]
+        
+        return key_fields
+    
     def extract_core_fields(self, invoice: Dict[str, Any]) -> Dict[str, Any]:
         """提取核心字段"""
         core_data = {}
@@ -281,11 +324,11 @@ class InvoiceComparer:
             if self.is_name_field(field):
                 # Name字段保持原始值，在比较时使用特殊逻辑
                 normalized[field] = value
-            elif field in ['totalAmount', 'totalTaxAmount']:
-                # 金额字段
+            elif self.is_amount_field(field):
+                # 金额字段 - 支持更多字段名
                 normalized[field] = self.normalize_amount(value)
-            elif field in ['invoiceDate']:
-                # 日期字段
+            elif self.is_date_field(field):
+                # 日期字段 - 支持更多字段名
                 normalized[field] = self.normalize_date(value)
             else:
                 # 其他字符串字段
@@ -385,18 +428,13 @@ class InvoiceComparer:
         result.total_standard = len(standard_invoices)
         result.total_prediction = len(prediction_invoices)
         
-        # 计算实际的total_field_count：只统计docType为invoice或receipt的票据
-        actual_field_count = 0
-        for invoice in standard_invoices:
-            doc_type = invoice.get('docType', '').lower()
-            if doc_type in ['invoice', 'receipt']:
-                actual_field_count += len(self.core_fields)
-        result.total_field_count = actual_field_count
+        # 计算实际的total_field_count：统计所有票据的字段数
+        result.total_field_count = len(standard_invoices) * len(self.core_fields)
         
         if self.verbose:
-            valid_invoices = sum(1 for inv in standard_invoices if inv.get('docType', '').lower() in ['invoice', 'receipt'])
-            self.log(f"有效票据数量 (docType为invoice/receipt): {valid_invoices}")
-            self.log(f"实际字段总数: {actual_field_count}")
+            self.log(f"标准票据数量: {len(standard_invoices)}")
+            self.log(f"比较字段数: {len(self.core_fields)}")
+            self.log(f"总字段数: {result.total_field_count}")
         
         # 创建预测票据的副本，用于标记已匹配的票据
         remaining_predictions = list(range(len(prediction_invoices)))
@@ -404,10 +442,6 @@ class InvoiceComparer:
         # 遍历标准票据，寻找匹配
         for std_idx, std_invoice in enumerate(standard_invoices):
             self.log(f"处理标准票据 {std_idx + 1}/{len(standard_invoices)}")
-            
-            # 检查票据类型是否有效
-            std_doc_type = std_invoice.get('docType', '').lower()
-            is_valid_type = std_doc_type in ['invoice', 'receipt']
             
             std_core = self.extract_core_fields(std_invoice)
             
@@ -424,9 +458,8 @@ class InvoiceComparer:
                     found_idx = i
                     diff_fields = []
                     result.matched_count += 1
-                    # 只对有效类型的票据统计字段
-                    if is_valid_type:
-                        result.correct_field_count += len(self.core_fields)
+                    # 统计所有票据的字段
+                    result.correct_field_count += len(self.core_fields)
                     self.log(f"找到完全匹配的票据")
                     break
                 elif len(fields_diff) < len(self.core_fields):
@@ -434,18 +467,17 @@ class InvoiceComparer:
                     norm_std = self.normalize_invoice(std_invoice)
                     norm_pred = self.normalize_invoice(pred_invoice)
                     
-                    # 使用主键进行识别
-                    key_fields = ['totalAmount', 'invoiceDate', 'docType']
-                    key_match = all(norm_std.get(f) == norm_pred.get(f) for f in key_fields)
+                    # 使用主键进行识别 - 根据实际字段动态确定主键
+                    key_fields = self.get_key_fields_for_comparison()
+                    key_match = all(norm_std.get(f) == norm_pred.get(f) for f in key_fields if f in norm_std and f in norm_pred)
                     
                     if key_match:
                         found_idx = i
                         diff_fields = fields_diff
                         result.unmatched_count += 1
-                        # 只对有效类型的票据统计字段
-                        if is_valid_type:
-                            correct_fields = len(self.core_fields) - len(diff_fields)
-                            result.correct_field_count += correct_fields
+                        # 统计所有票据的字段
+                        correct_fields = len(self.core_fields) - len(diff_fields)
+                        result.correct_field_count += correct_fields
                         self.log(f"找到部分匹配的票据，差异字段: {diff_fields}")
                         break
             

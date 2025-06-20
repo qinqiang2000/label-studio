@@ -17,6 +17,69 @@ import pandas as pd
 all_permissions = AllPermissions()
 logger = logging.getLogger(__name__)
 
+# 默认字段配置
+DEFAULT_FIELD_CONFIGS = {
+    'invoice': ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+    'receipt': ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+    'bank_receipt': ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+    'other': ["docType", "totalAmount", "currency"]
+}
+
+def get_evaluation_fields_for_project(project):
+    """
+    获取项目的评估字段配置
+    
+    :param project: 项目实例
+    :return: 字段列表
+    """
+    # 获取项目配置
+    config = getattr(project, 'evaluation_field_config', None) or {}
+    
+    # 如果项目没有配置，返回默认配置
+    if not config:
+        # 尝试从数据中推断单据类型
+        # 这里可以根据项目的label_config或者数据样本来推断
+        return DEFAULT_FIELD_CONFIGS['invoice']  # 默认使用invoice字段
+    
+    # 如果配置了默认字段，直接返回
+    if 'default_fields' in config:
+        return config['default_fields']
+    
+    # 如果配置了按docType的字段映射，返回所有字段的并集
+    if 'document_types' in config:
+        all_fields = set(['docType'])  # docType字段始终包含
+        for doc_type, fields in config['document_types'].items():
+            all_fields.update(fields)
+        return sorted(list(all_fields))
+    
+    # 兜底返回默认配置
+    return DEFAULT_FIELD_CONFIGS['invoice']
+
+def get_evaluation_fields_by_doc_type(project, doc_type=None):
+    """
+    根据单据类型获取评估字段
+    
+    :param project: 项目实例
+    :param doc_type: 单据类型，如'invoice', 'bank_receipt'等
+    :return: 字段列表
+    """
+    config = getattr(project, 'evaluation_field_config', None) or {}
+    
+    # 如果指定了doc_type且在配置中存在
+    if doc_type and 'document_types' in config and doc_type in config['document_types']:
+        return config['document_types'][doc_type]
+    
+    # 使用默认字段或全局配置
+    if 'default_fields' in config:
+        return config['default_fields']
+    
+    # 使用预定义的默认配置
+    if doc_type and doc_type in DEFAULT_FIELD_CONFIGS:
+        return DEFAULT_FIELD_CONFIGS[doc_type]
+    
+    # 兜底
+    return DEFAULT_FIELD_CONFIGS['invoice']
+
 def post_process_invoices(invoices_data):
     """
     后处理发票数据，为缺少totalTaxAmount字段的发票添加该字段
@@ -105,25 +168,29 @@ def filter_json_by_fields(json_text: str, fields: List[str]) -> str:
 
 def process_comparison_results(filename: str, standard_invoices: List[dict], 
                              prediction_invoices: List[dict], result: dict, 
-                             compare_fields: List[str], comparer, prompt_name: str) -> List[dict]:
+                             compare_fields: List[str], comparer, prompt_name: str, 
+                             document_type: str = 'invoice') -> List[dict]:
     """
     处理比对结果，生成Excel行数据
-    只处理docType为'invoice'或'receipt'的票据
+    根据用户选择的单据类型动态处理不同类型的票据
     """
     rows = []
     
-    # 有效的文档类型
-    valid_doc_types = {'invoice', 'receipt'}
+    # 根据单据类型决定是否需要检查docType字段
+    need_doc_type_check = document_type in ['invoice', 'receipt']
+    valid_doc_types = {'invoice', 'receipt'} if need_doc_type_check else None
     
     # 处理matched的票据
+    # 注意：InvoiceComparer已经完成了匹配，我们需要重新找到匹配的票据对
     if result.get('matched_count', 0) > 0:
         remaining_predictions = list(range(len(prediction_invoices)))
         
         for std_invoice in standard_invoices:
-            # 只处理有效docType的票据
-            std_doc_type = (std_invoice.get('docType') or '').lower()
-            if std_doc_type not in valid_doc_types:
-                continue
+            # 根据单据类型决定是否需要检查docType
+            if need_doc_type_check:
+                std_doc_type = (std_invoice.get('docType') or '').lower()
+                if std_doc_type not in valid_doc_types:
+                    continue
                 
             found_idx = -1
             matched_pred_invoice = None
@@ -163,10 +230,11 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
         std_invoice = unmatched_item['standard']
         pred_invoice = unmatched_item['prediction']
         
-        # 只处理有效docType的票据
-        std_doc_type = (std_invoice.get('docType') or '').lower()
-        if std_doc_type not in valid_doc_types:
-            continue
+        # 根据单据类型决定是否需要检查docType
+        if need_doc_type_check:
+            std_doc_type = (std_invoice.get('docType') or '').lower()
+            if std_doc_type not in valid_doc_types:
+                continue
         
         row = {'filename': filename, 'prompt_name': prompt_name}
         
@@ -186,10 +254,11 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
     
     # 处理only_in_standard的票据
     for std_invoice in result.get('only_in_standard', []):
-        # 只处理有效docType的票据
-        std_doc_type = (std_invoice.get('docType') or '').lower()
-        if std_doc_type not in valid_doc_types:
-            continue
+        # 根据单据类型决定是否需要检查docType
+        if need_doc_type_check:
+            std_doc_type = (std_invoice.get('docType') or '').lower()
+            if std_doc_type not in valid_doc_types:
+                continue
             
         row = {'filename': filename, 'prompt_name': prompt_name}
         
@@ -349,9 +418,13 @@ def _create_details_sheet(writer, all_rows, columns):
             
             # 应用到整列（从第2行开始，第1行是标题）
             range_string = f"{col_letter}2:{col_letter}{len(all_rows) + 1}"
-            worksheet.conditional_formatting.add(range_string, rule)
+            try:
+                worksheet.conditional_formatting.add(range_string, rule)
+            except Exception as format_e:
+                print(f"条件格式应用失败: {format_e}")
+                # 如果条件格式失败，继续执行不影响数据
 
-def generate_excel_report(excel_data, compare_fields, statistics):
+def generate_excel_report(excel_data, compare_fields, statistics, document_type='invoice'):
     """
     生成Excel报告，包含票据比对结果
     
@@ -399,7 +472,7 @@ def generate_excel_report(excel_data, compare_fields, statistics):
             # 处理每种类型的比对结果
             file_rows = process_comparison_results(
                 filename, standard_invoices, prediction_invoices, 
-                result, compare_fields, comparer, prompt_name
+                result, compare_fields, comparer, prompt_name, document_type
             )
             all_rows.extend(file_rows)
         
@@ -423,7 +496,7 @@ def generate_excel_report(excel_data, compare_fields, statistics):
 
     return excel_output_path, all_rows
 
-def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"], model_version='N/A'):
+def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"], model_version='N/A', document_type='invoice'):
     logger.info(f"开始票据提取评估，可用文档数量: {len(eval_list)}")
     results = []
     excel_data = []  # 用于存储Excel数据
@@ -476,7 +549,7 @@ def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", 
         comparer = InvoiceComparer(core_fields=compare_fields, verbose=False)
         file_rows = process_comparison_results(
             filename, standard_invoices, prediction_invoices, 
-            result, compare_fields, comparer, prompt_name
+            result, compare_fields, comparer, prompt_name, document_type
         )
         all_rows.extend(file_rows)
     
@@ -485,7 +558,7 @@ def eval_ls(eval_list, compare_fields=["totalAmount", "invoiceDate", "docType", 
     statistics['model_version'] = model_version  # 添加model_version到统计信息中
     
     # 生成Excel报告
-    excel_path, _ = generate_excel_report(excel_data, compare_fields, statistics)
+    excel_path, _ = generate_excel_report(excel_data, compare_fields, statistics, document_type)
     return excel_path, all_rows, statistics
 
 # todo: 异常判读
@@ -599,6 +672,42 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
     """票据提取任务评估入口函数"""
     logger.info(f"开始票据提取评估，项目ID: {project.id}，任务数量: {queryset.count()}")
     
+    # 处理用户通过表单提交的配置
+    request = kwargs.get('request')
+    compare_fields = None
+    document_type = 'invoice'  # 默认单据类型
+    
+    if request and hasattr(request, 'data'):
+        form_data = request.data or {}
+        document_type = form_data.get('document_type', 'invoice')
+        custom_fields = form_data.get('custom_fields', '')
+        
+        # 如果用户选择了自定义字段
+        if document_type == 'custom' and custom_fields:
+            compare_fields = [field.strip() for field in custom_fields.split(',') if field.strip()]
+            logger.info(f"使用用户自定义字段: {compare_fields}")
+        elif document_type in DEFAULT_FIELD_CONFIGS:
+            compare_fields = DEFAULT_FIELD_CONFIGS[document_type]
+            logger.info(f"使用预定义字段配置 ({document_type}): {compare_fields}")
+        
+        # 保存用户的配置到项目中
+        if compare_fields:
+            project.evaluation_field_config = {
+                'document_type': document_type,
+                'default_fields': compare_fields,
+                'last_updated': datetime.now().isoformat()
+            }
+            project.save(update_fields=['evaluation_field_config'])
+    
+    # 如果没有通过表单指定字段，使用项目默认配置
+    if not compare_fields:
+        compare_fields = get_evaluation_fields_for_project(project)
+        # 如果项目有配置，也获取document_type
+        current_config = getattr(project, 'evaluation_field_config', None) or {}
+        if current_config.get('document_type'):
+            document_type = current_config['document_type']
+        logger.info(f"使用项目默认评估字段: {compare_fields}, 单据类型: {document_type}")
+    
     # 获取同时有标注和预测的任务
     tasks_with_both = queryset.filter(
         annotations__isnull=False,
@@ -644,8 +753,8 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
                 id = getattr(task, 'id', 'NO_ID')
                 logger.error(f"任务 {id} 没有文件名信息，跳过")
 
-    # 字段明细比对列表
-    excel_path, all_rows, statistics = eval_ls(results, model_version=model_version)
+    # 字段明细比对列表，使用动态字段配置
+    excel_path, all_rows, statistics = eval_ls(results, compare_fields=compare_fields, model_version=model_version, document_type=document_type)
     
     # 构建评估摘要
     evaluation_summary = {
@@ -665,16 +774,55 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
     }
 
 
+def create_evaluation_form(user, project):
+    """
+    为评估动作创建表单，允许用户配置评估字段
+    """
+    # 获取当前项目的字段配置
+    current_config = getattr(project, 'evaluation_field_config', None) or {}
+    
+    # 获取当前使用的字段
+    current_fields = get_evaluation_fields_for_project(project)
+    
+    return [
+        {
+            'columnCount': 1,
+            'fields': [
+                {
+                    'type': 'select',
+                    'name': 'document_type',
+                    'label': '单据类型',
+                    'value': current_config.get('document_type', 'invoice'),
+                    'options': [
+                        {'value': 'invoice', 'label': '发票 (Invoice)'},
+                        {'value': 'receipt', 'label': '收据 (Receipt)'},
+                        {'value': 'bank_receipt', 'label': '银行回单 (Bank Receipt)'},
+                        {'value': 'other', 'label': '其他 (Other)'},
+                        {'value': 'custom', 'label': '自定义 (Custom)'}
+                    ]
+                },
+                {
+                    'type': 'input',
+                    'name': 'custom_fields',
+                    'label': '自定义字段 (用逗号分隔)',
+                    'value': ','.join(current_fields) if current_config.get('document_type') == 'custom' else '',
+                    'placeholder': '例如: totalAmount,invoiceDate,docType'
+                }
+            ]
+        }
+    ]
+
 # 注册票据提取评估动作
 invoice_actions = [
     {
         'entry_point': evaluate_invoice_extraction_task,
         'permission': all_permissions.predictions_any,
-        'title': 'Evaluate Invoice Extraction',
+        'title': 'Evaluate Document Extraction',
         'order': 202,
         'dialog': {
-            'text': '本评估是从标注和预测的结果中提取，如果有多个版本的标注或预测结果，将取最后一个版本的结果来评估。',
+            'text': '本评估将比较标注和预测结果的准确性。如果有多个版本的标注或预测结果，将取最后一个版本进行评估。您可以选择要评估的字段和单据类型。',
             'type': 'confirm',
+            'form': create_evaluation_form,
         },
     },
 ]

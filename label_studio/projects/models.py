@@ -112,7 +112,7 @@ recalculate_all_stats = load_func(settings.RECALCULATE_ALL_STATS)
 
 class Project(ProjectMixin, models.Model):
     class SkipQueue(models.TextChoices):
-        # requeue to the end of the same annotator’s queue => annotator gets this task at the end of the queue
+        # requeue to the end of the same annotator's queue => annotator gets this task at the end of the queue
         REQUEUE_FOR_ME = 'REQUEUE_FOR_ME', 'Requeue for me'
         # requeue skipped tasks back to the common queue, excluding skipping annotator [current default] => another annotator gets this task
         REQUEUE_FOR_OTHERS = 'REQUEUE_FOR_OTHERS', 'Requeue for others'
@@ -221,13 +221,17 @@ class Project(ProjectMixin, models.Model):
 
     control_weights = JSONField(
         _('control weights'),
-        null=True,
         default=dict,
-        help_text='Dict of weights for each control tag in metric calculation. Each control tag (e.g. label or choice) will '
-        "have it's own key in control weight dict with weight for each label and overall weight."
-        'For example, if bounding box annotation with control tag named my_bbox should be included with 0.33 weight in agreement calculation, '
-        'and the first label Car should be twice more important than Airplaine, then you have to need the specify: '
-        "{'my_bbox': {'type': 'RectangleLabels', 'labels': {'Car': 1.0, 'Airplaine': 0.5}, 'overall': 0.33}",
+        null=True,
+        help_text='Weights for control tags',
+    )
+
+    # 添加评估字段配置
+    evaluation_field_config = JSONField(
+        _('evaluation field config'),
+        default=dict,
+        null=True,
+        help_text='Configuration for evaluation fields by document type',
     )
 
     # Welcome reader! You might be wondering how `model_version` is

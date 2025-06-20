@@ -11,6 +11,7 @@ import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
 import { createURL } from "../../components/HeidiTips/utils";
 import { Caption } from "../../components/Caption/Caption";
 import WorkspaceSelector from "../CreateProject/WorkspaceSelector";
+import { EvaluationFieldsConfig } from "../../components/EvaluationFieldsConfig/EvaluationFieldsConfig";
 
 export const GeneralSettings = () => {
   const { project, fetchProject } = useContext(ProjectContext);
@@ -118,6 +119,14 @@ export const GeneralSettings = () => {
               </Button>
             </Form.Actions>
           </Form>
+        </Block>
+
+        {/* 评估字段配置 */}
+        <Block name="evaluation-config-section">
+          <EvaluationFieldsConfig 
+            project={project} 
+            onUpdate={updateProject}
+          />
         </Block>
       </Elem>
       {isFF(FF_LSDV_E_297) && <HeidiTips collection="projectSettings" />}
