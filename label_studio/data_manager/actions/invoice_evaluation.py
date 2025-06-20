@@ -37,7 +37,7 @@ def get_evaluation_fields_for_project(project):
     
     # 如果项目没有配置，返回默认配置
     if not config:
-        # 尝试从数据中推断单据类型
+        # 尝试从数据中推断文档类型
         # 这里可以根据项目的label_config或者数据样本来推断
         return DEFAULT_FIELD_CONFIGS['invoice']  # 默认使用invoice字段
     
@@ -57,10 +57,10 @@ def get_evaluation_fields_for_project(project):
 
 def get_evaluation_fields_by_doc_type(project, doc_type=None):
     """
-    根据单据类型获取评估字段
+    根据文档类型获取评估字段
     
     :param project: 项目实例
-    :param doc_type: 单据类型，如'invoice', 'bank_receipt'等
+    :param doc_type: 文档类型，如'invoice', 'bank_receipt'等
     :return: 字段列表
     """
     config = getattr(project, 'evaluation_field_config', None) or {}
@@ -172,11 +172,11 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
                              document_type: str = 'invoice') -> List[dict]:
     """
     处理比对结果，生成Excel行数据
-    根据用户选择的单据类型动态处理不同类型的票据
+    根据用户选择的文档类型动态处理不同类型的票据
     """
     rows = []
     
-    # 根据单据类型决定是否需要检查docType字段
+    # 根据文档类型决定是否需要检查docType字段
     need_doc_type_check = document_type in ['invoice', 'receipt']
     valid_doc_types = {'invoice', 'receipt'} if need_doc_type_check else None
     
@@ -186,7 +186,7 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
         remaining_predictions = list(range(len(prediction_invoices)))
         
         for std_invoice in standard_invoices:
-            # 根据单据类型决定是否需要检查docType
+            # 根据文档类型决定是否需要检查docType
             if need_doc_type_check:
                 std_doc_type = (std_invoice.get('docType') or '').lower()
                 if std_doc_type not in valid_doc_types:
@@ -230,7 +230,7 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
         std_invoice = unmatched_item['standard']
         pred_invoice = unmatched_item['prediction']
         
-        # 根据单据类型决定是否需要检查docType
+        # 根据文档类型决定是否需要检查docType
         if need_doc_type_check:
             std_doc_type = (std_invoice.get('docType') or '').lower()
             if std_doc_type not in valid_doc_types:
@@ -254,7 +254,7 @@ def process_comparison_results(filename: str, standard_invoices: List[dict],
     
     # 处理only_in_standard的票据
     for std_invoice in result.get('only_in_standard', []):
-        # 根据单据类型决定是否需要检查docType
+        # 根据文档类型决定是否需要检查docType
         if need_doc_type_check:
             std_doc_type = (std_invoice.get('docType') or '').lower()
             if std_doc_type not in valid_doc_types:
@@ -675,7 +675,7 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
     # 处理用户通过表单提交的配置
     request = kwargs.get('request')
     compare_fields = None
-    document_type = 'invoice'  # 默认单据类型
+    document_type = 'invoice'  # 默认文档类型
     
     if request and hasattr(request, 'data'):
         form_data = request.data or {}
@@ -706,7 +706,7 @@ def evaluate_invoice_extraction_task(project, queryset, **kwargs):
         current_config = getattr(project, 'evaluation_field_config', None) or {}
         if current_config.get('document_type'):
             document_type = current_config['document_type']
-        logger.info(f"使用项目默认评估字段: {compare_fields}, 单据类型: {document_type}")
+        logger.info(f"使用项目默认评估字段: {compare_fields}, 文档类型: {document_type}")
     
     # 获取同时有标注和预测的任务
     tasks_with_both = queryset.filter(
@@ -784,31 +784,36 @@ def create_evaluation_form(user, project):
     # 获取当前使用的字段
     current_fields = get_evaluation_fields_for_project(project)
     
+    fields = [
+        {
+            'type': 'select',
+            'name': 'document_type',
+            'label': '文档类型',
+            'value': current_config.get('document_type', 'invoice'),
+            'options': [
+                {'value': 'invoice', 'label': '发票 (Invoice)'},
+                {'value': 'receipt', 'label': '收据 (Receipt)'},
+                {'value': 'bank_receipt', 'label': '银行回单 (Bank Receipt)'},
+                {'value': 'custom', 'label': '自定义 (Custom)'}
+            ]
+        }
+    ]
+    
+    # 只有当前配置是自定义类型时，才添加自定义字段输入框
+    # if current_config.get('document_type') == 'custom':
+    #     fields.append({
+    #         'type': 'input',
+    #         'name': 'custom_fields',
+    #         'label': '自定义字段 (用逗号分隔)',
+    #         'value': ','.join(current_fields) if current_config.get('document_type') == 'custom' else '',
+    #         'placeholder': '例如: totalAmount,invoiceDate,docType',
+    #         'description': '如需配置更多自定义文档类型，请前往项目设置 > 常规设置 > 评估字段配置进行配置'
+    #     })
+    
     return [
         {
             'columnCount': 1,
-            'fields': [
-                {
-                    'type': 'select',
-                    'name': 'document_type',
-                    'label': '单据类型',
-                    'value': current_config.get('document_type', 'invoice'),
-                    'options': [
-                        {'value': 'invoice', 'label': '发票 (Invoice)'},
-                        {'value': 'receipt', 'label': '收据 (Receipt)'},
-                        {'value': 'bank_receipt', 'label': '银行回单 (Bank Receipt)'},
-                        {'value': 'other', 'label': '其他 (Other)'},
-                        {'value': 'custom', 'label': '自定义 (Custom)'}
-                    ]
-                },
-                {
-                    'type': 'input',
-                    'name': 'custom_fields',
-                    'label': '自定义字段 (用逗号分隔)',
-                    'value': ','.join(current_fields) if current_config.get('document_type') == 'custom' else '',
-                    'placeholder': '例如: totalAmount,invoiceDate,docType'
-                }
-            ]
+            'fields': fields
         }
     ]
 
@@ -820,7 +825,7 @@ invoice_actions = [
         'title': 'Evaluate Document Extraction',
         'order': 202,
         'dialog': {
-            'text': '本评估将比较标注和预测结果的准确性。如果有多个版本的标注或预测结果，将取最后一个版本进行评估。您可以选择要评估的字段和单据类型。',
+            'text': '本评估将比较标注和预测结果的准确性。如果有多个版本的标注或预测结果，将取最后一个版本进行评估。您可以选择要评估的字段和文档类型。',
             'type': 'confirm',
             'form': create_evaluation_form,
         },

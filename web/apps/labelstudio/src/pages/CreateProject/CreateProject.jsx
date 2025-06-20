@@ -19,6 +19,20 @@ import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
 import { createURL } from "../../components/HeidiTips/utils";
 import WorkspaceSelector from './WorkspaceSelector';
 
+// 预定义的文档类型配置
+const DOCUMENT_TYPE_CONFIGS = {
+  invoice: {
+    label: "发票 (Invoice)",
+    fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+    description: "适用于发票和收据的评估"
+  },
+  bank_receipt: {
+    label: "银行回单 (Bank Receipt)",
+    fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+    description: "适用于银行回单的评估"
+  }
+};
+
 const ProjectName = ({
   name,
   setName,
@@ -29,6 +43,8 @@ const ProjectName = ({
   setDescription,
   workspace,
   setWorkspace,
+  evaluationConfig,
+  setEvaluationConfig,
   show = true,
 }) => {
   if (!show) return null;
@@ -90,6 +106,29 @@ const ProjectName = ({
         </Caption></Block>
       {/* </div> */}
 
+      {/* Evaluation Configuration */}
+      <div className="gap-2">
+        <label className="w-full" htmlFor="evaluation_config">
+          评估字段配置
+        </label>
+        <Select
+          id="evaluation_config"
+          value={evaluationConfig}
+          onChange={setEvaluationConfig}
+          options={Object.entries(DOCUMENT_TYPE_CONFIGS).map(([key, config]) => ({
+            value: key,
+            label: config.label
+          }))}
+          placeholder="选择评估配置"
+          className="evaluation-config-select"
+        />
+        <Caption>
+          {DOCUMENT_TYPE_CONFIGS[evaluationConfig]?.description}
+          <br />
+          如需自定义评估字段，可在项目创建后前往项目设置 &gt; 常规设置进行配置。
+        </Caption>
+      </div>
+
       <Button type="submit" look="primary" className="w-full mt-8">
         Save Project
       </Button>
@@ -111,6 +150,7 @@ export const CreateProject = ({ onClose }) => {
   const [description, setDescription] = React.useState("");
   const [sample, setSample] = React.useState(null);
   const [workspace, setWorkspace] = React.useState(null);
+  const [evaluationConfig, setEvaluationConfig] = React.useState("invoice");
 
 
   const setStep = React.useCallback((step) => {
@@ -149,8 +189,13 @@ export const CreateProject = ({ onClose }) => {
       description,
       workspace: workspace,
       label_config: project?.label_config ?? "<View></View>",
+      evaluation_field_config: {
+        document_type: evaluationConfig,
+        default_fields: DOCUMENT_TYPE_CONFIGS[evaluationConfig]?.fields || [],
+        last_updated: new Date().toISOString()
+      },
     }),
-    [name, description, workspace, project?.label_config],
+    [name, description, workspace, project?.label_config, evaluationConfig],
   );
 
 
@@ -244,6 +289,8 @@ export const CreateProject = ({ onClose }) => {
           setDescription={setDescription}
           workspace={workspace}
           setWorkspace={setWorkspace}
+          evaluationConfig={evaluationConfig}
+          setEvaluationConfig={setEvaluationConfig}
           show={step === "name"}
         />
         <ImportPage

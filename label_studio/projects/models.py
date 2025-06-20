@@ -744,6 +744,17 @@ class Project(ProjectMixin, models.Model):
         exists = True if self.pk else False
         project_with_config_just_created = not exists and self.label_config
 
+        # Set default evaluation_field_config for new projects
+        if not exists and not self.evaluation_field_config:
+            from datetime import datetime
+            self.evaluation_field_config = {
+                'document_type': 'invoice',
+                'default_fields': ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+                'last_updated': datetime.now().isoformat()
+            }
+            if update_fields is not None:
+                update_fields = {'evaluation_field_config'}.union(update_fields)
+
         label_config_has_changed = self._label_config_has_changed()
         logger.debug(
             f'Label config has changed: {label_config_has_changed}, original: {self.__original_label_config}, new: {self.label_config}'
