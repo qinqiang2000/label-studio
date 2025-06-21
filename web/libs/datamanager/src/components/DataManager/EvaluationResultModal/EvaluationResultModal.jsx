@@ -13,10 +13,10 @@ const EvaluationResultModal = ({ result, onClose }) => {
   }
 
   const { evaluation_results, processed_items, detail, evaluation_type } = result;
-  const { metrics, task_count, evaluated_at, project_id } = evaluation_results;
+  const { metrics = {}, task_count, evaluated_at, project_id } = evaluation_results;
   
   // 检查是否为票据提取评估
-  const isInvoiceEvaluation = evaluation_type === 'invoice_extraction';
+  const isInvoiceEvaluation = evaluation_type === 'document_extraction' || evaluation_type === 'invoice_extraction';
 
   // 下载Excel详情报告
   const downloadExcelReport = useCallback(() => {
@@ -177,25 +177,30 @@ const EvaluationResultModal = ({ result, onClose }) => {
   const renderStandardMetrics = () => {
     if (isInvoiceEvaluation) return null;
     
+    // 添加安全检查，确保metrics对象存在且有必要的属性
+    if (!metrics || typeof metrics !== 'object') {
+      return null;
+    }
+    
     return (
       <Elem name="metrics-section">
         <Elem name="section-title">Performance Metrics</Elem>
         <Elem name="metrics-grid">
           <MetricCard
             title="Accuracy"
-            value={metrics.accuracy}
+            value={metrics.accuracy || 0}
           />
           <MetricCard
             title="Precision"
-            value={metrics.precision}
+            value={metrics.precision || 0}
           />
           <MetricCard
             title="Recall"
-            value={metrics.recall}
+            value={metrics.recall || 0}
           />
           <MetricCard
             title="F1 Score"
-            value={metrics.f1_score}
+            value={metrics.f1_score || 0}
           />
         </Elem>
       </Elem>
@@ -208,7 +213,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
       visible={true}
       onHide={onClose}
       size="large"
-      style={{ maxHeight: '92vh', height: 'auto', width: '65vw', maxWidth: '65vw', minHeight: 400 }}
+      style={{ maxHeight: '92vh', height: 'auto', width: '70vw', maxWidth: '70vw', minHeight: 400 }}
     >
       <Block name="evaluation-results" mod={{ scrollable: true }} style={{ maxHeight: 'calc(90vh - 52px)', overflowY: 'auto' }}>
         {/* Summary Section */}
@@ -224,7 +229,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
               Object.keys(evaluation_results.statistics.field_accuracy).length * (evaluation_results?.statistics?.total_invoices || processed_items) : 0}</span></span>
           </Elem>
           <Elem name="summary-item">
-            <span><strong>模型版本:</strong> <span className="summary-number">{evaluation_results?.statistics?.model_version || 'N/A'}</span></span>
+            <span><strong>模型:</strong> <span className="summary-number">{evaluation_results?.statistics?.model_version || 'N/A'}</span></span>
           </Elem>
           <Elem name="summary-item">
             <span><strong>时间:</strong> <span className="summary-number">{formatDate(evaluated_at)}</span></span>

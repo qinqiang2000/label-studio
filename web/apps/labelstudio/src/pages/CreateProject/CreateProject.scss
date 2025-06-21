@@ -86,6 +86,117 @@
   }
 }
 
+// Evaluation Configuration Section
+.evaluation-config-section {
+  margin-top: 32px;
+
+  .evaluation-config-editor {
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 20px;
+    background: white;
+  }
+
+  .evaluation-config-header {
+    margin-bottom: 20px;
+  }
+
+  .evaluation-config-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+  }
+
+  .evaluation-config-description {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 16px;
+  }
+
+  .evaluation-config-form {
+    .evaluation-config-form-row {
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+
+      label {
+        font-weight: 500;
+        color: #374151;
+        font-size: 14px;
+      }
+    }
+
+    .evaluation-config-description-section {
+      margin: 16px 0;
+      padding: 12px;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 6px;
+      color: #0369a1;
+      font-size: 14px;
+    }
+
+    .evaluation-config-predefined-fields {
+      margin: 16px 0;
+      padding: 16px;
+      background: #f9fafb;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .evaluation-config-fields-label {
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: #374151;
+      font-size: 14px;
+    }
+
+    .evaluation-config-fields-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .evaluation-config-field-tag {
+      background: #e5e7eb;
+      color: #374151;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+      font-weight: 500;
+      border: 1px solid #d1d5db;
+    }
+
+    .evaluation-config-preview {
+      margin: 20px 0;
+      padding: 16px;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 6px;
+    }
+
+    .evaluation-config-preview-label {
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #0369a1;
+      font-size: 14px;
+    }
+
+    .evaluation-config-preview-fields {
+      font-family: monospace;
+      color: #0c4a6e;
+      font-size: 13px;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #bae6fd;
+    }
+  }
+}
+
 // 评估配置选择器样式，参考workspace selector
 .evaluation-config-select {
   .ant-select-selector {

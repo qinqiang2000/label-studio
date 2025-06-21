@@ -19,18 +19,19 @@ import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
 import { createURL } from "../../components/HeidiTips/utils";
 import WorkspaceSelector from './WorkspaceSelector';
 
-// 预定义的文档类型配置
-const DOCUMENT_TYPE_CONFIGS = {
+// Dynamic document type configurations - loaded from API
+// Fallback configurations for development/testing
+const FALLBACK_DOCUMENT_TYPE_CONFIGS = {
   invoice: {
-    label: "发票 (Invoice)",
+    label: "Invoice",
     fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
-    description: "适用于发票和收据的评估"
+    description: "For evaluating invoices and receipts",
   },
   bank_receipt: {
-    label: "银行回单 (Bank Receipt)",
+    label: "Bank Receipt",
     fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
-    description: "适用于银行回单的评估"
-  }
+    description: "For evaluating bank receipts",
+  },
 };
 
 const ProjectName = ({
@@ -45,6 +46,8 @@ const ProjectName = ({
   setWorkspace,
   evaluationConfig,
   setEvaluationConfig,
+  evaluationConfigs = [],
+  isLoadingConfigs = false,
   show = true,
 }) => {
   if (!show) return null;
@@ -109,23 +112,27 @@ const ProjectName = ({
       {/* Evaluation Configuration */}
       <div className="gap-2">
         <label className="w-full" htmlFor="evaluation_config">
-          评估字段配置
+          Evaluation Field Configuration
         </label>
         <Select
           id="evaluation_config"
           value={evaluationConfig}
           onChange={setEvaluationConfig}
-          options={Object.entries(DOCUMENT_TYPE_CONFIGS).map(([key, config]) => ({
-            value: key,
-            label: config.label
+          options={evaluationConfigs.map(config => ({
+            value: config.value,
+            label: config.label,
           }))}
-          placeholder="选择评估配置"
+          placeholder={isLoadingConfigs ? "Loading configurations..." : "Select Evaluation Configuration"}
+          disabled={isLoadingConfigs}
           className="evaluation-config-select"
         />
         <Caption>
-          {DOCUMENT_TYPE_CONFIGS[evaluationConfig]?.description}
+          {(() => {
+            const selectedConfig = evaluationConfigs.find(config => config.value === evaluationConfig);
+            return selectedConfig?.description || "Select a configuration to see its description";
+          })()}
           <br />
-          如需自定义评估字段，可在项目创建后前往项目设置 &gt; 常规设置进行配置。
+          To customize evaluation fields, configure them in Project Settings &gt; General Settings after project creation.
         </Caption>
       </div>
 
@@ -144,13 +151,14 @@ export const CreateProject = ({ onClose }) => {
   const history = useHistory();
   const api = useAPI();
 
-
   const [name, setName] = React.useState("");
   const [error, setError] = React.useState();
   const [description, setDescription] = React.useState("");
   const [sample, setSample] = React.useState(null);
   const [workspace, setWorkspace] = React.useState(null);
-  const [evaluationConfig, setEvaluationConfig] = React.useState("invoice");
+  const [evaluationConfig, setEvaluationConfig] = React.useState("");
+  const [evaluationConfigs, setEvaluationConfigs] = React.useState([]);
+  const [isLoadingConfigs, setIsLoadingConfigs] = React.useState(true);
 
 
   const setStep = React.useCallback((step) => {
@@ -177,6 +185,56 @@ export const CreateProject = ({ onClose }) => {
     config: "Labeling Setup",
   };
 
+  // Load evaluation configurations from API
+  React.useEffect(() => {
+    const loadEvaluationConfigs = async () => {
+      try {
+        setIsLoadingConfigs(true);
+        const response = await api.callApi("fetchEvaluationConfigs");
+        if (response && Array.isArray(response)) {
+          setEvaluationConfigs(response);
+          // Set default selection to a suitable config - prefer Bank Receipt or Receipt over Invoice
+          if (response.length > 0) {
+            // Priority order: bank_receipt > receipt > invoice > first available
+            let defaultConfig = response.find(config => config.value === 'invoice') ||
+                                response.find(config => config.value === 'bank_receipt') ||
+                               response.find(config => config.value === 'receipt') ||
+                               response[0];
+            setEvaluationConfig(defaultConfig.value);
+          }
+        } else {
+          // Fallback to hardcoded configs if API fails
+          console.warn("Failed to load evaluation configs from API, using fallback");
+          const fallbackConfigs = Object.entries(FALLBACK_DOCUMENT_TYPE_CONFIGS).map(([key, config]) => ({
+            value: key,
+            label: config.label,
+            description: config.description,
+            fields: config.fields,
+            required_fields: config.fields,
+            optional_fields: []
+          }));
+          setEvaluationConfigs(fallbackConfigs);
+        }
+      } catch (error) {
+        console.error("Error loading evaluation configs:", error);
+        // Fallback to hardcoded configs
+        const fallbackConfigs = Object.entries(FALLBACK_DOCUMENT_TYPE_CONFIGS).map(([key, config]) => ({
+          value: key,
+          label: config.label,
+          description: config.description,
+          fields: config.fields,
+          required_fields: config.fields,
+          optional_fields: []
+        }));
+        setEvaluationConfigs(fallbackConfigs);
+      } finally {
+        setIsLoadingConfigs(false);
+      }
+    };
+
+    loadEvaluationConfigs();
+  }, [api]);
+
   // name intentionally skipped from deps:
   // this should trigger only once when we got project loaded
   React.useEffect(() => {
@@ -184,18 +242,24 @@ export const CreateProject = ({ onClose }) => {
   }, [project]);
 
   const projectBody = React.useMemo(
-    () => ({
-      title: name,
-      description,
-      workspace: workspace,
-      label_config: project?.label_config ?? "<View></View>",
-      evaluation_field_config: {
-        document_type: evaluationConfig,
-        default_fields: DOCUMENT_TYPE_CONFIGS[evaluationConfig]?.fields || [],
-        last_updated: new Date().toISOString()
-      },
-    }),
-    [name, description, workspace, project?.label_config, evaluationConfig],
+    () => {
+      const selectedConfig = evaluationConfigs.find(config => config.value === evaluationConfig);
+      return {
+        title: name,
+        description,
+        workspace: workspace,
+        label_config: project?.label_config ?? "<View></View>",
+        evaluation_field_config: {
+          config_key: evaluationConfig,
+          config_name: selectedConfig?.label || evaluationConfig,
+          fields: selectedConfig?.fields || [],
+          required_fields: selectedConfig?.required_fields || [],
+          optional_fields: selectedConfig?.optional_fields || [],
+          last_updated: new Date().toISOString()
+        },
+      };
+    },
+    [name, description, workspace, project?.label_config, evaluationConfig, evaluationConfigs],
   );
 
 
@@ -291,6 +355,8 @@ export const CreateProject = ({ onClose }) => {
           setWorkspace={setWorkspace}
           evaluationConfig={evaluationConfig}
           setEvaluationConfig={setEvaluationConfig}
+          evaluationConfigs={evaluationConfigs}
+          isLoadingConfigs={isLoadingConfigs}
           show={step === "name"}
         />
         <ImportPage

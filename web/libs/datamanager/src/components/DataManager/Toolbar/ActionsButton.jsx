@@ -392,7 +392,7 @@ export const ActionsButton = injector(
                console.log('[DEBUG] 检测到 retrieve_tasks_predictions 动作，路由到批量处理函数');
                console.log('[DEBUG] 对话框模式传递的body参数:', body);
                return handleBatchPredictions(action, { body });
-             } else if (action.id === 'evaluate_annotations_vs_predictions' || action.id === 'evaluate_invoice_extraction_task') {
+             } else if (action.id === 'evaluate_annotations_vs_predictions' || action.id === 'evaluate_invoice_extraction_task' || action.id === 'evaluate_document_extraction_task') {
                console.log('[DEBUG] 检测到评估动作:', action.id);
                store.invokeAction(action.id, { body }).then((result) => {
                  if (result && result.evaluation_results) {
@@ -427,7 +427,7 @@ export const ActionsButton = injector(
           };
           console.log('[DEBUG] 构造的动作参数:', actionParams);
           handleBatchPredictions(action, actionParams);
-        } else if (action.id === 'evaluate_annotations_vs_predictions' || action.id === 'evaluate_invoice_extraction_task') {
+        } else if (action.id === 'evaluate_annotations_vs_predictions' || action.id === 'evaluate_invoice_extraction_task' || action.id === 'evaluate_document_extraction_task') {
           console.log('[DEBUG] 直接调用模式：检测到评估动作:', action.id);
           store.invokeAction(action.id).then((result) => {
             if (result && result.evaluation_results) {

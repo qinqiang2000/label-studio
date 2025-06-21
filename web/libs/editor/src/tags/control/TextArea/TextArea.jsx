@@ -33,28 +33,229 @@ import { cn } from "../../../utils/bem";
 
 const { TextArea } = Input;
 
-// 票据类型配置
-const DOC_TYPES = {
-  RECEIPT: "receipt",
-  INVOICE: "invoice",
-};
-
-const VALID_DOC_TYPES = Object.values(DOC_TYPES);
-
-const INVOICE_SPECIFIC_REQUIRED_FIELDS = ["billToName", "totalAmount", "totalTaxAmount", "invoiceNumber", "invoiceDate", "currency"];
-const RECEIPT_SPECIFIC_REQUIRED_FIELDS = ["totalAmount", "invoiceDate", "currency"];
-
-const REQUIRED_FIELDS = Array.from(new Set([
+// Dynamic evaluation configuration - loaded from API
+// Fallback configuration for when API is not available
+const FALLBACK_REQUIRED_FIELDS = [
   "序号",
   "docType",
-  ...INVOICE_SPECIFIC_REQUIRED_FIELDS,
-  ...RECEIPT_SPECIFIC_REQUIRED_FIELDS
-]));
+  "billToName", 
+  "totalAmount", 
+  "totalTaxAmount", 
+  "invoiceNumber", 
+  "invoiceDate", 
+  "currency"
+];
+
+// Cache for evaluation configurations - per project ID
+const evaluationConfigCache = new Map();
+
+// Centralized API utility for evaluation configs
+class EvaluationConfigAPI {
+  static CACHE_DURATION = 30 * 1000; // 30 seconds for faster testing
+  
+  static getAuthToken() {
+    // Try multiple sources for the auth token
+    const sources = [
+      () => window.localStorage?.getItem('token'),
+      () => window.localStorage?.getItem('auth_token'),
+      () => window.localStorage?.getItem('access_token'),
+      () => window.sessionStorage?.getItem('token'),
+      () => window.sessionStorage?.getItem('auth_token'),
+      () => window.sessionStorage?.getItem('access_token'),
+      () => window.APP_SETTINGS?.token,
+      () => window.LSF?.store?.auth?.token,
+    ];
+    
+    for (const getToken of sources) {
+      try {
+        const token = getToken();
+        if (token) return token;
+      } catch (e) {
+        // Continue to next source
+      }
+    }
+    
+    // Try cookies as last resort
+    if (document.cookie) {
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        const [name, value] = cookie.split('=').map(s => s.trim());
+        if (['token', 'auth_token', 'access_token'].includes(name)) {
+          return value;
+        }
+      }
+    }
+    
+    return null;
+  }
+  
+  static createHeaders() {
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Token ${token}`;
+    }
+    
+    return headers;
+  }
+  
+  static clearCache(projectId = null) {
+    if (projectId) {
+      const cacheKey = String(projectId);
+      evaluationConfigCache.delete(cacheKey);
+      console.log('[Evaluation Config] Cache cleared for project', projectId);
+    } else {
+      evaluationConfigCache.clear();
+      console.log('[Evaluation Config] All cache cleared');
+    }
+  }
+  
+  static async fetchProjectConfig(projectId, forceRefresh = false) {
+    const now = Date.now();
+    const cacheKey = String(projectId);
+    
+    // Force refresh if requested
+    if (forceRefresh) {
+      this.clearCache(projectId);
+    }
+    
+    // Return cached data if still valid and not forcing refresh
+    const cachedData = evaluationConfigCache.get(cacheKey);
+    if (!forceRefresh && cachedData && cachedData.expiry > now) {
+      console.log('[Evaluation Config] Using cached config for project', projectId, ':', cachedData.config.config_key);
+      return cachedData.config;
+    }
+    
+    try {
+      // Use the unified API endpoint pattern
+      const apiUrl = `/api/frontend/evaluation-configs/project/${projectId}/`;
+      const response = await fetch(apiUrl, {
+        headers: this.createHeaders()
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const config = await response.json();
+      const requiredFields = [...(config.required_fields || [])];
+      
+      // Always include 序号 if not present
+      if (!requiredFields.includes('序号')) {
+        requiredFields.unshift('序号');
+      }
+      
+      const configData = {
+        required_fields: requiredFields,
+        optional_fields: config.optional_fields || [],
+        all_fields: config.all_fields || [],
+        validation_rules: config.validation_rules || {},
+        config_key: config.config_key || 'default'
+      };
+      
+      // Cache the result
+      evaluationConfigCache.set(cacheKey, {
+        config: configData,
+        expiry: now + this.CACHE_DURATION
+      });
+      
+      console.log('[Evaluation Config] Loaded config for project', projectId, ':', configData.config_key, 'Required fields:', requiredFields);
+      return configData;
+      
+    } catch (error) {
+      console.warn('Failed to fetch project evaluation config:', error);
+      throw error;
+    }
+  }
+  
+  static getFallbackConfig() {
+    return {
+      required_fields: FALLBACK_REQUIRED_FIELDS,
+      optional_fields: [],
+      all_fields: FALLBACK_REQUIRED_FIELDS,
+      validation_rules: {},
+      config_key: 'fallback'
+    };
+  }
+  
+  static async getConfigWithFallback(projectId, forceRefresh = false) {
+    try {
+      return await this.fetchProjectConfig(projectId, forceRefresh);
+    } catch (error) {
+      console.warn('[Evaluation Config] Using fallback config for project', projectId);
+      const fallbackConfig = this.getFallbackConfig();
+      
+      // Cache the fallback too to avoid repeated failed requests (shorter duration)
+      const now = Date.now();
+      const cacheKey = String(projectId);
+      evaluationConfigCache.set(cacheKey, {
+        config: fallbackConfig,
+        expiry: now + (this.CACHE_DURATION / 2) // Shorter cache for fallback
+      });
+      
+      return fallbackConfig;
+    }
+  }
+}
+
+// Function to get required fields for highlighting
+function getRequiredFields(item) {
+  const annotation = item?.annotation;
+  if (!annotation) return FALLBACK_REQUIRED_FIELDS;
+  
+  const store = annotation.store;
+  if (!store) return FALLBACK_REQUIRED_FIELDS;
+  
+  // Try multiple ways to get project ID
+  let projectId = store.projectId || store.project?.id;
+  
+  // Try to get from window object if not found
+  if (!projectId && window.APP_SETTINGS?.projectId) {
+    projectId = window.APP_SETTINGS.projectId;
+  }
+  
+  // Try to get from URL if still not found
+  if (!projectId && window.location) {
+    const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
+    if (urlMatch) {
+      projectId = parseInt(urlMatch[1]);
+    }
+  }
+  
+  // Try to get from history state
+  if (!projectId && window.history?.state?.projectId) {
+    projectId = window.history.state.projectId;
+  }
+  
+  if (!projectId) return FALLBACK_REQUIRED_FIELDS;
+  
+  // Check if we have cached config for this project
+  const cacheKey = String(projectId);
+  const cachedData = evaluationConfigCache.get(cacheKey);
+  
+  if (cachedData && cachedData.expiry > Date.now()) {
+    console.log(`[Evaluation Config] Using cached config for highlighting, project ${projectId}:`, cachedData.config.config_key);
+    return cachedData.config.required_fields;
+  }
+  
+  // Async load config (won't block rendering, will update on next render)
+  EvaluationConfigAPI.getConfigWithFallback(projectId).then((config) => {
+    console.log(`[Evaluation Config] Loaded config for highlighting, project ${projectId}:`, config.config_key);
+    // This will trigger a re-render with the correct fields
+  }).catch(() => {
+    // Ignore errors, fallback is already set
+  });
+  
+  return cachedData?.config?.required_fields || FALLBACK_REQUIRED_FIELDS;
+}
 
 // 高亮函数：高亮必填字段
-function highlightWithRequiredFields(code) {
+function highlightWithRequiredFields(code, requiredFields = FALLBACK_REQUIRED_FIELDS) {
   let html = Prism.highlight(code, Prism.languages.json, "json");
-  REQUIRED_FIELDS.forEach((field) => {
+  requiredFields.forEach((field) => {
     // 给必填字段名添加 required-field class
     const fieldRegex = new RegExp(`<span class=\"token property\">(\\"${field}\\")<\/span>`, "g");
     html = html.replace(fieldRegex, `<span class=\"token property required-field\">$1</span>`);
@@ -389,6 +590,9 @@ const HtxTextArea = observer(({ item }) => {
   const [jsonError, setJsonError] = useState("");
   const [jsonFieldError, setJsonFieldError] = useState("");
   const [pageStats, setPageStats] = useState("");
+  const [requiredFields, setRequiredFields] = useState(FALLBACK_REQUIRED_FIELDS);
+  const [evaluationConfig, setEvaluationConfig] = useState(null);
+  
   const onFocus = useCallback(
     (ev, model) => {
       item.setLastFocusedElement(ev.target, model);
@@ -397,6 +601,59 @@ const HtxTextArea = observer(({ item }) => {
   );
 
   console.log('[AutoFill Debug] HtxTextArea rendered. Item name:', item.name, 'Item value:', item._value);
+
+  // Load evaluation configuration on component mount
+  useEffect(() => {
+    const loadEvaluationConfig = async () => {
+      try {
+        const annotation = item?.annotation;
+        if (!annotation) return;
+        
+        const store = annotation.store;
+        if (!store) return;
+        
+        // Try multiple ways to get project ID
+        let projectId = store.projectId || store.project?.id;
+        
+        // Try to get from window object if not found
+        if (!projectId && window.APP_SETTINGS?.projectId) {
+          projectId = window.APP_SETTINGS.projectId;
+        }
+        
+        // Try to get from URL if still not found
+        if (!projectId && window.location) {
+          const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
+          if (urlMatch) {
+            projectId = parseInt(urlMatch[1]);
+          }
+        }
+        
+        // Try to get from history state
+        if (!projectId && window.history?.state?.projectId) {
+          projectId = window.history.state.projectId;
+        }
+        
+        // Try to get from global store if available
+        if (!projectId && window.LSF?.store?.projectId) {
+          projectId = window.LSF.store.projectId;
+        }
+        
+        if (!projectId) return;
+        
+        const config = await EvaluationConfigAPI.getConfigWithFallback(projectId);
+        if (config) {
+          setRequiredFields(config.required_fields);
+          setEvaluationConfig(config);
+          console.log('[Evaluation Config] Loaded configuration:', config.config_key, 'Required fields:', config.required_fields);
+        }
+      } catch (error) {
+        console.warn('[Evaluation Config] Failed to load configuration:', error);
+        setRequiredFields(FALLBACK_REQUIRED_FIELDS);
+      }
+    };
+
+    loadEvaluationConfig();
+  }, [item?.annotation?.store?.projectId, item?.annotation?.store?.project?.id]);
 
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
@@ -716,6 +973,25 @@ const HtxTextArea = observer(({ item }) => {
               let hasFieldErrors = false;
               let allErrorMessages = []; // 收集所有错误信息
 
+              // 预先获取项目特定配置，避免在循环中重复获取
+              const annotation = item?.annotation;
+              const store = annotation?.store;
+              const projectId = store?.projectId || store?.project?.id;
+              
+              let currentRequiredFields = requiredFields;
+              let currentEvaluationConfig = evaluationConfig;
+              
+              // 尝试获取项目特定配置
+              if (projectId) {
+                const cacheKey = String(projectId);
+                const cachedData = evaluationConfigCache.get(cacheKey);
+                if (cachedData && cachedData.expiry > Date.now()) {
+                  currentRequiredFields = cachedData.config.required_fields;
+                  currentEvaluationConfig = cachedData.config;
+                  console.log('[Validation] Using project config for validation:', cachedData.config.config_key);
+                }
+              }
+
               for (let i = 0; i < parsed.length; i++) {
                 const x = parsed[i];
                 const missing = [];
@@ -723,9 +999,39 @@ const HtxTextArea = observer(({ item }) => {
                 // 获取页码，默认为第1页
                 const pages = x.page && Array.isArray(x.page) ? x.page : [1];
 
-                // 只统计有效的票据类型
-                if (!VALID_DOC_TYPES.includes(x.docType?.toLowerCase())) {
-                  continue; // 跳过无效票据类型
+                // 检查docType字段（如果配置了验证规则）- 使用项目特定配置
+                const docTypeValidation = currentEvaluationConfig?.validation_rules?.docType;
+                let isValidDocType = true;
+                if (docTypeValidation && docTypeValidation.allowed_values) {
+                  // 如果没有docType字段，但数据包含其他必需字段，则尝试推断类型
+                  if (!x.docType) {
+                    // 尝试根据当前配置类型设置默认docType
+                    if (currentEvaluationConfig.config_key === 'bank_receipt' && x.tradeDate && x.amount) {
+                      x.docType = 'bank_receipt';
+                      console.log(`[Validation] Auto-setting docType to 'bank_receipt' for document with tradeDate and amount`);
+                    } else if (currentEvaluationConfig.config_key === 'invoice' && x.invoiceNumber && x.totalAmount) {
+                      x.docType = 'invoice';
+                      console.log(`[Validation] Auto-setting docType to 'invoice' for document with invoiceNumber and totalAmount`);
+                    } else if (currentEvaluationConfig.config_key === 'receipt' && x.totalAmount) {
+                      x.docType = 'receipt';
+                      console.log(`[Validation] Auto-setting docType to 'receipt' for document with totalAmount`);
+                    }
+                  }
+                  
+                  // 再次检查docType
+                  if (x.docType) {
+                    isValidDocType = docTypeValidation.allowed_values.includes(x.docType.toLowerCase());
+                    if (!isValidDocType) {
+                      console.log(`[Validation] Skipping document with invalid docType: ${x.docType}, allowed: ${docTypeValidation.allowed_values}`);
+                      continue; // 跳过无效票据类型
+                    }
+                  } else {
+                    // 如果仍然没有docType，但包含其他关键字段，则允许通过
+                    console.log(`[Validation] Document missing docType but contains other fields, allowing through`);
+                  }
+                } else {
+                  // 如果没有配置验证规则，允许所有文档通过
+                  isValidDocType = true;
                 }
 
                 // 如果是跨多页的票据，记录范围信息
@@ -763,27 +1069,23 @@ const HtxTextArea = observer(({ item }) => {
                   pageCount[page]++;
                 }
 
-                // 字段验证逻辑保持不变
-                if (!x.hasOwnProperty("docType")) {
-                  missing.push("docType");
-                }
-                if (x.docType?.toLowerCase() === DOC_TYPES.INVOICE) {
-                  // 'invoice'
-                  INVOICE_SPECIFIC_REQUIRED_FIELDS.forEach(
-                    (f) => {
-                      if (!x.hasOwnProperty(f)) missing.push(f);
-                    },
-                  );
-                } else if (x.docType?.toLowerCase() === DOC_TYPES.RECEIPT) {
-                  // 'receipt'
-                  RECEIPT_SPECIFIC_REQUIRED_FIELDS.forEach((f) => {
-                    if (!x.hasOwnProperty(f)) missing.push(f);
-                  });
-                }
+                // 动态字段验证逻辑 - 使用项目特定的evaluation配置
+                currentRequiredFields.forEach((field) => {
+                  if (!x.hasOwnProperty(field)) {
+                    missing.push(field);
+                  }
+                });
                 if (missing.length > 0) {
                   hasFieldErrors = true;
-                  const docTypeText = x.docType?.toLowerCase() === DOC_TYPES.INVOICE ? "发票" : 
-                                     x.docType?.toLowerCase() === DOC_TYPES.RECEIPT ? "收据" : "";
+                  // 根据配置获取文档类型显示名
+                  const docTypeValidationRules = currentEvaluationConfig?.validation_rules?.docType;
+                  let docTypeText = x.docType || "文档";
+                  
+                  // 如果有配置的映射，使用友好的显示名
+                  if (docTypeValidationRules && currentEvaluationConfig?.field_labels?.docType) {
+                    docTypeText = currentEvaluationConfig.field_labels.docType[x.docType] || docTypeText;
+                  }
+                  
                   allErrorMessages.push(`${docTypeText}[${i + 1}]缺: ${missing.map((m) => `"${m}"`).join(", ")}`);
                 }
               }
@@ -839,13 +1141,13 @@ const HtxTextArea = observer(({ item }) => {
         setPageStats("");
       }
     },
-    [item.name],
+    [item.name, evaluationConfig, requiredFields],
   );
 
-  // 监听item._value和item.name，自动校验
+  // 监听item._value、item.name和evaluation配置变化，自动校验
   useEffect(() => {
     validateJsonAndFields(item._value);
-  }, [item._value, item.name, validateJsonAndFields]);
+  }, [item._value, item.name, evaluationConfig, requiredFields, validateJsonAndFields]);
 
   const props = {
     name: item.name,
@@ -958,7 +1260,7 @@ const HtxTextArea = observer(({ item }) => {
                     validateJsonAndFields(value);
                   }
                 }}
-                highlight={highlightWithRequiredFields}
+                highlight={(code) => highlightWithRequiredFields(code, requiredFields)}
                 padding={10}
                 style={{
                   fontFamily: "monospace",
@@ -1000,3 +1302,4 @@ const HtxTextArea = observer(({ item }) => {
 Registry.addTag("textarea", TextAreaModel, HtxTextArea);
 
 export { TextAreaModel, HtxTextArea };
+

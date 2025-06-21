@@ -73,6 +73,14 @@
       padding: 0 4px;
     }
   }
+
+  // Ensure evaluation config section has same width as settings wrapper
+  .evaluation-config-section {
+    .evaluation-fields-config {
+      width: 40rem;
+      margin: 0;
+    }
+  }
 }
 
 .workspace-placeholder {

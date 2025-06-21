@@ -109,6 +109,10 @@ export const API_CONFIG = {
     createPrompt: "POST:/prompts",
     updatePrompt: "PATCH:/prompts/:id",
     deletePrompt: "DELETE:/prompts/:id",
+
+    // Evaluation Configurations
+    fetchEvaluationConfigs: "GET:/frontend/evaluation-configs/active/",
+    fetchProjectEvaluationConfig: "GET:/frontend/evaluation-configs/project/:projectId/",
   },
   alwaysExpectJSON: false,
 };

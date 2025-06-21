@@ -818,16 +818,20 @@ def create_evaluation_form(user, project):
     ]
 
 # 注册票据提取评估动作
-invoice_actions = [
-    {
-        'entry_point': evaluate_invoice_extraction_task,
-        'permission': all_permissions.predictions_any,
-        'title': 'Evaluate Document Extraction',
-        'order': 202,
-        'dialog': {
-            'text': '本评估将比较标注和预测结果的准确性。如果有多个版本的标注或预测结果，将取最后一个版本进行评估。您可以选择要评估的字段和文档类型。',
-            'type': 'confirm',
-            'form': create_evaluation_form,
-        },
-    },
-]
+# Legacy code - use document_evaluation.py instead
+# This file is kept for backward compatibility
+# New evaluation should use the generic document evaluation system
+
+# Import the new evaluation system
+from .document_evaluation import document_actions
+
+# Expose the new actions for compatibility
+invoice_actions = document_actions
+
+
+def evaluate_invoices(queryset, project, **kwargs):
+    """
+    Legacy function for invoice evaluation
+    This function provides backward compatibility by calling the new generic document evaluation system
+    """
+    return evaluate_invoice_extraction_task(project, queryset, **kwargs)

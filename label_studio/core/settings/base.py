@@ -233,6 +233,7 @@ INSTALLED_APPS = [
     'ml_model_providers',
     'jwt_auth',
     'prompts',
+    'evaluation_configs',
 ]
 
 MIDDLEWARE = [
