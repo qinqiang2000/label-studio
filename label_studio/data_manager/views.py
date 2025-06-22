@@ -37,8 +37,10 @@ def download_excel_report(request):
         raise Http404("Invalid file type")
     
     try:
-        # 获取文件名
-        filename = os.path.basename(file_path)
+        # 生成有意义的文件名
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"evaluation_report_{timestamp}.xlsx"
         
         # 返回文件响应
         response = FileResponse(
