@@ -165,6 +165,7 @@ from .invoice_evaluation import invoice_actions
 # Register actions
 actions = [
     {
+        'id': 'evaluate_annotations_vs_predictions',
         'entry_point': evaluate_annotations_vs_predictions,
         'permission': all_permissions.predictions_any,
         'title': 'Evaluate Predictions vs Annotations',
@@ -176,6 +177,7 @@ actions = [
         },
     },
     {
+        'id': 'evaluate_inter_annotator_agreement',
         'entry_point': evaluate_inter_annotator_agreement,
         'permission': all_permissions.annotations_view,
         'title': 'Calculate Inter-Annotator Agreement',

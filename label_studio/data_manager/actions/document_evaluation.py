@@ -771,31 +771,8 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
     # Get project evaluation configuration
     project_config = get_project_evaluation_config(project)
     
-    # Handle user form data if provided
-    request = kwargs.get('request')
-    if request and hasattr(request, 'data'):
-        form_data = request.data or {}
-        config_id = form_data.get('evaluation_config_id')
-        
-        if config_id:
-            try:
-                new_config = EvaluationFieldConfig.objects.get(id=config_id)
-                # Update project configuration
-                if hasattr(project_config, 'evaluation_config'):
-                    project_config.evaluation_config = new_config
-                else:
-                    # Create new ProjectEvaluationConfig
-                    project_config, created = ProjectEvaluationConfig.objects.get_or_create(
-                        project=project,
-                        defaults={'evaluation_config': new_config}
-                    )
-                    if not created:
-                        project_config.evaluation_config = new_config
-                        project_config.save()
-                
-                logger.info(f"Using evaluation configuration: {new_config.name}")
-            except EvaluationFieldConfig.DoesNotExist:
-                logger.warning(f"Evaluation config {config_id} not found, using project default")
+    # Note: Form no longer allows config selection, using project's current configuration
+    logger.info(f"Using project's current evaluation configuration: {project_config.evaluation_config.name}")
     
     # Get tasks with both annotations and predictions
     tasks_with_both = queryset.filter(
@@ -879,55 +856,24 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
 
 def create_evaluation_form(user, project):
     """
-    Create form for evaluation action with dynamic evaluation configurations
+    Create form for evaluation action with current project configuration display
+    Note: Form removed to avoid mobx-state-tree compatibility issues
     """
-    # Get available evaluation configurations
-    available_configs = EvaluationFieldConfig.objects.filter(
-        is_active=True
-    ).order_by('name')
-    
-    # Get current project configuration
-    current_config = get_project_evaluation_config(project)
-    current_config_id = getattr(current_config.evaluation_config, 'id', None)
-    
-    # Build options
-    options = []
-    for config in available_configs:
-        options.append({
-            'value': str(config.id),
-            'label': f'{config.name} - {config.description}'
-        })
-    
-    fields = [
-        {
-            'type': 'select',
-            'name': 'evaluation_config_id',
-            'label': 'Evaluation Configuration',
-            'value': str(current_config_id) if current_config_id else '',
-            'options': options,
-            'description': 'Select the evaluation configuration to use for this assessment'
-        }
-    ]
-    
-    return [
-        {
-            'columnCount': 1,
-            'fields': fields
-        }
-    ]
+    # Return None to disable form - configuration info is now shown in dialog text
+    return None
 
 
 # Register document extraction evaluation action
-document_actions = [
+actions = [
     {
+        'id': 'evaluate_document_extraction_task',
         'entry_point': evaluate_document_extraction_task,
         'permission': all_permissions.predictions_any,
         'title': 'Evaluate Document Extraction',
         'order': 202,
         'dialog': {
-            'text': 'This evaluation will compare annotation and prediction results for accuracy. If multiple versions exist, the latest will be used. You can select the evaluation configuration and document type.',
+            'text': 'This evaluation will compare annotation and prediction results for accuracy. If multiple versions exist, the latest will be used. The evaluation will use the current project configuration. To change evaluation fields, configure them in Project Settings > General Settings.',
             'type': 'confirm',
-            'form': create_evaluation_form,
         },
     },
 ]

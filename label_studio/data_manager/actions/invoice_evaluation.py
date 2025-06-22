@@ -823,7 +823,7 @@ def create_evaluation_form(user, project):
 # New evaluation should use the generic document evaluation system
 
 # Import the new evaluation system
-from .document_evaluation import document_actions
+from .document_evaluation import actions as document_actions
 
 # Expose the new actions for compatibility
 invoice_actions = document_actions

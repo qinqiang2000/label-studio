@@ -1023,7 +1023,7 @@ const HtxTextArea = observer(({ item }) => {
                     isValidDocType = docTypeValidation.allowed_values.includes(x.docType.toLowerCase());
                     if (!isValidDocType) {
                       console.log(`[Validation] Skipping document with invalid docType: ${x.docType}, allowed: ${docTypeValidation.allowed_values}`);
-                      continue; // 跳过无效票据类型
+                  continue; // 跳过无效票据类型
                     }
                   } else {
                     // 如果仍然没有docType，但包含其他关键字段，则允许通过
