@@ -42,14 +42,14 @@ def get_project_evaluation_config(project):
                         is_active=True
                     )
                     
-                    # Use configured fields from project if available, otherwise use config defaults
-                    default_fields = project_eval_config.get('default_fields', config.required_fields)
+                    # Always use config.required_fields for evaluation, not project default_fields
+                    # This ensures evaluation only uses the required fields defined in the configuration template
                     
                     # Create a temporary ProjectEvaluationConfig for consistency
                     return type('ProjectEvaluationConfig', (), {
                         'project': project,
                         'evaluation_config': config,
-                        'effective_required_fields': default_fields,
+                        'effective_required_fields': config.required_fields,
                         'effective_optional_fields': config.optional_fields,
                         'effective_all_fields': config.all_fields,
                         'effective_validation_rules': config.field_validation_rules,
@@ -183,6 +183,7 @@ def post_process_documents(documents_data, field_config):
 def filter_json_by_fields(json_text: str, fields: List[str]) -> str:
     """
     Filter json_text (JSON array string) to keep only specified fields
+    Also preserves the 'page' field if it exists for display purposes
     
     :param json_text: JSON array string
     :param fields: List of fields to keep
@@ -192,8 +193,13 @@ def filter_json_by_fields(json_text: str, fields: List[str]) -> str:
         data = json.loads(json_text)
         if not isinstance(data, list):
             raise ValueError("Input JSON must be a list of dicts")
+        
+        # Always include 'page' field if it exists
+        fields_to_keep = set(fields)
+        fields_to_keep.add('page')  # 始终保留page字段
+        
         filtered = [
-            {k: v for k, v in item.items() if k in fields}
+            {k: v for k, v in item.items() if k in fields_to_keep}
             for item in data if isinstance(item, dict)
         ]
         return json.dumps(filtered, indent=2, ensure_ascii=False)
@@ -209,6 +215,7 @@ def process_comparison_results(filename: str, standard_documents: List[dict],
     """
     Process comparison results and generate Excel row data
     Dynamically handles different document types based on evaluation configuration
+    修复：按照标准数据的原始顺序生成明细表
     """
     rows = []
     
@@ -223,92 +230,84 @@ def process_comparison_results(filename: str, standard_documents: List[dict],
         doc_type_rule = validation_rules.get('docType', {})
         allowed_doc_types = set(doc_type_rule.get('allowed_values', []))
     
-    # Process matched documents
-    if result.get('matched_count', 0) > 0:
-        remaining_predictions = list(range(len(prediction_documents)))
-        
-        for std_doc in standard_documents:
-            # Check document type if needed
-            if need_doc_type_check:
-                std_doc_type = (std_doc.get('docType') or '').lower()
-                if std_doc_type not in allowed_doc_types:
-                    continue
-                
-            found_idx = -1
-            matched_pred_doc = None
-            
-            # Find matching prediction document
-            for i, pred_idx in enumerate(remaining_predictions):
-                pred_doc = prediction_documents[pred_idx]
-                is_equal, _ = comparer.invoices_equal(std_doc, pred_doc)
-                
-                if is_equal:
-                    found_idx = i
-                    matched_pred_doc = pred_doc
-                    remaining_predictions.pop(found_idx)
-                    break
-            
-            if matched_pred_doc:
-                # Create data row
-                row = {'filename': filename, 'prompt_name': prompt_name}
-                
-                # Add field values and comparison results
-                for field in compare_fields:
-                    std_value = std_doc.get(field, '')
-                    pred_value = matched_pred_doc.get(field, '')
-                    
-                    # For matched documents, all fields should match
-                    check_result = True
-                    
-                    row[f'std_{field}'] = std_value
-                    row[f'pred_{field}'] = pred_value
-                    row[f'check_{field}'] = check_result
-                
-                rows.append(row)
+    # 新方法：按照标准文档的原始顺序遍历，为每个标准文档找到对应的预测文档
+    remaining_predictions = list(range(len(prediction_documents)))
     
-    # Process unmatched documents
-    for unmatched_item in result.get('unmatched', []):
-        std_doc = unmatched_item['standard']
-        pred_doc = unmatched_item['prediction']
-        
+    for std_idx, std_doc in enumerate(standard_documents):
         # Check document type if needed
         if need_doc_type_check:
             std_doc_type = (std_doc.get('docType') or '').lower()
-            if std_doc_type not in allowed_doc_types:
+            # Allow empty docType to pass validation (skip validation for empty values)
+            # Only validate if docType has a value and it's not in allowed list
+            if std_doc_type and std_doc_type not in allowed_doc_types:
                 continue
         
+        # 寻找匹配的预测文档
+        matched_pred_doc = None
+        matched_pred_idx = None
+        
+        # 使用与InvoiceComparer相同的匹配逻辑
+        for i, pred_idx in enumerate(remaining_predictions):
+            pred_doc = prediction_documents[pred_idx]
+            is_equal, diff_fields = comparer.invoices_equal(std_doc, pred_doc)
+            
+            # 这里我们接受完全匹配和部分匹配
+            if is_equal or (diff_fields and len(diff_fields) < len(compare_fields)):
+                matched_pred_doc = pred_doc
+                matched_pred_idx = i
+                break
+        
+        # 如果找到匹配的文档，从剩余列表中移除
+        if matched_pred_idx is not None:
+            remaining_predictions.pop(matched_pred_idx)
+        
+        # 如果没有找到匹配，尝试找一个最相似的预测文档用于显示
+        if matched_pred_doc is None and remaining_predictions:
+            # 简单策略：取第一个剩余的预测文档用于显示
+            pred_idx = remaining_predictions.pop(0)
+            matched_pred_doc = prediction_documents[pred_idx]
+        
+        # 创建数据行
         row = {'filename': filename, 'prompt_name': prompt_name}
         
+        # 添加page字段（如果存在）作为第二列 - 只显示标注数据的page
+        if 'page' in std_doc:
+            page_value = std_doc['page']
+            # 处理数组类型的page字段
+            if isinstance(page_value, list):
+                row['page'] = ','.join(map(str, page_value)) if page_value else ''
+            else:
+                row['page'] = str(page_value) if page_value else ''
+            
+            # 只有当用户配置了page字段用于比较时，才显示预测数据和比较结果
+            if 'page' in compare_fields:
+                # 预测数据的page字段
+                if matched_pred_doc and 'page' in matched_pred_doc:
+                    pred_page_value = matched_pred_doc['page']
+                    if isinstance(pred_page_value, list):
+                        row['pred_page'] = ','.join(map(str, pred_page_value)) if pred_page_value else ''
+                    else:
+                        row['pred_page'] = str(pred_page_value) if pred_page_value else ''
+                else:
+                    row['pred_page'] = ''
+                
+                # 比较page字段
+                row['check_page'] = (row['page'] == row['pred_page']) if matched_pred_doc else False
+        
+        # 添加每个配置字段的标准值、预测值和检查结果
         for field in compare_fields:
             std_value = std_doc.get(field, '')
-            pred_value = pred_doc.get(field, '')
+            pred_value = matched_pred_doc.get(field, '') if matched_pred_doc else ''
             
-            # Check if field is in diff_fields
-            diff_fields = unmatched_item.get('diff_fields', [])
-            check_result = field not in diff_fields
+            # 使用comparer的归一化逻辑来判断字段是否相等
+            if matched_pred_doc:
+                check_result = comparer.field_values_equal(std_value, pred_value, field)
+            else:
+                check_result = False  # 没有预测文档时视为不匹配
             
             row[f'std_{field}'] = std_value
             row[f'pred_{field}'] = pred_value
             row[f'check_{field}'] = check_result
-        
-        rows.append(row)
-    
-    # Process documents only in standard
-    for std_doc in result.get('only_in_standard', []):
-        # Check document type if needed
-        if need_doc_type_check:
-            std_doc_type = (std_doc.get('docType') or '').lower()
-            if std_doc_type not in allowed_doc_types:
-                continue
-            
-        row = {'filename': filename, 'prompt_name': prompt_name}
-        
-        for field in compare_fields:
-            std_value = std_doc.get(field, '')
-            
-            row[f'std_{field}'] = std_value
-            row[f'pred_{field}'] = ''  # No corresponding prediction
-            row[f'check_{field}'] = False  # Missing document is considered mismatch
         
         rows.append(row)
     
@@ -371,8 +370,30 @@ def generate_excel_report(excel_data, compare_fields, statistics, evaluation_con
     temp_fd, excel_output_path = tempfile.mkstemp(suffix='.xlsx')
     os.close(temp_fd)
 
-    # Create column order
+    # 检查是否有page字段数据 - 在处理前先检查
+    has_page_data = False
+    if excel_data:
+        try:
+            first_data = excel_data[0]
+            standard_documents = json.loads(first_data['annotation_text'])
+            if standard_documents and isinstance(standard_documents, list) and len(standard_documents) > 0:
+                # 检查第一个文档是否有page字段
+                if 'page' in standard_documents[0]:
+                    has_page_data = True
+        except:
+            pass
+
+    # Create column order, 确保page字段出现在第二列（如果存在）
     columns = ['filename', 'prompt_name']
+    
+    # 如果有page数据，添加page列
+    if has_page_data:
+        columns.append('page')
+        # 只有当page字段配置用于比较时才添加pred_page和check_page列
+        if 'page' in compare_fields:
+            columns.extend(['pred_page', 'check_page'])
+    
+    # 添加配置字段的列
     for field in compare_fields:
         columns.extend([f'std_{field}', f'pred_{field}', f'check_{field}'])
     
@@ -635,30 +656,17 @@ def eval_documents(eval_list, project_config, model_version='N/A'):
     logger.info(f"Starting document evaluation, available documents: {len(eval_list)}")
     
     # Get comparison fields from project configuration
-    # Use only the predefined fields from project's evaluation_field_config
-    compare_fields = []
+    # Always use effective_required_fields for evaluation, not default_fields
+    # This ensures evaluation only uses the required fields defined in the configuration
+    compare_fields = project_config.effective_required_fields
+    logger.info(f"Using effective_required_fields for evaluation: {compare_fields}")
     
-    # Get the project instance to access evaluation_field_config
-    # project_config might be a ProjectEvaluationConfig or a direct project reference
+    # Log project config for debugging if available
     if hasattr(project_config, 'project'):
         project = project_config.project
-    else:
-        # project_config might be the project itself in some cases
-        project = project_config
-    
-    if hasattr(project, 'evaluation_field_config') and project.evaluation_field_config:
-        default_fields = project.evaluation_field_config.get('default_fields', [])
-        if default_fields:
-            compare_fields = default_fields
-            logger.info(f"Using predefined fields from project config: {compare_fields}")
-        else:
-            # Fallback to effective required fields if no default_fields specified
-            compare_fields = project_config.effective_required_fields
-            logger.info(f"No default_fields found, using effective_required_fields: {compare_fields}")
-    else:
-        # Fallback to effective required fields if no project config
-        compare_fields = project_config.effective_required_fields
-        logger.info(f"No project evaluation_field_config found, using effective_required_fields: {compare_fields}")
+        if hasattr(project, 'evaluation_field_config') and project.evaluation_field_config:
+            default_fields = project.evaluation_field_config.get('default_fields', [])
+            logger.info(f"Project has default_fields: {default_fields}, but using required_fields for evaluation")
     
     if not compare_fields:
         logger.error("No comparison fields available for evaluation")
@@ -735,6 +743,7 @@ def eval_documents(eval_list, project_config, model_version='N/A'):
     # Generate Excel report
     excel_path, _ = generate_excel_report(excel_data, compare_fields, statistics, project_config)
     
+    # Return tuple as expected by the calling function
     return excel_path, all_rows, statistics
 
 
@@ -820,16 +829,15 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
     # Perform evaluation
     excel_path, all_rows, statistics = eval_documents(results, project_config, model_version=model_version)
     
-    # Get the actual fields used in evaluation (predefined fields from project config)
-    actual_fields_used = []
+    # Get the actual fields used in evaluation (effective required fields from project config)
+    # Always use effective_required_fields to match the evaluation logic
+    actual_fields_used = project_config.effective_required_fields
+    logger.info(f"Actual fields used in evaluation: {actual_fields_used}")
+    
+    # Log project config for debugging if available
     if hasattr(project, 'evaluation_field_config') and project.evaluation_field_config:
         default_fields = project.evaluation_field_config.get('default_fields', [])
-        if default_fields:
-            actual_fields_used = default_fields
-        else:
-            actual_fields_used = project_config.effective_required_fields
-    else:
-        actual_fields_used = project_config.effective_required_fields
+        logger.info(f"Project has default_fields: {default_fields}, but using required_fields for evaluation summary")
     
     # Build evaluation summary
     evaluation_summary = {

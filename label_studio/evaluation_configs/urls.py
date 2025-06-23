@@ -15,4 +15,5 @@ urlpatterns = [
     path('api/frontend/evaluation-configs/active/', frontend_api.get_available_configs, name='frontend-get-available-configs'),
     path('api/frontend/evaluation-configs/project/<int:project_id>/', frontend_api.get_project_config, name='frontend-get-project-config'),
     path('api/frontend/evaluation-configs/key/<str:config_key>/', frontend_api.get_config_by_key, name='frontend-get-config-by-key'),
+    path('api/frontend/evaluation-configs/presets/', frontend_api.get_preset_configurations, name='frontend-get-preset-configurations'),
 ] 

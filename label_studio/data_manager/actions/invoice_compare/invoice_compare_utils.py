@@ -11,7 +11,16 @@ from datetime import datetime
 from typing import List, Dict, Any, Tuple, Union
 from pathlib import Path
 from dataclasses import dataclass
-
+import unicodedata
+from .matching_strategies import (
+    create_matching_strategy, 
+    get_default_strategy_config,
+    MatchingStrategyType
+)
+from .degraded_matching_strategies import (
+    create_degraded_matching_strategy,
+    get_default_degraded_config
+)
 
 @dataclass
 class CompareResult:
@@ -57,7 +66,9 @@ class InvoiceComparer:
     # 默认的核心字段
     DEFAULT_CORE_FIELDS = ['totalAmount', 'invoiceDate', 'docType', 'currency', 'billToName', 'totalTaxAmount']
     
-    def __init__(self, core_fields: List[str] = None, verbose: bool = False, name_overlap_threshold: float = 0.5):
+    def __init__(self, core_fields: List[str] = None, verbose: bool = False, name_overlap_threshold: float = 0.5,
+                 matching_strategy: str = None, strategy_config: Dict[str, Any] = None, document_type: str = 'invoice',
+                 use_degraded_matching: bool = True):
         """
         初始化票据比较器
         
@@ -65,14 +76,56 @@ class InvoiceComparer:
             core_fields: 需要比较的核心字段列表，如果为None则使用默认字段
             verbose: 是否显示详细日志
             name_overlap_threshold: Name字段的重叠阈值，默认0.5（50%）
+            matching_strategy: 匹配策略类型，如果为None则根据document_type自动选择
+            strategy_config: 匹配策略配置参数
+            document_type: 文档类型，用于选择默认匹配策略
+            use_degraded_matching: 是否使用新的降级匹配策略，默认True
         """
         self.core_fields = core_fields if core_fields is not None else self.DEFAULT_CORE_FIELDS.copy()
         self.verbose = verbose
         self.name_overlap_threshold = name_overlap_threshold
+        self.document_type = document_type
+        self.use_degraded_matching = use_degraded_matching
         
-        if self.verbose:
-            print(f"[INFO] 使用的比较字段: {self.core_fields}")
-            print(f"[INFO] Name字段重叠阈值: {self.name_overlap_threshold:.0%}")
+        # 初始化匹配策略
+        if use_degraded_matching:
+            # 使用新的降级匹配策略
+            if strategy_config is None:
+                strategy_config = {}
+            strategy_config['verbose'] = verbose
+            
+            # 如果用户指定了primary_fields，使用用户配置
+            if 'primary_fields' not in strategy_config:
+                strategy_config['primary_fields'] = []  # 让系统自动识别
+            
+            self.matching_strategy = create_degraded_matching_strategy(document_type, strategy_config)
+            
+            if self.verbose:
+                print(f"[INFO] 使用降级匹配策略")
+                print(f"[INFO] 使用的比较字段: {self.core_fields}")
+                print(f"[INFO] Name字段重叠阈值: {self.name_overlap_threshold:.0%}")
+                print(f"[INFO] 文档类型: {self.document_type}")
+        else:
+            # 使用原有的匹配策略（向后兼容）
+            if matching_strategy is None:
+                # 根据文档类型自动选择策略
+                default_config = get_default_strategy_config(document_type)
+                matching_strategy = default_config.get('type', MatchingStrategyType.FIELD_BASED.value)
+                strategy_config = {**(strategy_config or {}), **default_config}
+            
+            # 添加verbose配置到策略配置中
+            if strategy_config is None:
+                strategy_config = {}
+            strategy_config['verbose'] = verbose
+            
+            self.matching_strategy = create_matching_strategy(matching_strategy, strategy_config)
+            
+            if self.verbose:
+                print(f"[INFO] 使用传统匹配策略")
+                print(f"[INFO] 使用的比较字段: {self.core_fields}")
+                print(f"[INFO] Name字段重叠阈值: {self.name_overlap_threshold:.0%}")
+                print(f"[INFO] 文档类型: {self.document_type}")
+                print(f"[INFO] 匹配策略: {matching_strategy}")
     
     @classmethod
     def from_config_file(cls, config_path: Union[str, Path], verbose: bool = False) -> 'InvoiceComparer':
@@ -154,14 +207,22 @@ class InvoiceComparer:
             print(f"[INFO] 更新比较字段为: {self.core_fields}")
     
     def normalize_amount(self, amount: Any) -> float:
-        """标准化金额字段，支持int/float/str"""
+        """
+        标准化金额字段，支持int/float/str
+        将 None、空字符串、只有空白字符的字符串都归一化为 0.0
+        """
         if amount is None:
             return 0.0
         if isinstance(amount, (int, float)):
             return float(amount)
         if isinstance(amount, str):
+            # 去除首尾空格
+            amount_str = amount.strip()
+            # 处理空字符串
+            if not amount_str:
+                return 0.0
             # 移除逗号和其他分隔符
-            amount_str = re.sub(r'[,\s]', '', amount)
+            amount_str = re.sub(r'[,\s]', '', amount_str)
             try:
                 return float(amount_str)
             except ValueError:
@@ -197,11 +258,54 @@ class InvoiceComparer:
         # 如果所有格式都失败，返回原始字符串
         return date_str
     
+    def normalize_array(self, array_value: Any) -> str:
+        """
+        标准化数组字段，将数组转换为字符串进行比较
+        例如：[1] -> "1", [1,2,3] -> "1,2,3", ["a","b"] -> "a,b"
+        """
+        if array_value is None:
+            return ""
+        
+        # 如果已经是字符串，直接返回
+        if isinstance(array_value, str):
+            return array_value.strip()
+        
+        # 如果是列表或数组
+        if isinstance(array_value, (list, tuple)):
+            if not array_value:  # 空数组
+                return ""
+            # 将数组元素转换为字符串并用逗号连接
+            str_elements = [str(item).strip() for item in array_value if item is not None]
+            return ",".join(str_elements)
+        
+        # 其他类型转换为字符串
+        return str(array_value).strip()
+
     def normalize_string(self, text: Any) -> str:
-        """标准化字符串字段，忽略大小写和空格"""
+        """
+        标准化字符串字段，忽略大小写、空格、全角半角和Unicode编码差异
+        将 None、空字符串、只有空白字符的字符串都归一化为空字符串
+        """
+        # 处理 None 值
         if text is None:
             return ""
-        return str(text).strip().lower()
+        
+        # 处理数组类型字段
+        if isinstance(text, (list, tuple)):
+            return self.normalize_array(text)
+        
+        # 转换为字符串并去除首尾空格
+        text_str = str(text).strip()
+        
+        # 处理空字符串或只有空白字符的情况
+        if not text_str:
+            return ""
+        
+        # Unicode 归一化：NFKC处理兼容字符和全角半角转换
+        normalized_text = unicodedata.normalize("NFKC", text_str)
+        
+        # 转换为小写
+        return normalized_text.lower()
     
     def normalize_name_field(self, name: Any) -> set:
         """
@@ -214,6 +318,9 @@ class InvoiceComparer:
         name_str = str(name).strip()
         if not name_str:
             return set()
+        
+        # Unicode 归一化：处理全角半角和兼容字符
+        name_str = unicodedata.normalize("NFKC", name_str)
         
         # 移除常见的标点符号和分隔符
         cleaned = re.sub(r'[^\w\u4e00-\u9fff\s]', ' ', name_str)
@@ -278,34 +385,19 @@ class InvoiceComparer:
         date_keywords = ['date', 'time', 'when', 'day', 'month', 'year']
         return any(keyword in field_lower for keyword in date_keywords)
     
+    def is_array_field(self, field_name: str) -> bool:
+        """判断字段是否为数组字段（不区分大小写）"""
+        field_lower = field_name.lower()
+        # 支持各种数组字段名
+        array_keywords = ['page', 'pages', 'items', 'list', 'array', 'tags']
+        return any(keyword in field_lower for keyword in array_keywords)
+    
     def get_key_fields_for_comparison(self) -> List[str]:
         """
-        根据当前的核心字段动态确定主键字段
+        根据当前的匹配策略确定主键字段
         用于识别同一张票据的关键字段
         """
-        key_fields = []
-        
-        # 优先选择金额字段作为主键
-        for field in self.core_fields:
-            if self.is_amount_field(field):
-                key_fields.append(field)
-                break
-        
-        # 选择日期字段作为主键
-        for field in self.core_fields:
-            if self.is_date_field(field):
-                key_fields.append(field)
-                break
-        
-        # 如果有docType字段，也加入主键
-        if 'docType' in self.core_fields:
-            key_fields.append('docType')
-        
-        # 如果没有找到合适的主键字段，使用前几个字段
-        if not key_fields:
-            key_fields = self.core_fields[:3]
-        
-        return key_fields
+        return self.matching_strategy.get_primary_key_fields(self.core_fields)
     
     def extract_core_fields(self, invoice: Dict[str, Any]) -> Dict[str, Any]:
         """提取核心字段"""
@@ -330,12 +422,51 @@ class InvoiceComparer:
             elif self.is_date_field(field):
                 # 日期字段 - 支持更多字段名
                 normalized[field] = self.normalize_date(value)
+            elif self.is_array_field(field):
+                # 数组字段 - 转换为字符串
+                normalized[field] = self.normalize_array(value)
             else:
                 # 其他字符串字段
                 normalized[field] = self.normalize_string(value)
         
         return normalized
     
+    def field_values_equal(self, value1: Any, value2: Any, field_name: str) -> bool:
+        """
+        比较两个字段值是否相等，使用对应的归一化逻辑
+        
+        Args:
+            value1: 第一个字段值
+            value2: 第二个字段值
+            field_name: 字段名称，用于确定比较方式
+            
+        Returns:
+            bool: 是否相等
+        """
+        if self.is_name_field(field_name):
+            # Name字段使用特殊比较逻辑
+            return self.compare_name_fields(value1, value2, self.name_overlap_threshold)
+        elif self.is_amount_field(field_name):
+            # 金额字段使用数值比较
+            norm1 = self.normalize_amount(value1)
+            norm2 = self.normalize_amount(value2)
+            return norm1 == norm2
+        elif self.is_date_field(field_name):
+            # 日期字段使用日期比较
+            norm1 = self.normalize_date(value1)
+            norm2 = self.normalize_date(value2)
+            return norm1 == norm2
+        elif self.is_array_field(field_name):
+            # 数组字段使用数组标准化比较
+            norm1 = self.normalize_array(value1)
+            norm2 = self.normalize_array(value2)
+            return norm1 == norm2
+        else:
+            # 其他字符串字段使用字符串比较
+            norm1 = self.normalize_string(value1)
+            norm2 = self.normalize_string(value2)
+            return norm1 == norm2
+
     def invoices_equal(self, inv1: Dict[str, Any], inv2: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """
         比较两张票据是否相等
@@ -417,6 +548,8 @@ class InvoiceComparer:
         # 加载数据
         standard_invoices = self.load_data(standard_data)
         prediction_invoices = self.load_data(prediction_data)
+        print(f"\nstandard_invoices: {standard_invoices}")
+        print(f"prediction_invoices: {prediction_invoices}\n")
         
         if not isinstance(standard_invoices, list) or not isinstance(prediction_invoices, list):
             raise ValueError("输入数据必须是数组格式")
@@ -439,62 +572,55 @@ class InvoiceComparer:
         # 创建预测票据的副本，用于标记已匹配的票据
         remaining_predictions = list(range(len(prediction_invoices)))
         
+        # 为位置匹配策略添加位置信息
+        for idx, invoice in enumerate(standard_invoices):
+            invoice['_original_position'] = idx
+        for idx, invoice in enumerate(prediction_invoices):
+            invoice['_original_position'] = idx
+        
         # 遍历标准票据，寻找匹配
         for std_idx, std_invoice in enumerate(standard_invoices):
             self.log(f"处理标准票据 {std_idx + 1}/{len(standard_invoices)}")
             
             std_core = self.extract_core_fields(std_invoice)
             
-            # 在剩余的预测票据中寻找匹配
-            found_idx = -1
-            diff_fields = []
+            # 使用匹配策略寻找对应的预测票据
+            if self.use_degraded_matching:
+                # 新的降级匹配策略返回三个值
+                pred_idx, diff_fields, strategy_used = self.matching_strategy.find_matching_invoice(
+                    std_invoice, prediction_invoices, remaining_predictions, self)
+                if pred_idx is not None:
+                    self.log(f"使用策略: {strategy_used}")
+            else:
+                # 传统匹配策略返回两个值
+                pred_idx, diff_fields = self.matching_strategy.find_matching_invoice(
+                    std_invoice, prediction_invoices, remaining_predictions, self)
             
-            for i, pred_idx in enumerate(remaining_predictions):
-                pred_invoice = prediction_invoices[pred_idx]
-                is_equal, fields_diff = self.invoices_equal(std_invoice, pred_invoice)
-                
-                if is_equal:
-                    # 完全匹配
-                    found_idx = i
-                    diff_fields = []
-                    result.matched_count += 1
-                    # 统计所有票据的字段
-                    result.correct_field_count += len(self.core_fields)
-                    self.log(f"找到完全匹配的票据")
-                    break
-                elif len(fields_diff) < len(self.core_fields):
-                    # 部分匹配（用于unmatched）
-                    norm_std = self.normalize_invoice(std_invoice)
-                    norm_pred = self.normalize_invoice(pred_invoice)
-                    
-                    # 使用主键进行识别 - 根据实际字段动态确定主键
-                    key_fields = self.get_key_fields_for_comparison()
-                    key_match = all(norm_std.get(f) == norm_pred.get(f) for f in key_fields if f in norm_std and f in norm_pred)
-                    
-                    if key_match:
-                        found_idx = i
-                        diff_fields = fields_diff
-                        result.unmatched_count += 1
-                        # 统计所有票据的字段
-                        correct_fields = len(self.core_fields) - len(diff_fields)
-                        result.correct_field_count += correct_fields
-                        self.log(f"找到部分匹配的票据，差异字段: {diff_fields}")
-                        break
-            
-            if found_idx >= 0:
+            if pred_idx is not None:
                 # 找到匹配（完全或部分）
-                pred_idx = remaining_predictions.pop(found_idx)
+                # 从remaining_predictions中移除已匹配的票据
+                remaining_predictions.remove(pred_idx)
                 
-                if diff_fields:
+                if not diff_fields:
+                    # 完全匹配
+                    result.matched_count += 1
+                    result.correct_field_count += len(self.core_fields)
+                    self.log(f"找到完全匹配的票据 (索引 {pred_idx})")
+                else:
                     # 部分匹配，添加到unmatched
+                    result.unmatched_count += 1
+                    correct_fields = len(self.core_fields) - len(diff_fields)
+                    result.correct_field_count += correct_fields
+                    
                     pred_core = self.extract_core_fields(prediction_invoices[pred_idx])
                     result.unmatched.append({
                         'standard': std_core,
                         'prediction': pred_core,
                         'diff_fields': diff_fields
                     })
+                    self.log(f"找到部分匹配的票据 (索引 {pred_idx})，差异字段: {diff_fields}")
             else:
-                # 在预测中没找到，添加到only_in_standard
+                # 在预测中没找到匹配，添加到only_in_standard
                 result.only_in_standard_count += 1
                 result.only_in_standard.append(std_core)
                 self.log("标准票据在预测中未找到匹配")

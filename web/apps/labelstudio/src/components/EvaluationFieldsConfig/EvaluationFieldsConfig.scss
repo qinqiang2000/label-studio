@@ -198,6 +198,234 @@
     border-radius: 4px;
     border: 1px solid #bae6fd;
   }
+}
+
+// 匹配策略配置样式
+.matching-strategy-config {
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 16px 0;
+  background: white;
+
+  &__header {
+    margin-bottom: 20px;
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+  }
+
+  &__description {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 16px;
+  }
+
+  &__matching-mode {
+    margin-bottom: 24px;
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 16px;
+      cursor: pointer;
+
+      span {
+        user-select: none;
+      }
+    }
+  }
+
+  &__position-info,
+  &__field-matching-section {
+    margin-top: 16px;
+  }
+
+  &__info-box {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    padding: 12px;
+    color: #0369a1;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  &__preset-info {
+    margin-bottom: 20px;
+  }
+
+  &__primary-fields-config {
+    margin-bottom: 20px;
+  }
+
+  &__section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 12px;
+  }
+
+  &__current-fields {
+    margin-bottom: 16px;
+
+    label {
+      display: block;
+      font-weight: 500;
+      color: #374151;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+  }
+
+  &__fields-list-horizontal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &__field-tag-horizontal {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #e5e7eb;
+    color: #374151;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #d1d5db;
+
+    span {
+      font-family: monospace;
+    }
+
+    .remove-field-btn {
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+
+      &:hover {
+        background: #b91c1c;
+      }
+    }
+  }
+
+  &__no-fields {
+    color: #6b7280;
+    font-style: italic;
+    font-size: 14px;
+    padding: 8px 0;
+  }
+
+  &__field-selector {
+    margin-bottom: 16px;
+
+    .toggle-selector-btn {
+      margin-bottom: 12px;
+    }
+  }
+
+  &__available-fields {
+    label {
+      display: block;
+      font-weight: 500;
+      color: #374151;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+  }
+
+  &__field-buttons-horizontal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .add-field-btn {
+      background: #059669;
+      color: white;
+      border: 1px solid #047857;
+      border-radius: 16px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+
+      &:hover {
+        background: #047857;
+      }
+
+      &:disabled {
+        background: #d1d5db;
+        color: #9ca3af;
+        border-color: #d1d5db;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  &__field-config-help {
+    background: #fffbeb;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+    padding: 12px;
+    color: #92400e;
+    font-size: 13px;
+
+    ul {
+      margin: 8px 0 0 16px;
+      padding: 0;
+
+      li {
+        margin-bottom: 4px;
+      }
+    }
+  }
+
+  &__config-preview {
+    margin-top: 24px;
+    padding: 16px;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+  }
+
+  &__preview-title {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #0369a1;
+    font-size: 14px;
+  }
+
+  &__preview-content {
+    code {
+      font-family: monospace;
+      color: #0c4a6e;
+      font-size: 13px;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #bae6fd;
+      display: block;
+    }
+  }
 
   &__actions {
     display: flex;
@@ -234,6 +462,562 @@
     
     .ant-select-arrow {
       color: #666 !important;
+    }
+  }
+
+  .strategy-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #f0f0f0;
+  }
+}
+
+.matching-strategy-config {
+  .header {
+    margin-bottom: 16px;
+    
+    .title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #262626;
+      margin-bottom: 4px;
+    }
+    
+    .description {
+      font-size: 14px;
+      color: #8c8c8c;
+    }
+  }
+  
+  .strategy-selector {
+    margin-bottom: 16px;
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #262626;
+    }
+    
+    .strategy-select {
+      width: 100%;
+    }
+  }
+  
+  .strategy-info {
+    background: #f6ffed;
+    border: 1px solid #b7eb8f;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 16px;
+    
+    .strategy-description {
+      font-size: 14px;
+      color: #262626;
+      margin-bottom: 8px;
+    }
+    
+    .strategy-suitable {
+      font-size: 13px;
+      color: #52c41a;
+    }
+  }
+  
+  .strategy-details {
+    background: #fafafa;
+    border-radius: 6px;
+    padding: 16px;
+    
+    .info-item {
+      margin-bottom: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      strong {
+        color: #262626;
+      }
+    }
+    
+    .field-strategy-info,
+    .position-strategy-info,
+    .hybrid-strategy-info {
+      .info-item {
+        color: #595959;
+      }
+    }
+    
+    .custom-primary-fields {
+      margin-top: 16px;
+      padding: 12px;
+      background: #e6f7ff;
+      border: 1px solid #91d5ff;
+      border-radius: 4px;
+      
+      .custom-fields-label {
+        margin-bottom: 8px;
+        color: #0050b3;
+      }
+      
+      .custom-fields-note {
+        font-size: 13px;
+        color: #1890ff;
+        margin-bottom: 8px;
+        line-height: 1.4;
+      }
+      
+      .available-fields {
+        font-size: 13px;
+        color: #595959;
+      }
+    }
+  }
+}
+
+/* 评估字段配置组件样式 */
+.evaluation-fields-config {
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 16px;
+
+  &__header {
+    margin-bottom: 20px;
+  }
+
+  &__title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 8px;
+  }
+
+  &__description {
+    color: #7f8c8d;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  &__section {
+    background: white;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+  }
+
+  &__section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__field-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  &__field-tag {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #bbdefb;
+  }
+
+  &__add-button {
+    background: #f0f0f0;
+    color: #666;
+    border: 2px dashed #ccc;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #e0e0e0;
+      border-color: #999;
+      color: #333;
+    }
+  }
+
+  &__loading {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-style: italic;
+  }
+
+  &__error {
+    background: #fee;
+    color: #c33;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #fcc;
+    margin-bottom: 16px;
+  }
+}
+
+/* 匹配策略配置样式 */
+.matching-strategy-config {
+  &__header {
+    margin-bottom: 20px;
+  }
+
+  &__title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 8px;
+  }
+
+  &__description {
+    color: #7f8c8d;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  &__matching-mode {
+    background: white;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    margin-bottom: 16px;
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+      color: #495057;
+      cursor: pointer;
+      margin-bottom: 16px;
+    }
+  }
+
+  &__position-info {
+    margin-top: 12px;
+  }
+
+  &__info-box {
+    background: #e8f5e8;
+    border: 1px solid #c3e6c3;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #2d5a2d;
+  }
+
+  &__field-matching-section {
+    margin-top: 16px;
+  }
+
+  &__primary-fields-config {
+    background: white;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+  }
+
+  &__section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 16px;
+  }
+
+  &__current-fields {
+    margin-bottom: 16px;
+
+    label {
+      display: block;
+      font-weight: 500;
+      color: #495057;
+      margin-bottom: 8px;
+    }
+  }
+
+  // 原有的水平排列样式（保留兼容性）
+  &__fields-list-horizontal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 40px;
+    align-items: flex-start;
+  }
+
+  &__field-tag-horizontal {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #bbdefb;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    span {
+      line-height: 1;
+    }
+
+    .remove-field-btn {
+      background: none;
+      border: none;
+      color: #1976d2;
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      font-size: 16px;
+      line-height: 1;
+      opacity: 0.7;
+      
+      &:hover {
+        opacity: 1;
+        color: #d32f2f;
+      }
+    }
+  }
+
+  // 新的拖拽排序样式
+  &__fields-list-draggable {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 40px;
+    align-items: flex-start;
+  }
+
+  &__field-tag-draggable {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 8px 4px 8px 8px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #bbdefb;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: move;
+    transition: all 0.2s ease;
+    user-select: none;
+
+    &:hover {
+      background: #d1e7fd;
+      border-color: #90caf9;
+      transform: translateY(-1px);
+    }
+
+    &--dragging {
+      opacity: 0.5;
+      transform: rotate(5deg);
+      z-index: 1000;
+    }
+
+    &--dragover {
+      background: #fff3e0;
+      border-color: #ff9800;
+      transform: scale(1.05);
+    }
+  }
+
+  &__drag-handle {
+    color: #9e9e9e;
+    cursor: grab;
+    font-size: 12px;
+    line-height: 1;
+    padding: 2px;
+    user-select: none;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: #666;
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &__field-name {
+    line-height: 1;
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__no-fields {
+    color: #999;
+    font-style: italic;
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border-radius: 20px;
+    border: 1px dashed #ccc;
+  }
+
+  &__add-field-section {
+    margin-bottom: 16px;
+  }
+
+  &__field-selector {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+  }
+
+  &__selector-title {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 8px;
+  }
+
+  &__available-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .add-field-btn {
+    background: #f0f8ff;
+    color: #1976d2;
+    border: 1px solid #bbdefb;
+    border-radius: 16px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #e3f2fd;
+      border-color: #90caf9;
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  .remove-field-btn {
+    background: none;
+    border: none;
+    color: #1976d2;
+    cursor: pointer;
+    padding: 0 4px;
+    margin: 0;
+    font-size: 16px;
+    line-height: 1;
+    opacity: 0.7;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      opacity: 1;
+      color: #d32f2f;
+      background: rgba(211, 47, 47, 0.1);
+    }
+  }
+
+  // 排序提示样式
+  &__sorting-tips {
+    background: #fff3e0;
+    border: 1px solid #ffcc02;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #e65100;
+    margin-top: 12px;
+
+    strong {
+      color: #bf360c;
+    }
+
+    ul {
+      margin: 8px 0 0 0;
+      padding-left: 16px;
+    }
+
+    li {
+      margin-bottom: 4px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  &__config-preview {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 16px;
+  }
+
+  &__preview-label {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 8px;
+  }
+
+  &__preview-content {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    background: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    color: #495057;
+    font-size: 13px;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .matching-strategy-config {
+    &__fields-list-draggable,
+    &__fields-list-horizontal {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    &__field-tag-draggable,
+    &__field-tag-horizontal {
+      justify-content: space-between;
+    }
+
+    &__available-fields {
+      flex-direction: column;
+      
+      .add-field-btn {
+        justify-content: flex-start;
+      }
     }
   }
 } 

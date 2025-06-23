@@ -178,4 +178,46 @@ def get_config_by_key(request, config_key):
         return Response(
             {'error': f'Configuration "{config_key}" not found'},
             status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_preset_configurations(request):
+    """
+    Get preset configurations for all document types, including matching strategy primary fields
+    Used by frontend components to avoid hardcoding preset values
+    """
+    try:
+        configs = EvaluationFieldConfig.objects.filter(
+            is_system_default=True,
+            is_active=True
+        ).order_by('name')
+        
+        preset_configs = {}
+        for config in configs:
+            # Extract primary fields from evaluation settings
+            evaluation_settings = config.evaluation_settings or {}
+            matching_strategy = evaluation_settings.get('matching_strategy', {})
+            primary_fields = matching_strategy.get('primary_fields', [])
+            
+            preset_configs[config.key] = {
+                'name': config.name,
+                'key': config.key,
+                'fields': config.all_fields,
+                'required_fields': config.required_fields,
+                'optional_fields': config.optional_fields,
+                'description': config.description,
+                'primary_fields': primary_fields,
+                'field_labels': config.field_labels,
+                'field_types': config.field_types
+            }
+        
+        return Response(preset_configs)
+        
+    except Exception as e:
+        logger.error(f"Error getting preset configurations: {e}")
+        return Response(
+            {'error': 'Failed to retrieve preset configurations'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         ) 
