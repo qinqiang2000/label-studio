@@ -39,7 +39,29 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
             };
           });
           
-          setDocumentTypeConfigs(configs);
+          // 如果后端返回空配置，使用兜底配置
+          if (Object.keys(configs).length === 0) {
+            console.warn('[EvaluationFieldsConfig] Backend returned empty configurations, using fallback');
+            setDocumentTypeConfigs({
+              invoice: {
+                label: "发票 (Invoice)",
+                fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+                description: "适用于发票和收据的评估"
+              },
+              bank_receipt: {
+                label: "银行回单 (Bank Receipt)",
+                fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+                description: "适用于银行回单的评估"
+              },
+              custom: {
+                label: "自定义 (Custom)",
+                fields: [],
+                description: "自定义评估字段"
+              }
+            });
+          } else {
+            setDocumentTypeConfigs(configs);
+          }
           console.log('[EvaluationFieldsConfig] Loaded document type configurations from backend:', configs);
         } else {
           console.warn('[EvaluationFieldsConfig] Failed to load document type configurations, using fallback');
@@ -66,21 +88,21 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
         console.error('[EvaluationFieldsConfig] Error fetching document type configurations:', error);
         // 兜底配置
         setDocumentTypeConfigs({
-          invoice: {
-            label: "发票 (Invoice)",
-            fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
-            description: "适用于发票和收据的评估"
-          },
-          bank_receipt: {
-            label: "银行回单 (Bank Receipt)",
-            fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
-            description: "适用于银行回单的评估"
-          },
-          custom: {
-            label: "自定义 (Custom)",
-            fields: [],
-            description: "自定义评估字段"
-          }
+  invoice: {
+    label: "发票 (Invoice)",
+    fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+    description: "适用于发票和收据的评估"
+  },
+  bank_receipt: {
+    label: "银行回单 (Bank Receipt)",
+    fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+    description: "适用于银行回单的评估"
+  },
+  custom: {
+    label: "自定义 (Custom)",
+    fields: [],
+    description: "自定义评估字段"
+  }
         });
       } finally {
         setIsLoadingConfigs(false);
@@ -189,7 +211,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
               {documentTypeConfigs[currentConfig.document_type || 'invoice']?.description || '适用于发票的评估'}
             </Elem>
             
-            {currentConfig.document_type && documentTypeConfigs[currentConfig.document_type] && (
+            {currentConfig.document_type && documentTypeConfigs[currentConfig.document_type] && documentTypeConfigs[currentConfig.document_type].fields && (
               <Elem name="predefined-fields">
                 <Elem name="fields-label">预定义字段:</Elem>
                 <Elem name="fields-list">
@@ -205,7 +227,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
             <Elem name="item">
               <Elem name="label">当前配置字段:</Elem>
               <Elem name="current-fields">
-                {(documentTypeConfigs[currentConfig.document_type || 'invoice']?.fields || documentTypeConfigs.invoice.fields).join(', ')}
+                {(documentTypeConfigs[currentConfig.document_type || 'invoice']?.fields || documentTypeConfigs.invoice?.fields || []).join(', ') || '无'}
               </Elem>
             </Elem>
           </Elem>

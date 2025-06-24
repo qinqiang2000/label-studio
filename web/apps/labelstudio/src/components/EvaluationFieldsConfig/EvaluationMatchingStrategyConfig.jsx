@@ -329,45 +329,45 @@ export const EvaluationMatchingStrategyConfig = ({
 
               {/* 添加字段按钮 */}
               <Elem name="add-field-section">
-                <Button
-                  onClick={() => setShowFieldSelector(!showFieldSelector)}
-                  disabled={disabled}
+                  <Button
+                    onClick={() => setShowFieldSelector(!showFieldSelector)}
+                    disabled={disabled}
                   size="small"
-                >
+                  >
                   {showFieldSelector ? "隐藏字段" : "添加字段"}
-                </Button>
-                
-                {showFieldSelector && (
+                  </Button>
+                  
+                  {showFieldSelector && (
                   <Elem name="field-selector">
                     <Elem name="selector-title">可选字段：</Elem>
                     <Elem name="available-fields">
-                      {evaluationFields
-                        .filter(field => !primaryFields.includes(field))
-                        .map((field, index) => (
-                          <Button
-                            key={index}
-                            size="small"
-                            onClick={() => addPrimaryField(field)}
-                            disabled={disabled}
-                            className="add-field-btn"
-                          >
-                            + {field}
-                          </Button>
-                        ))}
+                        {evaluationFields
+                          .filter(field => !primaryFields.includes(field))
+                          .map((field, index) => (
+                            <Button
+                              key={index}
+                              size="small"
+                              onClick={() => addPrimaryField(field)}
+                              disabled={disabled}
+                              className="add-field-btn"
+                            >
+                              + {field}
+                            </Button>
+                          ))}
+                      </Elem>
                     </Elem>
-                  </Elem>
-                )}
-              </Elem>
+                  )}
+                </Elem>
 
               {/* 排序提示 */}
               {primaryFields.length > 1 && (
                 <Elem name="sorting-tips">
                   <strong>💡 排序提示：</strong>
-                                      <ul>
+                  <ul>
                       <li>字段的顺序影响匹配结果，请将<strong>重要性高的字段放在前面</strong></li>
                       <li>系统会对未匹配数据尝试降级匹配，如：[{primaryFields.join(', ')}] → [{primaryFields.slice(1).join(', ')}] → [{primaryFields[primaryFields.length - 1]}]</li>
                       <li><strong>拖拽字段</strong>可调整顺序，重要字段在前可确保优先匹配</li>
-                    </ul>
+                  </ul>
                 </Elem>
               )}
             </Elem>

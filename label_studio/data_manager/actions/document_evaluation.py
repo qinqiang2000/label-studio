@@ -231,6 +231,17 @@ def process_comparison_results(filename: str, standard_documents: List[dict],
         allowed_doc_types = set(doc_type_rule.get('allowed_values', []))
     
     # 新方法：按照标准文档的原始顺序遍历，为每个标准文档找到对应的预测文档
+    # 这里需要根据匹配策略决定使用位置匹配还是字段匹配
+    
+    # 获取匹配策略配置
+    eval_settings = getattr(evaluation_config, 'evaluation_settings', {})
+    matching_strategy_config = eval_settings.get('matching_strategy', {})
+    use_position_matching = (
+        matching_strategy_config.get('mode') == 'position_based' or 
+        matching_strategy_config.get('primary_fields') == [] or
+        matching_strategy_config.get('primary_fields') == ['_position']
+    )
+    
     remaining_predictions = list(range(len(prediction_documents)))
     
     for std_idx, std_doc in enumerate(standard_documents):
@@ -246,16 +257,24 @@ def process_comparison_results(filename: str, standard_documents: List[dict],
         matched_pred_doc = None
         matched_pred_idx = None
         
-        # 使用与InvoiceComparer相同的匹配逻辑
-        for i, pred_idx in enumerate(remaining_predictions):
-            pred_doc = prediction_documents[pred_idx]
-            is_equal, diff_fields = comparer.invoices_equal(std_doc, pred_doc)
-            
-            # 这里我们接受完全匹配和部分匹配
-            if is_equal or (diff_fields and len(diff_fields) < len(compare_fields)):
-                matched_pred_doc = pred_doc
-                matched_pred_idx = i
-                break
+        if use_position_matching:
+            # 位置匹配：严格按位置一一对应
+            if std_idx < len(prediction_documents):
+                matched_pred_doc = prediction_documents[std_idx]
+                # 找到在remaining_predictions中的索引位置
+                if std_idx in remaining_predictions:
+                    matched_pred_idx = remaining_predictions.index(std_idx)
+        else:
+            # 字段匹配：使用InvoiceComparer的匹配逻辑
+            for i, pred_idx in enumerate(remaining_predictions):
+                pred_doc = prediction_documents[pred_idx]
+                is_equal, diff_fields = comparer.invoices_equal(std_doc, pred_doc)
+                
+                # 这里我们接受完全匹配和部分匹配
+                if is_equal or (diff_fields and len(diff_fields) < len(compare_fields)):
+                    matched_pred_doc = pred_doc
+                    matched_pred_idx = i
+                    break
         
         # 如果找到匹配的文档，从剩余列表中移除
         if matched_pred_idx is not None:
@@ -326,13 +345,15 @@ def compare_documents_with_comparer(annotation_text_filtered, prediction_text_fi
     """
     # Get comparison settings from evaluation config
     eval_settings = getattr(evaluation_config, 'evaluation_settings', {})
+    matching_strategy_config = eval_settings.get('matching_strategy', {})
     
-    # Create InvoiceComparer with configuration
-    # Only use supported parameters: core_fields, verbose, name_overlap_threshold
+    # Create InvoiceComparer with matching strategy configuration
     comparer = InvoiceComparer(
         core_fields=compare_fields, 
         verbose=False,
-        name_overlap_threshold=eval_settings.get('name_overlap_threshold', 0.5)
+        name_overlap_threshold=eval_settings.get('name_overlap_threshold', 0.5),
+        strategy_config=matching_strategy_config,
+        use_degraded_matching=True
     )
     
     try:
@@ -664,9 +685,9 @@ def eval_documents(eval_list, project_config, model_version='N/A'):
     # Log project config for debugging if available
     if hasattr(project_config, 'project'):
         project = project_config.project
-        if hasattr(project, 'evaluation_field_config') and project.evaluation_field_config:
-            default_fields = project.evaluation_field_config.get('default_fields', [])
-            logger.info(f"Project has default_fields: {default_fields}, but using required_fields for evaluation")
+    if hasattr(project, 'evaluation_field_config') and project.evaluation_field_config:
+        default_fields = project.evaluation_field_config.get('default_fields', [])
+        logger.info(f"Project has default_fields: {default_fields}, but using required_fields for evaluation")
     
     if not compare_fields:
         logger.error("No comparison fields available for evaluation")
@@ -837,7 +858,7 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
     # Log project config for debugging if available
     if hasattr(project, 'evaluation_field_config') and project.evaluation_field_config:
         default_fields = project.evaluation_field_config.get('default_fields', [])
-        logger.info(f"Project has default_fields: {default_fields}, but using required_fields for evaluation summary")
+        logger.info(f"Project has default_fields: {default_fields}, but using required_fields for evaluation")
     
     # Build evaluation summary
     evaluation_summary = {

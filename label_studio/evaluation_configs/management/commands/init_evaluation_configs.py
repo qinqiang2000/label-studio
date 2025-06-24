@@ -81,7 +81,7 @@ class Command(BaseCommand):
                 'field_validation_rules': {
                     'docType': {
                         'required': True,
-                        'allowed_values': ['invoice', 'receipt']
+                        'allowed_values': ['invoice', 'receipt', 'other']
                     },
                     'totalAmount': {
                         'required': True,

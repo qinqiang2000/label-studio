@@ -178,7 +178,7 @@ def get_config_by_key(request, config_key):
         return Response(
             {'error': f'Configuration "{config_key}" not found'},
             status=status.HTTP_404_NOT_FOUND
-        )
+        ) 
 
 
 @api_view(['GET'])
