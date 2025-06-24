@@ -250,9 +250,9 @@ export const CreateProject = ({ onClose }) => {
         workspace: workspace,
         label_config: project?.label_config ?? "<View></View>",
         evaluation_field_config: {
-          config_key: evaluationConfig,
+          document_type: evaluationConfig,  // 后端API期望的字段名
           config_name: selectedConfig?.label || evaluationConfig,
-          fields: selectedConfig?.fields || [],
+          default_fields: selectedConfig?.fields || [],
           required_fields: selectedConfig?.required_fields || [],
           optional_fields: selectedConfig?.optional_fields || [],
           last_updated: new Date().toISOString()

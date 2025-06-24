@@ -117,6 +117,8 @@ class EvaluationConfigAPI {
     const now = Date.now();
     const cacheKey = String(projectId);
     
+    console.log('[Evaluation Config API] Fetching config for project:', projectId, 'forceRefresh:', forceRefresh);
+    
     // Force refresh if requested
     if (forceRefresh) {
       this.clearCache(projectId);
@@ -125,22 +127,34 @@ class EvaluationConfigAPI {
     // Return cached data if still valid and not forcing refresh
     const cachedData = evaluationConfigCache.get(cacheKey);
     if (!forceRefresh && cachedData && cachedData.expiry > now) {
-      console.log('[Evaluation Config] Using cached config for project', projectId, ':', cachedData.config.config_key);
+      console.log('[Evaluation Config API] Using cached config for project', projectId, ':', cachedData.config.config_key);
       return cachedData.config;
     }
     
     try {
       // Use the unified API endpoint pattern
       const apiUrl = `/api/frontend/evaluation-configs/project/${projectId}/`;
+      console.log('[Evaluation Config API] Making request to:', apiUrl);
+      
+      const headers = this.createHeaders();
+      console.log('[Evaluation Config API] Request headers:', headers);
+      
       const response = await fetch(apiUrl, {
-        headers: this.createHeaders()
+        headers: headers
       });
       
+      console.log('[Evaluation Config API] Response status:', response.status);
+      console.log('[Evaluation Config API] Response ok:', response.ok);
+      
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('[Evaluation Config API] Error response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
       
       const config = await response.json();
+      console.log('[Evaluation Config API] Raw config response:', config);
+      
       const requiredFields = [...(config.required_fields || [])];
       
       // Always include 序号 if not present
@@ -158,17 +172,19 @@ class EvaluationConfigAPI {
         project_default_fields: config.project_default_fields || []
       };
       
+      console.log('[Evaluation Config API] Processed config data:', configData);
+      
       // Cache the result
       evaluationConfigCache.set(cacheKey, {
         config: configData,
         expiry: now + this.CACHE_DURATION
       });
       
-      console.log('[Evaluation Config] Loaded config for project', projectId, ':', configData.config_key, 'Required fields:', requiredFields);
+      console.log('[Evaluation Config API] Loaded config for project', projectId, ':', configData.config_key, 'Required fields:', requiredFields);
       return configData;
       
     } catch (error) {
-      console.warn('Failed to fetch project evaluation config:', error);
+      console.error('[Evaluation Config API] Failed to fetch project evaluation config:', error);
       throw error;
     }
   }
@@ -183,11 +199,57 @@ class EvaluationConfigAPI {
     };
   }
   
+  static async fetchAllConfigs() {
+    try {
+      const apiUrl = '/api/frontend/evaluation-configs/active/';
+      console.log('[Evaluation Config API] Fetching all configs from:', apiUrl);
+      
+      const headers = this.createHeaders();
+      const response = await fetch(apiUrl, { headers });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const configs = await response.json();
+      console.log('[Evaluation Config API] All configs fetched:', configs);
+      
+      // 转换为以key为索引的对象
+      const configsByKey = {};
+      if (Array.isArray(configs)) {
+        configs.forEach(config => {
+          // 检查配置是否有效（不需要检查is_active，因为API已经过滤了）
+          if (config.key) {
+            const requiredFields = [...(config.required_fields || [])];
+            if (!requiredFields.includes('序号')) {
+              requiredFields.unshift('序号');
+            }
+            
+            configsByKey[config.key] = {
+              required_fields: requiredFields,
+              optional_fields: config.optional_fields || [],
+              all_fields: config.all_fields || [],
+              validation_rules: config.validation_rules || config.field_validation_rules || {},
+              config_key: config.key,
+              field_labels: config.field_labels || {}
+            };
+          }
+        });
+      }
+      
+      console.log('[Evaluation Config API] Processed all configs:', configsByKey);
+      return configsByKey;
+    } catch (error) {
+      console.error('[Evaluation Config API] Failed to fetch all configs:', error);
+      return {};
+    }
+  }
+
   static async getConfigWithFallback(projectId, forceRefresh = false) {
     try {
       return await this.fetchProjectConfig(projectId, forceRefresh);
     } catch (error) {
-      console.warn('[Evaluation Config] Using fallback config for project', projectId);
+      console.warn('[Evaluation Config] Using fallback config for project', projectId, 'Error:', error.message);
       const fallbackConfig = this.getFallbackConfig();
       
       // Cache the fallback too to avoid repeated failed requests (shorter duration)
@@ -205,18 +267,28 @@ class EvaluationConfigAPI {
 
 // Function to get required fields for highlighting
 function getRequiredFields(item) {
+  console.log('[getRequiredFields] Called with item:', !!item, 'name:', item?.name);
+  
   const annotation = item?.annotation;
-  if (!annotation) return FALLBACK_REQUIRED_FIELDS;
+  if (!annotation) {
+    console.log('[getRequiredFields] No annotation, using fallback');
+    return FALLBACK_REQUIRED_FIELDS;
+  }
   
   const store = annotation.store;
-  if (!store) return FALLBACK_REQUIRED_FIELDS;
+  if (!store) {
+    console.log('[getRequiredFields] No store, using fallback');
+    return FALLBACK_REQUIRED_FIELDS;
+  }
   
   // Try multiple ways to get project ID
   let projectId = store.projectId || store.project?.id;
+  console.log('[getRequiredFields] Store projectId:', projectId);
   
   // Try to get from window object if not found
   if (!projectId && window.APP_SETTINGS?.projectId) {
     projectId = window.APP_SETTINGS.projectId;
+    console.log('[getRequiredFields] Window projectId:', projectId);
   }
   
   // Try to get from URL if still not found
@@ -224,37 +296,88 @@ function getRequiredFields(item) {
     const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
     if (urlMatch) {
       projectId = parseInt(urlMatch[1]);
+      console.log('[getRequiredFields] URL projectId:', projectId);
     }
   }
   
   // Try to get from history state
   if (!projectId && window.history?.state?.projectId) {
     projectId = window.history.state.projectId;
+    console.log('[getRequiredFields] History projectId:', projectId);
   }
   
-  if (!projectId) return FALLBACK_REQUIRED_FIELDS;
+  if (!projectId) {
+    console.log('[getRequiredFields] No project ID found, using fallback');
+    return FALLBACK_REQUIRED_FIELDS;
+  }
   
   // Check if we have cached config for this project
   const cacheKey = String(projectId);
   const cachedData = evaluationConfigCache.get(cacheKey);
   
   if (cachedData && cachedData.expiry > Date.now()) {
-    console.log(`[Evaluation Config] Using cached config for highlighting, project ${projectId}:`, cachedData.config.config_key);
+    console.log(`[getRequiredFields] Using cached config for highlighting, project ${projectId}:`, cachedData.config.config_key, 'fields:', cachedData.config.required_fields);
     return cachedData.config.required_fields;
   }
   
+  console.log(`[getRequiredFields] No valid cache for project ${projectId}, triggering async load`);
+  
   // Async load config (won't block rendering, will update on next render)
   EvaluationConfigAPI.getConfigWithFallback(projectId).then((config) => {
-    console.log(`[Evaluation Config] Loaded config for highlighting, project ${projectId}:`, config.config_key);
+    console.log(`[getRequiredFields] Async loaded config for highlighting, project ${projectId}:`, config.config_key);
     // This will trigger a re-render with the correct fields
-  }).catch(() => {
-    // Ignore errors, fallback is already set
+  }).catch((error) => {
+    console.error(`[getRequiredFields] Async load failed for project ${projectId}:`, error);
   });
   
-  return cachedData?.config?.required_fields || FALLBACK_REQUIRED_FIELDS;
+  const fallbackFields = cachedData?.config?.required_fields || FALLBACK_REQUIRED_FIELDS;
+  console.log(`[getRequiredFields] Returning fields for project ${projectId}:`, fallbackFields);
+  return fallbackFields;
 }
 
-// 高亮函数：高亮必填字段
+// 扩展的高亮函数：根据文档类型动态高亮必填字段
+function highlightWithDynamicRequiredFields(code, allConfigs = {}, fallbackFields = FALLBACK_REQUIRED_FIELDS) {
+  let html = Prism.highlight(code, Prism.languages.json, "json");
+  
+  try {
+    // 先尝试解析JSON来获取文档结构
+    const parsed = JSON.parse(code);
+    
+    if (Array.isArray(parsed)) {
+      // 为每个文档根据其docType应用相应的高亮
+      parsed.forEach((doc, index) => {
+        const docType = doc.docType;
+        const requiredFields = allConfigs[docType]?.required_fields || fallbackFields;
+        
+        console.log(`[Dynamic Highlight] Document ${index + 1} (${docType}): using fields`, requiredFields);
+        
+        // 为每个必填字段应用高亮
+        requiredFields.forEach((field) => {
+          // 创建更精确的正则表达式，匹配特定文档中的字段
+          const fieldRegex = new RegExp(`<span class=\"token property\">(\\"${field}\\")<\/span>`, "g");
+          html = html.replace(fieldRegex, `<span class=\"token property required-field required-field-${docType || 'default'}\">$1</span>`);
+
+          // 给必填字段的值也添加对应的class
+          const valueRegex = new RegExp(
+            `(<span class=\"token property required-field required-field-${docType || 'default'}\">\\"${field}\\"<\/span><span class=\"token operator\">:<\/span>\\s*)(<span class=\"token (?:string|number|boolean|null)\">.*?<\/span>)`,
+            "g",
+          );
+          html = html.replace(valueRegex, `$1<span class=\"token string required-field-value required-field-value-${docType || 'default'}\">$2</span>`);
+        });
+      });
+    } else {
+      // 如果不是数组，回退到原来的逻辑
+      return highlightWithRequiredFields(code, fallbackFields);
+    }
+  } catch (e) {
+    // JSON解析失败，回退到原来的逻辑
+    return highlightWithRequiredFields(code, fallbackFields);
+  }
+  
+  return html;
+}
+
+// 保留原来的高亮函数作为回退
 function highlightWithRequiredFields(code, requiredFields = FALLBACK_REQUIRED_FIELDS) {
   let html = Prism.highlight(code, Prism.languages.json, "json");
   requiredFields.forEach((field) => {
@@ -594,6 +717,7 @@ const HtxTextArea = observer(({ item }) => {
   const [pageStats, setPageStats] = useState("");
   const [requiredFields, setRequiredFields] = useState(FALLBACK_REQUIRED_FIELDS);
   const [evaluationConfig, setEvaluationConfig] = useState(null);
+  const [allConfigs, setAllConfigs] = useState({}); // 所有评估配置
   
   const onFocus = useCallback(
     (ev, model) => {
@@ -609,17 +733,29 @@ const HtxTextArea = observer(({ item }) => {
     const loadEvaluationConfig = async () => {
       try {
         const annotation = item?.annotation;
-        if (!annotation) return;
+        console.log('[Evaluation Config Debug] Component mount - annotation:', !!annotation);
+        
+        if (!annotation) {
+          console.log('[Evaluation Config Debug] No annotation found');
+          return;
+        }
         
         const store = annotation.store;
-        if (!store) return;
+        console.log('[Evaluation Config Debug] Store:', !!store);
         
-        // Try multiple ways to get project ID
+        if (!store) {
+          console.log('[Evaluation Config Debug] No store found');
+          return;
+        }
+        
+        // Try multiple ways to get project ID with enhanced logging
         let projectId = store.projectId || store.project?.id;
+        console.log('[Evaluation Config Debug] Store projectId:', projectId);
         
         // Try to get from window object if not found
         if (!projectId && window.APP_SETTINGS?.projectId) {
           projectId = window.APP_SETTINGS.projectId;
+          console.log('[Evaluation Config Debug] Window APP_SETTINGS projectId:', projectId);
         }
         
         // Try to get from URL if still not found
@@ -627,29 +763,57 @@ const HtxTextArea = observer(({ item }) => {
           const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
           if (urlMatch) {
             projectId = parseInt(urlMatch[1]);
+            console.log('[Evaluation Config Debug] URL extracted projectId:', projectId);
           }
         }
         
         // Try to get from history state
         if (!projectId && window.history?.state?.projectId) {
           projectId = window.history.state.projectId;
+          console.log('[Evaluation Config Debug] History state projectId:', projectId);
         }
         
         // Try to get from global store if available
         if (!projectId && window.LSF?.store?.projectId) {
           projectId = window.LSF.store.projectId;
+          console.log('[Evaluation Config Debug] LSF store projectId:', projectId);
         }
         
-        if (!projectId) return;
+        console.log('[Evaluation Config Debug] Final projectId:', projectId);
         
-        const config = await EvaluationConfigAPI.getConfigWithFallback(projectId);
+        if (!projectId) {
+          console.log('[Evaluation Config Debug] No project ID found, using fallback');
+          setRequiredFields(FALLBACK_REQUIRED_FIELDS);
+          return;
+        }
+        
+        console.log('[Evaluation Config Debug] Fetching config for project:', projectId);
+        
+        // 并行获取项目配置和所有配置
+        const [config, allConfigsData] = await Promise.all([
+          EvaluationConfigAPI.getConfigWithFallback(projectId, true),
+          EvaluationConfigAPI.fetchAllConfigs()
+        ]);
+        
         if (config) {
+          console.log('[Evaluation Config Debug] Config loaded successfully:', config);
           setRequiredFields(config.required_fields);
           setEvaluationConfig(config);
           console.log('[Evaluation Config] Loaded configuration:', config.config_key, 'Required fields:', config.required_fields);
+        } else {
+          console.log('[Evaluation Config Debug] No config returned, using fallback');
+          setRequiredFields(FALLBACK_REQUIRED_FIELDS);
+        }
+        
+        if (allConfigsData && Object.keys(allConfigsData).length > 0) {
+          console.log('[Evaluation Config Debug] All configs loaded:', Object.keys(allConfigsData));
+          setAllConfigs(allConfigsData);
+        } else {
+          console.log('[Evaluation Config Debug] No all configs returned');
+          setAllConfigs({});
         }
       } catch (error) {
-        console.warn('[Evaluation Config] Failed to load configuration:', error);
+        console.error('[Evaluation Config Debug] Error loading configuration:', error);
         setRequiredFields(FALLBACK_REQUIRED_FIELDS);
       }
     };
@@ -982,6 +1146,7 @@ const HtxTextArea = observer(({ item }) => {
               
               let currentRequiredFields = requiredFields;
               let currentEvaluationConfig = evaluationConfig;
+              let currentAllConfigs = allConfigs;
               
               // 尝试获取项目特定配置
               if (projectId) {
@@ -992,7 +1157,7 @@ const HtxTextArea = observer(({ item }) => {
                   currentEvaluationConfig = cachedData.config;
                   console.log('[Validation] Using project config for validation:', cachedData.config.config_key);
                   console.log('[Validation] Required fields for validation:', currentRequiredFields);
-                  console.log('[Validation] Project default fields (for reference only):', cachedData.config.project_default_fields);
+                  console.log('[Validation] Available all configs:', Object.keys(currentAllConfigs));
                 }
               }
 
@@ -1003,39 +1168,43 @@ const HtxTextArea = observer(({ item }) => {
                 // 获取页码，默认为第1页
                 const pages = x.page && Array.isArray(x.page) ? x.page : [1];
 
-                // 检查docType字段（如果配置了验证规则）- 使用项目特定配置
-                const docTypeValidation = currentEvaluationConfig?.validation_rules?.docType;
+                // 检查docType字段 - 统计所有除了"other"之外的文档类型
                 let isValidDocType = true;
-                if (docTypeValidation && docTypeValidation.allowed_values) {
-                  // 如果没有docType字段，但数据包含其他必需字段，则尝试推断类型
-                  if (!x.docType) {
-                    // 尝试根据当前配置类型设置默认docType
-                    if (currentEvaluationConfig.config_key === 'bank_receipt' && x.tradeDate && x.amount) {
-                      x.docType = 'bank_receipt';
-                      console.log(`[Validation] Auto-setting docType to 'bank_receipt' for document with tradeDate and amount`);
-                    } else if (currentEvaluationConfig.config_key === 'invoice' && x.invoiceNumber && x.totalAmount) {
-                      x.docType = 'invoice';
-                      console.log(`[Validation] Auto-setting docType to 'invoice' for document with invoiceNumber and totalAmount`);
-                    } else if (currentEvaluationConfig.config_key === 'receipt' && x.totalAmount) {
-                      x.docType = 'receipt';
-                      console.log(`[Validation] Auto-setting docType to 'receipt' for document with totalAmount`);
-                    }
+                
+                // 如果没有docType字段，但数据包含其他必需字段，则尝试推断类型
+                if (!x.docType) {
+                  // 尝试根据当前配置类型或数据特征设置默认docType
+                  if (x.tradeDate && x.amount && (x.paymentName || x.payeeName)) {
+                    x.docType = 'bank_receipt';
+                    console.log(`[Validation] Auto-setting docType to 'bank_receipt' for document with tradeDate and amount`);
+                  } else if (x.invoiceNumber && x.totalAmount && (x.billToName || x.buyerName)) {
+                    x.docType = 'invoice';
+                    console.log(`[Validation] Auto-setting docType to 'invoice' for document with invoiceNumber and totalAmount`);
+                  } else if (x.totalAmount && !x.invoiceNumber && !x.tradeDate) {
+                    x.docType = 'receipt';
+                    console.log(`[Validation] Auto-setting docType to 'receipt' for document with totalAmount`);
                   }
-                  
-                  // 再次检查docType
-                  if (x.docType) {
-                    isValidDocType = docTypeValidation.allowed_values.includes(x.docType.toLowerCase());
-                    if (!isValidDocType) {
-                      console.log(`[Validation] Skipping document with invalid docType: ${x.docType}, allowed: ${docTypeValidation.allowed_values}`);
-                  continue; // 跳过无效票据类型
-                    }
+                }
+                
+                // 票据统计逻辑：统计所有除了"other"之外的文档类型
+                if (x.docType) {
+                  const docTypeLower = x.docType.toLowerCase();
+                  if (docTypeLower === 'other' || docTypeLower === 'unknown') {
+                    console.log(`[Validation] Skipping document with docType: ${x.docType} (excluded from ticket statistics)`);
+                    isValidDocType = false; // 标记为无效，不参与票据统计
                   } else {
-                    // 如果仍然没有docType，但包含其他关键字段，则允许通过
-                    console.log(`[Validation] Document missing docType but contains other fields, allowing through`);
+                    console.log(`[Validation] Including document with docType: ${x.docType} in ticket statistics`);
+                    isValidDocType = true;
                   }
                 } else {
-                  // 如果没有配置验证规则，允许所有文档通过
+                  // 如果仍然没有docType，但包含其他关键字段，则允许通过
+                  console.log(`[Validation] Document missing docType but contains other fields, allowing through`);
                   isValidDocType = true;
+                }
+                
+                // 如果不是有效票据类型，跳过统计但继续字段验证
+                if (!isValidDocType) {
+                  continue; // 跳过票据统计，但继续处理下一个文档
                 }
 
                 // 如果是跨多页的票据，记录范围信息
@@ -1073,21 +1242,37 @@ const HtxTextArea = observer(({ item }) => {
                   pageCount[page]++;
                 }
 
-                // 动态字段验证逻辑 - 使用项目特定的evaluation配置
-                currentRequiredFields.forEach((field) => {
+                // 动态字段验证逻辑 - 根据文档类型使用对应的配置
+                const docType = x.docType;
+                const docConfig = currentAllConfigs[docType];
+                
+                let fieldsToCheck = currentRequiredFields; // 默认使用项目配置
+                let docConfigForLabel = currentEvaluationConfig;
+                
+                // 如果找到了对应文档类型的配置，使用它
+                if (docConfig && docConfig.required_fields) {
+                  fieldsToCheck = docConfig.required_fields;
+                  docConfigForLabel = docConfig;
+                  console.log(`[Validation] Using ${docType} specific config, required fields:`, fieldsToCheck);
+                } else {
+                  console.log(`[Validation] No specific config for ${docType}, using project default:`, fieldsToCheck);
+                }
+                
+                fieldsToCheck.forEach((field) => {
                   if (!x.hasOwnProperty(field)) {
                     missing.push(field);
                   }
                 });
+                
                 if (missing.length > 0) {
                   hasFieldErrors = true;
                   // 根据配置获取文档类型显示名
-                  const docTypeValidationRules = currentEvaluationConfig?.validation_rules?.docType;
+                  const docTypeValidationRules = docConfigForLabel?.validation_rules?.docType;
                   let docTypeText = x.docType || "文档";
                   
                   // 如果有配置的映射，使用友好的显示名
-                  if (docTypeValidationRules && currentEvaluationConfig?.field_labels?.docType) {
-                    docTypeText = currentEvaluationConfig.field_labels.docType[x.docType] || docTypeText;
+                  if (docTypeValidationRules && docConfigForLabel?.field_labels?.docType) {
+                    docTypeText = docConfigForLabel.field_labels.docType[x.docType] || docTypeText;
                   }
                   
                   allErrorMessages.push(`${docTypeText}[${i + 1}]缺: ${missing.map((m) => `"${m}"`).join(", ")}`);
@@ -1145,13 +1330,13 @@ const HtxTextArea = observer(({ item }) => {
         setPageStats("");
       }
     },
-    [item.name, evaluationConfig, requiredFields],
+    [item.name, evaluationConfig, requiredFields, allConfigs],
   );
 
   // 监听item._value、item.name和evaluation配置变化，自动校验
   useEffect(() => {
     validateJsonAndFields(item._value);
-  }, [item._value, item.name, evaluationConfig, requiredFields, validateJsonAndFields]);
+  }, [item._value, item.name, evaluationConfig, requiredFields, allConfigs, validateJsonAndFields]);
 
   const props = {
     name: item.name,
@@ -1202,8 +1387,54 @@ const HtxTextArea = observer(({ item }) => {
 
   visibleStyle.marginTop = "4px";
 
+  // Debug helper function
+  const handleRefreshConfig = async () => {
+    const annotation = item?.annotation;
+    if (!annotation?.store) return;
+    
+    let projectId = annotation.store.projectId || annotation.store.project?.id;
+    if (!projectId && window.location) {
+      const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
+      if (urlMatch) {
+        projectId = parseInt(urlMatch[1]);
+      }
+    }
+    
+    if (projectId) {
+      console.log('[Debug] 强制刷新配置，项目ID:', projectId);
+      try {
+        const config = await EvaluationConfigAPI.fetchProjectConfig(projectId, true);
+        setRequiredFields(config.required_fields);
+        setEvaluationConfig(config);
+        console.log('[Debug] 配置刷新成功:', config);
+      } catch (error) {
+        console.error('[Debug] 配置刷新失败:', error);
+      }
+    }
+  };
+
   return item.displaymode === PER_REGION_MODES.TAG ? (
     <div className={textareaClassName} style={visibleStyle} ref={item.elementRef}>
+      {/* 调试按钮 - 开发环境可见 */}
+      {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+          <Button
+            size="small"
+            onClick={handleRefreshConfig}
+            style={{ 
+              fontSize: "12px",
+              height: "24px",
+              backgroundColor: "#f0f0f0",
+              border: "1px solid #d9d9d9"
+            }}
+          >
+            刷新配置 (调试)
+          </Button>
+          <span style={{ marginLeft: "8px", fontSize: "12px", color: "#666" }}>
+            当前配置: {evaluationConfig?.config_key || 'fallback'}
+          </span>
+        </div>
+      )}
       {/* 自动填充按钮 - 设置为不可见 */}
       {showAutoFill && (
         <div style={{ display: "flex", alignItems: "center", marginBottom: 0, height: 0 }}>
@@ -1264,7 +1495,7 @@ const HtxTextArea = observer(({ item }) => {
                     validateJsonAndFields(value);
                   }
                 }}
-                highlight={(code) => highlightWithRequiredFields(code, requiredFields)}
+                highlight={(code) => highlightWithDynamicRequiredFields(code, allConfigs, requiredFields)}
                 padding={10}
                 style={{
                   fontFamily: "monospace",
