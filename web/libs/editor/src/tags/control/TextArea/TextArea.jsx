@@ -153,7 +153,9 @@ class EvaluationConfigAPI {
         optional_fields: config.optional_fields || [],
         all_fields: config.all_fields || [],
         validation_rules: config.validation_rules || {},
-        config_key: config.config_key || 'default'
+        config_key: config.config_key || 'default',
+        field_labels: config.field_labels || {},
+        project_default_fields: config.project_default_fields || []
       };
       
       // Cache the result
@@ -989,6 +991,8 @@ const HtxTextArea = observer(({ item }) => {
                   currentRequiredFields = cachedData.config.required_fields;
                   currentEvaluationConfig = cachedData.config;
                   console.log('[Validation] Using project config for validation:', cachedData.config.config_key);
+                  console.log('[Validation] Required fields for validation:', currentRequiredFields);
+                  console.log('[Validation] Project default fields (for reference only):', cachedData.config.project_default_fields);
                 }
               }
 

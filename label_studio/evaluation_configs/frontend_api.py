@@ -94,22 +94,25 @@ def get_project_config(request, project_id):
                             is_active=True
                         )
                         
-                        # Use configured fields from project if available, otherwise use config defaults
-                        default_fields = project_eval_config.get('default_fields', config.required_fields)
+                        # IMPORTANT: Don't use project's default_fields as required_fields!
+                        # default_fields are meant for UI display, not validation
+                        # Always use the configuration's defined required_fields for validation
                         
                         return Response({
                             'project_id': project.id,
                             'config_key': config.key,
                             'config_name': config.name,
                             'description': config.description,
-                            'required_fields': default_fields,
+                            'required_fields': config.required_fields,  # Use config's required fields, not project's default_fields
                             'optional_fields': config.optional_fields,
                             'all_fields': config.all_fields,
                             'field_labels': config.field_labels,
                             'field_types': config.field_types,
                             'validation_rules': config.field_validation_rules,
                             'is_default': False,
-                            'is_custom': False
+                            'is_custom': False,
+                            # Include project's default_fields for reference but don't use for validation
+                            'project_default_fields': project_eval_config.get('default_fields', [])
                         })
                         
                     except EvaluationFieldConfig.DoesNotExist:
