@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "../../components";
 import { Spinner } from "../../components/Spinner/Spinner";
 import { modal } from "../../components/Modal/Modal";
@@ -9,18 +9,483 @@ import "./Prompts.scss";
 
 const Block = cn("prompts-page");
 
+// 可折叠JSON编辑器组件
+const CollapsibleJsonEditor = ({ value, onChange, placeholder, disabled, error }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false); // 默认展开
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [jsonError, setJsonError] = useState(null);
+  const [cursorPosition, setCursorPosition] = useState(0);
+
+  // 验证JSON并设置错误信息
+  const validateJson = useCallback((jsonString) => {
+    if (!jsonString.trim()) {
+      setJsonError(null);
+      return true;
+    }
+
+    try {
+      JSON.parse(jsonString);
+      setJsonError(null);
+      return true;
+    } catch (e) {
+      const match = e.message.match(/at position (\d+)/);
+      const position = match ? parseInt(match[1]) : 0;
+      
+      // 计算行列位置
+      const lines = jsonString.substring(0, position).split('\n');
+      const line = lines.length;
+      const column = lines[lines.length - 1].length + 1;
+      
+      setJsonError({
+        message: e.message,
+        line,
+        column,
+        position
+      });
+      return false;
+    }
+  }, []);
+
+  // 处理输入变化
+  const handleChange = useCallback((e) => {
+    const newValue = e.target.value;
+    setCursorPosition(e.target.selectionStart);
+    validateJson(newValue);
+    onChange(e);
+  }, [onChange, validateJson]);
+
+  // JSON对象/数组折叠功能
+  const [collapsedRanges, setCollapsedRanges] = useState(new Set());
+  const textareaRef = useRef(null);
+
+  // 查找JSON中的可折叠区域
+  const findCollapsibleRanges = useCallback((text) => {
+    const ranges = [];
+    const stack = [];
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      
+      if (inString) continue;
+      
+      if (char === '{' || char === '[') {
+        stack.push({ type: char, start: i });
+      } else if (char === '}' || char === ']') {
+        const expected = char === '}' ? '{' : '[';
+        if (stack.length > 0 && stack[stack.length - 1].type === expected) {
+          const start = stack.pop();
+          // 只有多行的对象/数组才可折叠
+          const content = text.substring(start.start, i + 1);
+          if (content.includes('\n')) {
+            ranges.push({
+              start: start.start,
+              end: i + 1,
+              type: start.type,
+              id: `${start.start}-${i}`
+            });
+          }
+        }
+      }
+    }
+    
+    return ranges;
+  }, []);
+
+  // 切换折叠状态
+  const toggleCollapse = useCallback((rangeId) => {
+    setCollapsedRanges(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(rangeId)) {
+        newSet.delete(rangeId);
+      } else {
+        newSet.add(rangeId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // 渲染带折叠功能的JSON
+  const renderCollapsibleJson = useCallback((text) => {
+    if (!text || jsonError) return text;
+    
+    try {
+      // 验证JSON
+      JSON.parse(text);
+      const ranges = findCollapsibleRanges(text);
+      
+      if (ranges.length === 0) return text;
+      
+      let result = text;
+      let offset = 0;
+      
+      // 从后往前处理，避免位置偏移问题
+      for (let i = ranges.length - 1; i >= 0; i--) {
+        const range = ranges[i];
+        if (collapsedRanges.has(range.id)) {
+          const beforeRange = result.substring(0, range.start);
+          const afterRange = result.substring(range.end);
+          const symbol = range.type === '{' ? '{}' : '[]';
+          result = beforeRange + symbol + afterRange;
+        }
+      }
+      
+      return result;
+    } catch (e) {
+      return text;
+    }
+  }, [findCollapsibleRanges, collapsedRanges, jsonError]);
+
+  // 获取折叠按钮位置
+  const getCollapsibleButtons = useCallback((text) => {
+    if (!text || jsonError) return [];
+    
+    try {
+      JSON.parse(text);
+      const ranges = findCollapsibleRanges(text);
+      const lines = text.split('\n');
+      let lineOffset = 0;
+      
+      return ranges.map(range => {
+        // 找到开始位置所在的行
+        let line = 0;
+        let pos = 0;
+        for (let i = 0; i < lines.length; i++) {
+          if (pos + lines[i].length >= range.start) {
+            line = i;
+            break;
+          }
+          pos += lines[i].length + 1; // +1 for newline
+        }
+        
+        return {
+          ...range,
+          line: line + 1,
+          isCollapsed: collapsedRanges.has(range.id)
+        };
+      });
+    } catch (e) {
+      return [];
+    }
+  }, [findCollapsibleRanges, collapsedRanges, jsonError]);
+
+  useEffect(() => {
+    validateJson(value);
+  }, [value, validateJson]);
+
+  return (
+    <div className={Block.elem("json-editor-container")}>
+      <details 
+        open={!isCollapsed} 
+        onToggle={(e) => setIsCollapsed(!e.target.open)}
+        className={Block.elem("json-editor-details")}
+      >
+        <summary className={Block.elem("json-editor-summary")}>
+          <span className={Block.elem("json-editor-title")}>
+            Response Schema
+            <small style={{ color: '#666', fontWeight: 'normal', marginLeft: '8px' }}>
+              (Optional JSON schema for structured output)
+            </small>
+          </span>
+          <div className={Block.elem("json-editor-indicators")}>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                cursor: 'pointer',
+                marginRight: '8px'
+              }}
+              title={isFullscreen ? '退出全屏' : '全屏编辑'}
+            >
+              {isFullscreen ? '退出全屏' : '全屏编辑'}
+            </button>
+            {value.trim() && (
+              <span className={Block.elem("json-editor-badge")} style={{
+                backgroundColor: jsonError ? '#fee2e2' : '#d1fae5',
+                color: jsonError ? '#dc2626' : '#059669',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontWeight: '500'
+              }}>
+                {jsonError ? '语法错误' : 'JSON有效'}
+              </span>
+            )}
+            <span className={Block.elem("json-editor-toggle")} style={{
+              color: '#6b7280',
+              fontSize: '12px',
+              marginLeft: '8px'
+            }}>
+              {isCollapsed ? '展开 ▼' : '收起 ▲'}
+            </span>
+          </div>
+        </summary>
+        
+        <div className={Block.elem("json-editor-content")} style={{
+          position: isFullscreen ? 'fixed' : 'relative',
+          top: isFullscreen ? '0' : 'auto',
+          left: isFullscreen ? '0' : 'auto',
+          width: isFullscreen ? '100vw' : 'auto',
+          height: isFullscreen ? '100vh' : 'auto',
+          zIndex: isFullscreen ? 9999 : 'auto',
+          backgroundColor: isFullscreen ? 'white' : 'transparent',
+          padding: isFullscreen ? '20px' : '0'
+        }}>
+
+          {/* 全屏模式下的顶部工具栏 */}
+          {isFullscreen && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              padding: '10px 0',
+              borderBottom: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                Response Schema - 全屏编辑
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(false)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                退出全屏
+              </button>
+            </div>
+          )}
+          
+          {/* JSON编辑器 */}
+          <div className={Block.elem("json-editor-wrapper")} style={{ 
+            position: 'relative',
+            height: isFullscreen ? 'calc(100vh - 120px)' : 'auto'
+          }}>
+            <div style={{ position: 'relative' }}>
+              <textarea
+                ref={textareaRef}
+                id="response_schema"
+                value={value}
+                onChange={handleChange}
+                rows="20"
+                disabled={disabled}
+                placeholder={placeholder}
+                style={{
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                  fontSize: '13px',
+                  lineHeight: '1.4',
+                  width: '100%',
+                  padding: '12px 12px 12px 40px', // 左边留空间给折叠按钮
+                  border: `1px solid ${jsonError ? '#fca5a5' : '#d1d5db'}`,
+                  borderRadius: '4px',
+                  backgroundColor: disabled ? '#f9fafb' : 'white',
+                  resize: 'vertical',
+                  minHeight: isFullscreen ? 'calc(100vh - 120px)' : '400px',
+                  maxHeight: isFullscreen ? 'calc(100vh - 120px)' : '600px',
+                  height: isFullscreen ? 'calc(100vh - 120px)' : 'auto'
+                }}
+              />
+              
+              {/* 折叠按钮层 */}
+              {!disabled && value.trim() && !jsonError && (
+                <div style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '12px',
+                  pointerEvents: 'none',
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                  fontSize: '13px',
+                  lineHeight: '1.4',
+                  color: 'transparent'
+                }}>
+                  {getCollapsibleButtons(value).map(button => (
+                    <div
+                      key={button.id}
+                      style={{
+                        position: 'absolute',
+                        top: `${(button.line - 1) * 1.4}em`,
+                        left: '0',
+                        width: '20px',
+                        height: '1.4em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        pointerEvents: 'auto'
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleCollapse(button.id)}
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '2px',
+                          backgroundColor: 'white',
+                          color: '#666',
+                          fontSize: '10px',
+                          lineHeight: '1',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '0'
+                        }}
+                        title={button.isCollapsed ? '展开' : '折叠'}
+                      >
+                        {button.isCollapsed ? '+' : '−'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* 错误信息 */}
+            {jsonError && (
+              <div className={Block.elem("json-error")} style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                backgroundColor: '#fee2e2',
+                border: '1px solid #fca5a5',
+                borderRadius: '4px',
+                fontSize: '12px'
+              }}>
+                <div style={{ fontWeight: 'bold', color: '#dc2626', marginBottom: '4px' }}>
+                  JSON语法错误
+                </div>
+                <div style={{ color: '#991b1b' }}>
+                  {jsonError.message}
+                </div>
+                <div style={{ color: '#7f1d1d', marginTop: '2px' }}>
+                  位置：第 {jsonError.line} 行，第 {jsonError.column} 列
+                </div>
+              </div>
+            )}
+            
+            {/* 帮助信息 */}
+            {!value.trim() && !isCollapsed && (
+              <div className={Block.elem("json-help")} style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                backgroundColor: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: '#1e40af'
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                  JSON Schema 帮助
+                </div>
+                <div>
+                  定义AI模型返回结果的结构格式。支持标准的JSON Schema语法。
+                  <br />
+                  点击左侧的 + / − 按钮可以折叠或展开JSON对象和数组。
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+};
+
 const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
   const [formData, setFormData] = useState({
     name: prompt?.name || "",
     content: prompt?.content || "",
+    temperature: prompt?.temperature || "",
+    response_schema: prompt?.response_schema ? JSON.stringify(prompt.response_schema, null, 2) : "",
   });
+
+  const [errors, setErrors] = useState({});
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Validate temperature
+    if (formData.temperature !== "") {
+      const temp = parseFloat(formData.temperature);
+      if (isNaN(temp) || temp < 0.0 || temp > 2.0) {
+        newErrors.temperature = "Temperature must be a number between 0.0 and 2.0";
+      }
+    }
+
+    // Validate response_schema JSON
+    if (formData.response_schema.trim() !== "") {
+      try {
+        JSON.parse(formData.response_schema);
+      } catch (e) {
+        newErrors.response_schema = "Response schema must be valid JSON";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     console.log("=== FORM SUBMIT DEBUG ===");
-    console.log("Form data being submitted:", formData);
+    
+    // Prepare form data
+    const submitData = {
+      name: formData.name,
+      content: formData.content,
+    };
+
+    // Add temperature if provided
+    if (formData.temperature !== "") {
+      submitData.temperature = parseFloat(formData.temperature);
+    }
+
+    // Add response_schema if provided
+    if (formData.response_schema.trim() !== "") {
+      try {
+        submitData.response_schema = JSON.parse(formData.response_schema);
+      } catch (e) {
+        // This shouldn't happen due to validation, but just in case
+        console.error("JSON parse error:", e);
+        return;
+      }
+    }
+
+    console.log("Form data being submitted:", submitData);
     console.log("onSave function:", onSave);
-    onSave(formData);
+    onSave(submitData);
   };
 
   const handleChange = (field) => (e) => {
@@ -28,6 +493,15 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
       ...prev,
       [field]: e.target.value
     }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
   };
 
   const handleCancel = (e) => {
@@ -58,11 +532,59 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
           id="content"
           value={formData.content}
           onChange={handleChange("content")}
-          rows="12"
+          rows="8"
           required
           disabled={isLoading}
           placeholder="Enter your prompt content here..."
         />
+      </div>
+
+      <div className={Block.elem("form-field")}>
+        <label htmlFor="temperature">
+          Temperature 
+          <small style={{ color: '#666', fontWeight: 'normal' }}>
+            {' '}(Optional: 0.0-2.0, controls randomness)
+          </small>
+        </label>
+        <input
+          id="temperature"
+          type="number"
+          step="0.1"
+          min="0.0"
+          max="2.0"
+          value={formData.temperature}
+          onChange={handleChange("temperature")}
+          disabled={isLoading}
+          placeholder="e.g., 0.2"
+        />
+        {errors.temperature && (
+          <div className={Block.elem("field-error")} style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>
+            {errors.temperature}
+          </div>
+        )}
+      </div>
+
+      <div className={Block.elem("form-field")}>
+        <CollapsibleJsonEditor
+          value={formData.response_schema}
+          onChange={handleChange("response_schema")}
+          disabled={isLoading}
+          placeholder={`Example:
+{
+  "type": "object",
+  "properties": {
+    "sentiment": {"type": "string"},
+    "confidence": {"type": "number"}
+  },
+  "required": ["sentiment"]
+}`}
+          error={errors.response_schema}
+        />
+        {errors.response_schema && (
+          <div className={Block.elem("field-error")} style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>
+            {errors.response_schema}
+          </div>
+        )}
       </div>
       
       <div className={Block.elem("form-actions")}>
@@ -122,6 +644,23 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
       
       <div className={Block.elem("card-content")}>
         <pre className={Block.elem("card-prompt")}>{prompt.content}</pre>
+        
+        {/* Display runtime config if available */}
+        {(prompt.temperature !== null && prompt.temperature !== undefined) || prompt.response_schema ? (
+          <div className={Block.elem("card-config")} style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #eee' }}>
+            <h4 style={{ fontSize: '12px', fontWeight: 'bold', margin: '0 0 8px 0', color: '#666' }}>Runtime Config:</h4>
+            {prompt.temperature !== null && prompt.temperature !== undefined && (
+              <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+                <strong>Temperature:</strong> {prompt.temperature}
+              </div>
+            )}
+            {prompt.response_schema && (
+              <div style={{ fontSize: '12px' }}>
+                <strong>Response Schema:</strong> Configured
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
       
       <div className={Block.elem("card-footer")}>
@@ -208,10 +747,10 @@ export const PromptsPage = () => {
       modalInstance = modal({
         title: promptToEdit ? "Edit Prompt" : "Create Prompt",
         style: {
-          width: '80vw',
-          maxWidth: '1000px',
-          height: '70vh',
-          maxHeight: '700px'
+          width: '90vw',
+          maxWidth: '1200px',
+          height: '90vh',
+          maxHeight: '1000px'
         },
         body: () => (
           <PromptForm
@@ -334,8 +873,6 @@ export const PromptsPage = () => {
       }
     }
   };
-
-
 
   if (loading) {
     return (

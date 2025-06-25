@@ -128,37 +128,33 @@
 
     label {
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
       font-weight: 500;
-      color: #374151;
-      font-size: 14px;
+      color: #333;
     }
 
-    input,
-    textarea {
+    input, textarea {
       width: 100%;
       padding: 8px 12px;
-      border: 1px solid #d1d5db;
+      border: 1px solid #ddd;
       border-radius: 4px;
       font-size: 14px;
-      transition: border-color 0.2s ease;
-
+      
       &:focus {
         outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
       }
-
+      
       &:disabled {
-        background-color: #f3f4f6;
-        cursor: not-allowed;
+        background-color: #f5f5f5;
+        color: #666;
       }
     }
 
     textarea {
       resize: vertical;
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-      line-height: 1.4;
+      min-height: 100px;
     }
   }
 
@@ -168,5 +164,149 @@
     justify-content: flex-end;
     padding-top: 20px;
     border-top: 1px solid #e5e7eb;
+  }
+
+  // JSON编辑器相关样式
+  &__json-editor-container {
+    width: 100%;
+  }
+
+  &__json-editor-details {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+    
+    &[open] {
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+  }
+
+  &__json-editor-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f9fafb;
+    cursor: pointer;
+    border-bottom: 1px solid #e5e7eb;
+    list-style: none;
+    
+    &::-webkit-details-marker {
+      display: none;
+    }
+    
+    &::marker {
+      display: none;
+    }
+    
+    &:hover {
+      background: #f3f4f6;
+    }
+    
+    &:active {
+      background: #e5e7eb;
+    }
+  }
+
+  &__json-editor-title {
+    font-weight: 500;
+    color: #374151;
+    font-size: 14px;
+  }
+
+  &__json-editor-indicators {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__json-editor-badge {
+    display: inline-block;
+    white-space: nowrap;
+  }
+
+  &__json-editor-toggle {
+    display: inline-block;
+    white-space: nowrap;
+    transition: transform 0.2s ease;
+  }
+
+  &__json-editor-details[open] &__json-editor-toggle {
+    transform: rotate(180deg);
+  }
+
+  &__json-editor-content {
+    padding: 16px;
+    background: white;
+  }
+
+  &__json-editor-toolbar {
+    user-select: none;
+    
+    button {
+      transition: all 0.2s ease;
+      
+      &:hover:not(:disabled) {
+        background-color: #f3f4f6 !important;
+        border-color: #9ca3af !important;
+      }
+      
+      &:active:not(:disabled) {
+        background-color: #e5e7eb !important;
+        transform: translateY(1px);
+      }
+    }
+  }
+
+  &__json-editor-wrapper {
+    position: relative;
+    
+    textarea {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace !important;
+      line-height: 1.4;
+      tab-size: 2;
+      
+      &:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+      
+      &::placeholder {
+        color: #9ca3af;
+        opacity: 1;
+      }
+    }
+  }
+
+  &__json-error {
+    animation: slideInError 0.3s ease-out;
+  }
+
+  &__json-help {
+    animation: slideInHelp 0.3s ease-out;
+  }
+
+  @keyframes slideInError {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInHelp {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 } 

@@ -3,6 +3,7 @@
 import logging
 import os
 import urllib
+import json
 
 import requests
 from core.feature_flags import flag_set
@@ -151,6 +152,38 @@ class MLApi(BaseHTTPAPI):
         request = request or {}
         headers = dict(self.http.headers)
 
+        # 详细打印请求信息用于调试
+        logger.info("=" * 100)
+        logger.info(f"🚀 [ML API REQUEST] Making {method} request to: {url}")
+        logger.info(f"🚀 [ML API REQUEST] URL suffix: {url_suffix}")
+        logger.info(f"🚀 [ML API REQUEST] Headers: {headers}")
+        
+        # 打印完整的请求体，但排除tasks数据以减少日志大小
+        if request:
+            request_for_log = dict(request)
+            if 'tasks' in request_for_log:
+                tasks_count = len(request_for_log['tasks']) if isinstance(request_for_log['tasks'], list) else 0
+                request_for_log['tasks'] = f"[{tasks_count} tasks - content hidden for brevity]"
+            
+            logger.info(f"🚀 [ML API REQUEST] Complete request body:")
+            import json
+            try:
+                request_json = json.dumps(request_for_log, indent=2, ensure_ascii=False)
+                logger.info(request_json)
+            except Exception as e:
+                logger.info(f"Unable to serialize request for logging: {e}")
+                logger.info(f"Request keys: {list(request.keys())}")
+        
+        # 特别检查runtime_config
+        if 'runtime_config' in request:
+            logger.info(f"✅ [RUNTIME CONFIG] runtime_config found in request!")
+            logger.info(f"✅ [RUNTIME CONFIG] Content: {json.dumps(request['runtime_config'], indent=2, ensure_ascii=False)}")
+        else:
+            logger.info(f"❌ [RUNTIME CONFIG] runtime_config NOT found in request!")
+            logger.info(f"❌ [RUNTIME CONFIG] Available keys: {list(request.keys())}")
+        
+        logger.info("=" * 100)
+
         response = None
         try:
             if method == 'POST':
@@ -161,11 +194,17 @@ class MLApi(BaseHTTPAPI):
         except requests.exceptions.RequestException as e:
             error_string = str(e)
             status_code = response.status_code if response is not None else 0
+            logger.error(f"🚨 [ML API ERROR] Request failed: {error_string}")
             return MLApiResult(url, request, {'error': error_string}, headers, 'error', status_code=status_code)
+        
         status_code = response.status_code
+        logger.info(f"✅ [ML API RESPONSE] Status code: {status_code}")
+        
         try:
-            response = response.json()
+            response_data = response.json()
+            logger.info(f"✅ [ML API RESPONSE] Response received, keys: {list(response_data.keys()) if isinstance(response_data, dict) else 'Not a dict'}")
         except ValueError as e:
+            logger.error(f"🚨 [ML API ERROR] Failed to parse JSON response: {e}")
             return MLApiResult(
                 url=url,
                 request=request,
@@ -175,7 +214,7 @@ class MLApi(BaseHTTPAPI):
                 status_code=status_code,
             )
 
-        return MLApiResult(url=url, request=request, response=response, headers=headers, status_code=status_code)
+        return MLApiResult(url=url, request=request, response=response_data, headers=headers, status_code=status_code)
 
     def _create_project_uid(self, project):
         time_id = int(project.created_at.timestamp())
@@ -206,37 +245,90 @@ class MLApi(BaseHTTPAPI):
             return self._request('train', request, verbose=False, timeout=TIMEOUT_PREDICT)
 
     def _prep_prediction_req(self, tasks, project, context=None, prompt_name=None):
+        # 使用print来确保能看到输出
+        print(f"\n🚀 PREP_PREDICTION_REQ CALLED! prompt_name='{prompt_name}'")
+        
         params = {
             'login': project.task_data_login,
             'password': project.task_data_password,
             'context': context,
         }
         
-        # Add prompt content if prompt_name is provided
-        if prompt_name:
-            from prompts.models import Prompt
-            try:
-                prompt = Prompt.objects.get(name=prompt_name)
-                params['prompt'] = prompt.content
-                params['prompt_name'] = prompt_name
-            except Prompt.DoesNotExist:
-                logger.warning(f"Prompt with name '{prompt_name}' not found")
-            
         request = {
             'tasks': tasks,
             'project': self._create_project_uid(project),
             'label_config': project.label_config,
             'params': params,
         }
+        
+        # Add prompt content and runtime config if prompt_name is provided
+        if prompt_name:
+            print(f"📝 Processing prompt_name: '{prompt_name}'")
+            logger.info(f"📝 [PREP_REQUEST] Processing prompt_name: '{prompt_name}'")
+            from prompts.models import Prompt
+            try:
+                prompt = Prompt.objects.get(name=prompt_name)
+                params['prompt'] = prompt.content
+                params['prompt_name'] = prompt_name
+                           
+                # Add runtime_config if available
+                runtime_config = prompt.get_runtime_config()
+                if runtime_config:
+                    params['runtime_config'] = runtime_config
+                    logger.info(f"[RUNTIME_CONFIG] Added to params: {json.dumps(runtime_config, ensure_ascii=False)}")
+            except Prompt.DoesNotExist:
+                print(f"📝 ❌ Prompt with name '{prompt_name}' not found")
+                logger.error(f"📝 [PREP_REQUEST] ❌ Prompt with name '{prompt_name}' not found")
+        else:
+            print(f"📝 No prompt_name provided, skipping runtime_config")
+            logger.info(f"📝 [PREP_REQUEST] No prompt_name provided, skipping runtime_config")
 
+        print(f"🚀 PREP_PREDICTION_REQ FINISHED! Request keys: {list(request.keys())}")
         return request
 
     def make_predictions(self, tasks, project, context=None, prompt_name=None):
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"🎯 [PROMPT DEBUG] ML API making predictions with prompt_name: '{prompt_name}' for {len(tasks)} tasks")
+        
+        print(f"\n🎯 MAKE_PREDICTIONS CALLED! prompt_name='{prompt_name}'")
+        print(f"🎯 Task count: {len(tasks)}, Project: {project.title} (ID: {project.id})")
+        
+        logger.info("🔥" * 30)
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Starting prediction request")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Prompt name: '{prompt_name}'")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Task count: {len(tasks)}")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Project: {project.title} (ID: {project.id})")
+        
+        # 构建请求
         request = self._prep_prediction_req(tasks, project, context=context, prompt_name=prompt_name)
-        logger.info(f"🎯 [PROMPT DEBUG] Request params: {request.get('params', {})}")
+        
+        print(f"🎯 Request preparation completed, keys: {list(request.keys())}")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Request preparation completed")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Request top-level keys: {list(request.keys())}")
+        
+        # 检查params
+        params = request.get('params', {})
+        print(f"🎯 Params keys: {list(params.keys())}")
+        print(f"🎯 Prompt_name in params: {params.get('prompt_name')}")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Params keys: {list(params.keys())}")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Prompt in params: {'prompt' in params}")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Prompt_name in params: {params.get('prompt_name')}")
+        
+        # 重点检查runtime_config
+        has_runtime_config = 'runtime_config' in params
+        if has_runtime_config:
+            logger.info(f"[RUNTIME_CONFIG] In params: {json.dumps(params['runtime_config'], ensure_ascii=False)}")
+        
+        # 特别检查runtime_config
+        if 'runtime_config' in params:
+            logger.info(f"✅ [RUNTIME CONFIG] runtime_config found in params!")
+            logger.info(f"✅ [RUNTIME CONFIG] Content: {json.dumps(params['runtime_config'], indent=2, ensure_ascii=False)}")
+        else:
+            logger.info(f"❌ [RUNTIME CONFIG] runtime_config NOT found in params!")
+            logger.info(f"❌ [RUNTIME CONFIG] Params keys: {list(params.keys())}")
+        
+        logger.info("🔥" * 30)
+        
         return self._request(PREDICT_URL, request, verbose=False, timeout=TIMEOUT_PREDICT)
 
     def health(self):

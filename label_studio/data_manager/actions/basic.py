@@ -84,8 +84,27 @@ def retrieve_tasks_predictions(project, queryset, **kwargs):
     :param project: project instance
     :param queryset: filtered tasks db queryset
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info("🔥" * 50)
+    logger.info(f"🚀 [ACTION] retrieve_tasks_predictions STARTED")
+    logger.info(f"🚀 [ACTION] Project: {project.title} (ID: {project.id})")
+    logger.info(f"🚀 [ACTION] Queryset count: {queryset.count()}")
+    logger.info(f"🚀 [ACTION] Kwargs keys: {list(kwargs.keys())}")
+    
     request = kwargs.get('request')
     prompt_name = None
+    
+    if request:
+        logger.info(f"🚀 [ACTION] Request method: {request.method}")
+        logger.info(f"🚀 [ACTION] Request data: {getattr(request, 'data', {})}")
+        logger.info(f"🚀 [ACTION] Request GET: {getattr(request, 'GET', {})}")
+        logger.info(f"🚀 [ACTION] Request POST: {getattr(request, 'POST', {})}")
+    else:
+        logger.info(f"🚀 [ACTION] No request object found!")
+    
+    logger.info("🔥" * 50)
     
     # 首先检查项目是否有ML后端配置
     if not project.has_ml_backend():
@@ -128,11 +147,14 @@ def retrieve_tasks_predictions(project, queryset, **kwargs):
             }
     
     # 从请求中获取 prompt_name
+    logger.info(f"🎯 [PROMPT] Extracting prompt_name from request...")
     if request and hasattr(request, 'data'):
         prompt_name = request.data.get('prompt_name')
+        logger.info(f"🎯 [PROMPT] Found prompt_name in request.data: '{prompt_name}'")
         
         # 安全地保存用户的 prompt 选择
         if prompt_name and request.user.is_authenticated:
+            logger.info(f"🎯 [PROMPT] Saving user preference for prompt: '{prompt_name}'")
             try:
                 from users.models import UserPreference
                 preference, created = UserPreference.objects.get_or_create(
@@ -144,17 +166,37 @@ def retrieve_tasks_predictions(project, queryset, **kwargs):
                 if not created:
                     preference.preference_value = prompt_name
                     preference.save()
+                logger.info(f"🎯 [PROMPT] User preference saved successfully")
             except (ImportError, AttributeError, Exception) as e:
                 logger.debug(f'Failed to save user preference (this is safe to ignore): {e}')
+        else:
+            logger.info(f"🎯 [PROMPT] Not saving preference - prompt_name: '{prompt_name}', authenticated: {request.user.is_authenticated if request else False}")
+    else:
+        logger.info(f"🎯 [PROMPT] No request.data found or request is None")
+        logger.info(f"🎯 [PROMPT] Request exists: {request is not None}")
+        logger.info(f"🎯 [PROMPT] Request has data attr: {hasattr(request, 'data') if request else False}")
+        
+    logger.info(f"🎯 [PROMPT] Final prompt_name value: '{prompt_name}'")
     
     # 调用 evaluate_predictions 并传递 prompt_name
-    logger.info(f"🎯 [PROMPT DEBUG] Calling evaluate_predictions with prompt_name: '{prompt_name}' for {queryset.count()} tasks")
+    logger.info("=" * 80)
+    logger.info(f"🔥 [EVALUATE] About to call evaluate_predictions")
+    logger.info(f"🔥 [EVALUATE] prompt_name: '{prompt_name}'")
+    logger.info(f"🔥 [EVALUATE] tasks count: {queryset.count()}")
+    logger.info(f"🔥 [EVALUATE] project: {project.title} (ID: {project.id})")
+    logger.info("=" * 80)
     
     # 清除之前的错误信息
     if hasattr(project, '_last_ml_errors'):
         delattr(project, '_last_ml_errors')
     
     result = evaluate_predictions(queryset, prompt_name=prompt_name, project=project)
+    
+    logger.info("=" * 80)
+    logger.info(f"🔥 [EVALUATE] evaluate_predictions returned")
+    logger.info(f"🔥 [EVALUATE] result type: {type(result)}")
+    logger.info(f"🔥 [EVALUATE] result: {result}")
+    logger.info("=" * 80)
     
     # 检查是否有ML错误
     ml_errors = getattr(project, '_last_ml_errors', [])

@@ -290,7 +290,10 @@ class MLBackend(models.Model):
             return []
 
     def _get_predictions_from_ml_backend(self, serialized_tasks: List[Dict], prompt_name=None) -> List[Dict]:
+        # print(f"\n🚀 _get_predictions_from_ml_backend CALLED! prompt_name='{prompt_name}'")
+        print(f"🚀 About to call api.make_predictions with {len(serialized_tasks)} tasks")
         result = self.api.make_predictions(serialized_tasks, self.project, prompt_name=prompt_name)
+        # print(f"🚀 api.make_predictions returned: {type(result)}")
 
         # response validation
         if result.is_error:

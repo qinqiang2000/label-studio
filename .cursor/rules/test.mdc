@@ -3,9 +3,8 @@ description: 用于web和后端的api测试验证
 globs: 
 alwaysApply: false
 ---
+注意：当做验证时, 一般不用重新构建和重启服务器, 当前已经是热更新。
+
 - 如涉及web测试: 可以用playwright mcp做测试。
  - 用户名,密码: qinqiang2000@qq.com 11111111
 - 如涉及后端API测试, 要加token在header: -H 'Authorization: Token 4f36015cbf62b6af1e37ac91778e5412bec989f9'
-注意：当做验证时, 一般不用重新构建和重启服务器, 当前已经是热更新：
-- 后端启动配置了: export FRONTEND_HMR=true
-- 前端: cd web; yarn dev
