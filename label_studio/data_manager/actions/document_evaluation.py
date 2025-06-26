@@ -11,6 +11,7 @@ from django.db.models import Q, Count
 from tasks.models import Task, Annotation, Prediction
 from evaluation_configs.models import EvaluationFieldConfig, ProjectEvaluationConfig
 from .invoice_compare.invoice_compare_utils import InvoiceComparer
+from .evaluation_export_adapter import add_annotations_predictions_to_excel
 import os
 import tempfile
 import pandas as pd
@@ -986,6 +987,15 @@ def eval_documents(eval_list, project_config, model_version='N/A'):
     
     # Generate Excel report
     excel_path, _ = generate_excel_report(excel_data, compare_fields, statistics, project_config)
+    
+    # Add Annotations and Predictions sheets to the Excel report
+    try:
+        project_id = getattr(project_config, 'project', None)
+        project_id = getattr(project_id, 'id', None) if project_id else None
+        excel_path = add_annotations_predictions_to_excel(excel_path, eval_list, project_id)
+        logger.info(f"Successfully added Annotations and Predictions sheets to Excel report")
+    except Exception as e:
+        logger.warning(f"Failed to add Annotations and Predictions sheets: {e}")
     
     # Return tuple as expected by the calling function
     return excel_path, all_rows, statistics
