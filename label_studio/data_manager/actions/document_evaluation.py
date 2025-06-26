@@ -490,16 +490,22 @@ def _create_statistics_sheet(writer, statistics, compare_fields, evaluation_conf
         workbook = writer.book
         worksheet = workbook.create_sheet('Statistics')
         
-        # Copy all cells from template
+        # Copy all cells from template with complete formatting
         for row in template_ws.iter_rows():
             for cell in row:
                 new_cell = worksheet.cell(row=cell.row, column=cell.column)
                 new_cell.value = cell.value
+                
+                # Copy all formatting attributes
                 if cell.has_style:
                     new_cell.font = cell.font.copy() if cell.font else None
                     new_cell.fill = cell.fill.copy() if cell.fill else None
                     new_cell.border = cell.border.copy() if cell.border else None
                     new_cell.alignment = cell.alignment.copy() if cell.alignment else None
+                
+                # 重要：复制数字格式（包括百分比格式）
+                if cell.number_format:
+                    new_cell.number_format = cell.number_format
         
         # Copy merged cells
         for merged_range in template_ws.merged_cells.ranges:
@@ -513,25 +519,56 @@ def _create_statistics_sheet(writer, statistics, compare_fields, evaluation_conf
         for row_num, dimension in template_ws.row_dimensions.items():
             worksheet.row_dimensions[row_num].height = dimension.height
         
+        # D3-D8的百分比格式已经从模板复制，统一为无小数点格式以保持一致性
+        for row in range(3, 9):
+            cell = worksheet[f'D{row}']
+            # 统一设置为无小数点的百分比格式
+            if cell.number_format and '%' in cell.number_format:
+                cell.number_format = '0%'
+        
         # Now fill in the data at the correct positions based on the template structure
         config_name = getattr(evaluation_config.evaluation_config, 'name', 'Unknown')
         
         # 整体情况 section (rows 3-11)
         worksheet['C3'] = statistics['total_documents']  # 总文件数
-        # worksheet['C4'] = 0  # 总文件数（纯other类型文件）- not available in current stats
-        worksheet['C5'] = statistics['total_documents']  # 总文件数（含票据文件）
+        worksheet['C4'] = statistics.get('only_other_docs', 0)  # 总文件数（纯other类型文件）
+        worksheet['C5'] = statistics.get('docs_with_invoices', statistics['total_documents'])  # 总文件数（含票据文件）
         worksheet['C6'] = statistics['total_invoices']  # 总票据数
-        # worksheet['C7'] = 0  # Invoice数 - not available in current stats
-        # worksheet['C8'] = 0  # Receipt数 - not available in current stats
+        worksheet['C7'] = statistics.get('invoice_count', 0)  # Invoice数
+        worksheet['C8'] = statistics.get('receipt_count', 0)  # Receipt数
         worksheet['C9'] = statistics['total_invoices'] * len(compare_fields)  # 票据下总字段数
-        worksheet['C10'] = statistics.get('model_version', 'N/A')  # 模型版本
+        
+        # Use prompt names instead of model version for C10
+        prompt_names = statistics.get('prompt_names', set())
+        if prompt_names:
+            prompt_name_str = ', '.join(sorted(prompt_names))
+        else:
+            prompt_name_str = statistics.get('model_version', 'N/A')
+        worksheet['C10'] = prompt_name_str  # Prompts版本
+        
         worksheet['C11'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # 评估时间
         
-        # 整体指标 section (rows 15-18)
-        # worksheet['C15'] = f"{100.0}%"  # 可识别率 - assume 100% for now
-        worksheet['C16'] = f"{statistics['document_accuracy']}%"  # 文件准确率
-        worksheet['C17'] = f"{statistics['invoice_accuracy']}%"  # 票据准确率
-        worksheet['C18'] = f"{statistics['overall_field_accuracy']}%"  # 字段准确率
+        # 整体指标 section - 使用关键词查找而非硬编码位置，提高robust性
+        metrics_mapping = {
+            '可识别率': ('recognition_rate', statistics.get('recognition_rate', 0.0)),
+            '文件准确率': ('document_accuracy', statistics['document_accuracy']),
+            '票据准确率': ('invoice_accuracy', statistics['invoice_accuracy']),
+            '字段准确率': ('overall_field_accuracy', statistics['overall_field_accuracy'])
+        }
+        
+        # 在模板中查找关键词并填充相应的C列数据
+        for row in range(1, worksheet.max_row + 1):
+            cell_a = worksheet.cell(row=row, column=1)  # A列包含指标名称
+            if cell_a.value:
+                cell_text = str(cell_a.value).strip()
+                for keyword, (stat_key, stat_value) in metrics_mapping.items():
+                    if keyword in cell_text:
+                        # 在同一行的C列填入数据
+                        c_cell = worksheet.cell(row=row, column=3)
+                        c_cell.value = stat_value / 100
+                        # 统一设置为百分比格式以保持一致性
+                        c_cell.number_format = '0%'
+                        break
         
         # 核心字段指标 section (starting from row 22)
         # Fill in field-specific data
@@ -555,7 +592,12 @@ def _create_statistics_sheet(writer, statistics, compare_fields, evaluation_conf
             worksheet.cell(row=current_row, column=2, value=field_label)  # B列：指标定义
             worksheet.cell(row=current_row, column=3, value=statistics['total_invoices'])  # C列：总票据数
             worksheet.cell(row=current_row, column=4, value=correct_count)  # D列：正确识别
-            worksheet.cell(row=current_row, column=5, value=f"{field_stats}%")  # E列：识别正确率
+            
+            # E列：识别正确率 - 使用数值而非字符串，保持模板的百分比格式
+            e_cell = worksheet.cell(row=current_row, column=5, value=field_stats / 100)
+            # 只有当需要统一为无小数点格式时才覆盖模板格式
+            if e_cell.number_format and '%' in e_cell.number_format and '.' in e_cell.number_format:
+                e_cell.number_format = '0%'
             
             current_row += 1
         
@@ -563,7 +605,12 @@ def _create_statistics_sheet(writer, statistics, compare_fields, evaluation_conf
         total_accuracy = round(total_correct / (statistics['total_invoices'] * len(compare_fields)) * 100, 2) if statistics['total_invoices'] > 0 and len(compare_fields) > 0 else 0
         worksheet.cell(row=28, column=3, value=statistics['total_invoices'] * len(compare_fields))  # 总票据数
         worksheet.cell(row=28, column=4, value=total_correct)  # 正确识别总数
-        worksheet.cell(row=28, column=5, value=f"{total_accuracy}%")  # 总识别正确率
+        
+        # E28总识别正确率 - 使用数值而非字符串，保持模板的百分比格式
+        e28_cell = worksheet.cell(row=28, column=5, value=total_accuracy / 100)
+        # 只有当需要统一为无小数点格式时才覆盖模板格式
+        if e28_cell.number_format and '%' in e28_cell.number_format and '.' in e28_cell.number_format:
+            e28_cell.number_format = '0%'
         
         # Remove the default Sheet if it exists
         if 'Sheet' in workbook.sheetnames:
@@ -680,7 +727,7 @@ def _create_details_sheet(writer, all_rows, columns):
                 logger.warning(f"Conditional formatting failed: {format_e}")
 
 
-def calculate_evaluation_statistics(all_rows):
+def calculate_evaluation_statistics(all_rows, excel_data=None):
     """Calculate evaluation statistics from comparison results"""
     if not all_rows:
         return {
@@ -688,7 +735,13 @@ def calculate_evaluation_statistics(all_rows):
             'invoice_accuracy': 0.0,
             'document_accuracy': 0.0,
             'total_invoices': 0,
-            'total_documents': 0
+            'total_documents': 0,
+            'only_other_docs': 0,
+            'invoice_count': 0,
+            'receipt_count': 0,
+            'docs_with_invoices': 0,
+            'recognition_rate': 0.0,
+            'prompt_names': set()
         }
     
     # Extract field names
@@ -755,6 +808,68 @@ def calculate_evaluation_statistics(all_rows):
     total_fields_compared = len(all_rows) * len(field_names)
     overall_field_accuracy = round(total_correct_fields / total_fields_compared * 100, 2) if total_fields_compared > 0 else 0.0
     
+    # Calculate docType statistics if excel_data is provided
+    only_other_docs = 0
+    invoice_count = 0
+    receipt_count = 0
+    docs_with_invoices = 0
+    prompt_names = set()
+    
+    if excel_data:
+        for data in excel_data:
+            # Collect prompt names
+            prompt_names.add(data.get('prompt_name', 'N/A'))
+            
+            try:
+                # Parse annotation data to analyze document types
+                annotation_text = data['annotation_text']
+                standard_documents = json.loads(annotation_text)
+                
+                if not isinstance(standard_documents, list):
+                    continue
+                
+                # Analyze this file
+                has_invoice_or_receipt = False
+                file_invoice_count = 0
+                file_receipt_count = 0
+                
+                for doc in standard_documents:
+                    if isinstance(doc, dict):
+                        doc_type = str(doc.get('docType', '')).lower().strip()
+                        
+                        if doc_type == 'invoice':
+                            file_invoice_count += 1
+                            has_invoice_or_receipt = True
+                        elif doc_type == 'receipt':
+                            file_receipt_count += 1
+                            has_invoice_or_receipt = True
+                
+                # Update counters
+                invoice_count += file_invoice_count
+                receipt_count += file_receipt_count
+                
+                if has_invoice_or_receipt:
+                    docs_with_invoices += 1
+                else:
+                    # Check if all documents are "other" type
+                    all_other = True
+                    for doc in standard_documents:
+                        if isinstance(doc, dict):
+                            doc_type = str(doc.get('docType', '')).lower().strip()
+                            if doc_type and doc_type not in ['other', '']:
+                                all_other = False
+                                break
+                    if all_other:
+                        only_other_docs += 1
+                        
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.warning(f"Error analyzing document types for file {data.get('filename', 'unknown')}: {e}")
+                continue
+    
+    # Calculate recognition rate
+    total_documents_count = len(documents)
+    recognition_rate = round(docs_with_invoices / total_documents_count * 100, 2) if total_documents_count > 0 else 0.0
+    
     return {
         'field_accuracy': field_accuracy,
         'invoice_accuracy': item_accuracy,  # Keep 'invoice' for compatibility
@@ -763,7 +878,13 @@ def calculate_evaluation_statistics(all_rows):
         'total_documents': len(documents),
         'correct_invoices': correct_items,
         'correct_documents': correct_documents,
-        'overall_field_accuracy': overall_field_accuracy
+        'overall_field_accuracy': overall_field_accuracy,
+        'only_other_docs': only_other_docs,
+        'invoice_count': invoice_count,
+        'receipt_count': receipt_count,
+        'docs_with_invoices': docs_with_invoices,
+        'recognition_rate': recognition_rate,
+        'prompt_names': prompt_names
     }
 
 
@@ -860,7 +981,7 @@ def eval_documents(eval_list, project_config, model_version='N/A'):
         all_rows.extend(file_rows)
     
     # Calculate statistics
-    statistics = calculate_evaluation_statistics(all_rows)
+    statistics = calculate_evaluation_statistics(all_rows, excel_data)
     statistics['model_version'] = model_version
     
     # Generate Excel report
