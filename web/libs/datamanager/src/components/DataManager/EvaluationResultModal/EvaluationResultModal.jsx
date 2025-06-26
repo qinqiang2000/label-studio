@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Modal } from '../../Common/Modal/ModalPopup';
 import { Button } from '../../Common/Button/Button';
 import { Space } from '../../Common/Space/Space';
@@ -8,6 +8,9 @@ import { IconCopy, IconFileDownload } from '@humansignal/icons';
 import './EvaluationResultModal.scss';
 
 const EvaluationResultModal = ({ result, onClose }) => {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  
   if (!result || !result.evaluation_results) {
     return null;
   }
@@ -46,6 +49,80 @@ const EvaluationResultModal = ({ result, onClose }) => {
       }
     }
   }, [evaluation_results, project_id]);
+
+  // 分析评估报告
+  const analyzeEvaluationReport = useCallback(async () => {
+    if (!evaluation_results?.excel_path) {
+      if (window.LSF && window.LSF.datamanager) {
+        window.LSF.datamanager.invoke('toast', { 
+          message: 'Excel文件路径不可用', 
+          type: 'error' 
+        });
+      }
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      // 获取CSRF token
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                       document.querySelector('meta[name=csrf-token]')?.content ||
+                       window.localStorage.getItem('token') ||
+                       window.sessionStorage.getItem('token') ||
+                       '';
+      
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      // 添加认证头
+      if (csrfToken) {
+        if (csrfToken.length > 40) {
+          headers['Authorization'] = `Token ${csrfToken}`;
+        } else {
+          headers['X-CSRFToken'] = csrfToken;
+        }
+      }
+      
+      const response = await fetch(`/api/dm/analysis/?project=${project_id}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          excel_path: evaluation_results.excel_path,
+          context: {
+            evaluation_type: evaluation_type,
+            description: '评估结果分析',
+          },
+          analysis_type: 'evaluation',
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setAnalysisResult(result.analysis_result);
+        
+        if (window.LSF && window.LSF.datamanager) {
+          window.LSF.datamanager.invoke('toast', { 
+            message: '分析完成！', 
+            type: 'success' 
+          });
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '分析请求失败');
+      }
+    } catch (error) {
+      console.error('Analysis error:', error);
+      if (window.LSF && window.LSF.datamanager) {
+        window.LSF.datamanager.invoke('toast', { 
+          message: `分析失败: ${error.message}`, 
+          type: 'error' 
+        });
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [evaluation_results, project_id, evaluation_type]);
 
   const formatPercentage = (value) => {
     return (value * 100).toFixed(2) + '%';
@@ -245,21 +322,48 @@ const EvaluationResultModal = ({ result, onClose }) => {
           <Elem name="details-section">
             <Elem name="section-title">
               详情报告
-              <Button 
-                type="text" 
-                size="small" 
-                icon={<Icon icon={IconFileDownload} size={14} />}
-                onClick={downloadExcelReport}
-                className="download-button"
-                title="下载详细评估报告"
-              >
-                下载Excel
-              </Button>
+              <Space direction="horizontal" size="small">
+                <Button 
+                  type="text" 
+                  size="small" 
+                  icon={<Icon icon={IconFileDownload} size={14} />}
+                  onClick={downloadExcelReport}
+                  className="download-button"
+                  title="下载详细评估报告"
+                >
+                  下载Excel
+                </Button>
+                <Button 
+                  type="text" 
+                  size="small" 
+                  icon={<span style={{fontSize: '14px'}}>🧠</span>}
+                  onClick={analyzeEvaluationReport}
+                  loading={isAnalyzing}
+                  className="analyze-button"
+                  title="使用AI分析评估报告"
+                  disabled={isAnalyzing}
+                >
+                  {isAnalyzing ? '分析中...' : '分析'}
+                </Button>
+              </Space>
             </Elem>
             <Elem name="section-description">
               点击上方按钮下载包含详细评估数据的Excel报告，包括每个字段的识别结果和准确率统计
             </Elem>
 
+            {/* Analysis Result Section */}
+            {analysisResult && (
+              <Elem name="analysis-section">
+                <Elem name="analysis-title">分析结果</Elem>
+                <Elem name="analysis-content">
+                  <div 
+                    dangerouslySetInnerHTML={{ 
+                      __html: analysisResult.replace(/\n/g, '<br/>').replace(/##\s*(.*)/g, '<h3>$1</h3>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    }} 
+                  />
+                </Elem>
+              </Elem>
+            )}
           </Elem>
         )}
       </Block>

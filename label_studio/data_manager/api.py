@@ -33,6 +33,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from tasks.models import Annotation, Prediction, Task
+from data_manager.actions.evaluation_analysis import analyze_evaluation_report
 
 logger = logging.getLogger(__name__)
 
@@ -554,3 +555,89 @@ class ProjectActionsAPI(APIView):
         code = result.pop('response_code', 200)
 
         return Response(result, status=code)
+
+
+@method_decorator(
+    name='post',
+    decorator=swagger_auto_schema(
+        tags=['Data Manager'],
+        operation_summary='Analyze evaluation report',
+        operation_description='Send evaluation Excel report to ML backend for analysis and get insights',
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'excel_path': openapi.Schema(type=openapi.TYPE_STRING, description='Path to evaluation Excel file (will be read and converted to base64)'),
+                'context': openapi.Schema(type=openapi.TYPE_OBJECT, description='Optional context information'),
+                'analysis_type': openapi.Schema(type=openapi.TYPE_STRING, description='Type of analysis', default='evaluation'),
+                'extra_params': openapi.Schema(type=openapi.TYPE_OBJECT, description='Additional parameters'),
+            },
+            required=['excel_path'],
+        ),
+        manual_parameters=[
+            openapi.Parameter(
+                name='project',
+                type=openapi.TYPE_INTEGER,
+                in_=openapi.IN_QUERY,
+                description='Project ID',
+                required=True,
+            ),
+        ],
+        responses={
+            200: openapi.Response(
+                description='Analysis completed successfully',
+                examples={
+                    'application/json': {
+                        'status': 'success',
+                        'analysis_result': '## 评估概览\n\n本次评估...',
+                        'metadata': {
+                            'model_version': 'v1.2.3'
+                        }
+                    }
+                },
+            ),
+            400: openapi.Response(description='Invalid request or missing excel_path'),
+            404: openapi.Response(description='Project not found'),
+            500: openapi.Response(description='Analysis failed'),
+        },
+    ),
+)
+class EvaluationAnalysisAPI(APIView):
+    permission_required = all_permissions.projects_view
+
+    def post(self, request):
+        """
+        分析评估报告的API endpoint
+        """
+        pk = int_from_request(request.GET, 'project', None)
+        project = generics.get_object_or_404(Project, pk=pk)
+        self.check_object_permissions(request, project)
+
+        # 验证请求数据
+        excel_path = request.data.get('excel_path')
+        if not excel_path:
+            return Response({'error': 'Missing required parameter: excel_path'}, status=400)
+
+        logger.info(f"🔍 [EVALUATION_ANALYSIS_API] Starting analysis for project {pk}, excel: {excel_path}")
+
+        try:
+            # 调用分析函数
+            result = analyze_evaluation_report(
+                project=project,
+                queryset=None,  # 这个API不需要queryset
+                excel_path=excel_path,
+                context=request.data.get('context'),
+                analysis_type=request.data.get('analysis_type', 'evaluation'),
+                extra_params=request.data.get('extra_params')
+            )
+            
+            logger.info(f"🔍 [EVALUATION_ANALYSIS_API] Analysis completed successfully for project {pk}")
+            return Response(result, status=200)
+            
+        except Exception as e:
+            logger.error(f"🔍 [EVALUATION_ANALYSIS_API] Analysis failed for project {pk}: {str(e)}")
+            return Response({
+                'status': 'error',
+                'error': str(e),
+                'analysis_result': None,
+                'metadata': None
+            }, status=500)

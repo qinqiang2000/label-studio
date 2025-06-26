@@ -26,6 +26,7 @@ TIMEOUT_DEFAULT = float(get_env('ML_TIMEOUT_DEFAULT', 100))  # seconds
 
 TIMEOUT_TRAIN = float(get_env('ML_TIMEOUT_TRAIN', 30))
 TIMEOUT_PREDICT = float(get_env('ML_TIMEOUT_PREDICT', 100))
+TIMEOUT_ANALYZE = float(get_env('ML_TIMEOUT_ANALYZE', 60))
 TIMEOUT_HEALTH = float(get_env('ML_TIMEOUT_HEALTH', 1))
 TIMEOUT_SETUP = float(get_env('ML_TIMEOUT_SETUP', 3))
 TIMEOUT_DUPLICATE_MODEL = float(get_env('ML_TIMEOUT_DUPLICATE_MODEL', 1))
@@ -35,6 +36,7 @@ TIMEOUT_TRAIN_JOB_STATUS = float(get_env('ML_TIMEOUT_TRAIN_JOB_STATUS', 1))
 # TODO
 # we would need to make it configurable on the ML backend side too
 PREDICT_URL = 'predict'
+ANALYZE_URL = 'analyze'
 HEALTH_URL = 'health'
 VALIDATE_URL = 'validate'
 SETUP_URL = 'setup'
@@ -330,6 +332,39 @@ class MLApi(BaseHTTPAPI):
         logger.info("🔥" * 30)
         
         return self._request(PREDICT_URL, request, verbose=False, timeout=TIMEOUT_PREDICT)
+
+    def analyze(self, excel_content, excel_filename, project, context=None, analysis_type='evaluation', extra_params=None):
+        """
+        分析评估Excel报告
+        
+        :param excel_content: Excel文件的base64编码内容
+        :param excel_filename: Excel文件名
+        :param project: 项目实例
+        :param context: 可选的上下文信息
+        :param analysis_type: 分析类型，默认为'evaluation'
+        :param extra_params: 额外参数
+        :return: MLApiResult
+        """
+        logger.info(f"🔍 [ANALYZE] Starting analysis for excel: {excel_filename}")
+        
+        params = {
+            'context': context,
+            'analysis_type': analysis_type,
+        }
+        
+        if extra_params:
+            params.update(extra_params)
+        
+        request = {
+            'excel_content': excel_content,
+            'excel_filename': excel_filename,
+            'project': self._create_project_uid(project),
+            'label_config': project.label_config,
+            'params': params,
+        }
+        
+        logger.info(f"🔍 [ANALYZE] Sending analysis request with excel_filename: {excel_filename}, content size: {len(excel_content)} chars")
+        return self._request(ANALYZE_URL, request, verbose=False, timeout=TIMEOUT_ANALYZE)
 
     def health(self):
         return self._request(HEALTH_URL, method='GET', timeout=TIMEOUT_HEALTH)
