@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
+import shutil
 
 from core.permissions import AllPermissions
 from django.db.models import Q, Count
@@ -13,6 +14,7 @@ from .invoice_compare.invoice_compare_utils import InvoiceComparer
 import os
 import tempfile
 import pandas as pd
+from openpyxl import load_workbook
 
 
 all_permissions = AllPermissions()
@@ -474,7 +476,107 @@ def generate_excel_report(excel_data, compare_fields, statistics, evaluation_con
 
 
 def _create_statistics_sheet(writer, statistics, compare_fields, evaluation_config):
-    """Create statistics sheet with evaluation configuration info"""
+    """Create statistics sheet using template and fill in corresponding positions"""
+    # Get the template path
+    template_path = os.path.join(os.path.dirname(__file__), 'invoice_compare', 'statisitcs_template_v1.0.xlsx')
+    
+    try:
+        # Load the template workbook
+        template_wb = load_workbook(template_path)
+        template_ws = template_wb['Statistics']
+        
+        # Copy the template sheet structure to our workbook
+        # Create new worksheet in writer
+        workbook = writer.book
+        worksheet = workbook.create_sheet('Statistics')
+        
+        # Copy all cells from template
+        for row in template_ws.iter_rows():
+            for cell in row:
+                new_cell = worksheet.cell(row=cell.row, column=cell.column)
+                new_cell.value = cell.value
+                if cell.has_style:
+                    new_cell.font = cell.font.copy() if cell.font else None
+                    new_cell.fill = cell.fill.copy() if cell.fill else None
+                    new_cell.border = cell.border.copy() if cell.border else None
+                    new_cell.alignment = cell.alignment.copy() if cell.alignment else None
+        
+        # Copy merged cells
+        for merged_range in template_ws.merged_cells.ranges:
+            worksheet.merge_cells(str(merged_range))
+        
+        # Copy column dimensions
+        for col_letter, dimension in template_ws.column_dimensions.items():
+            worksheet.column_dimensions[col_letter].width = dimension.width
+        
+        # Copy row dimensions
+        for row_num, dimension in template_ws.row_dimensions.items():
+            worksheet.row_dimensions[row_num].height = dimension.height
+        
+        # Now fill in the data at the correct positions based on the template structure
+        config_name = getattr(evaluation_config.evaluation_config, 'name', 'Unknown')
+        
+        # 整体情况 section (rows 3-11)
+        worksheet['C3'] = statistics['total_documents']  # 总文件数
+        # worksheet['C4'] = 0  # 总文件数（纯other类型文件）- not available in current stats
+        worksheet['C5'] = statistics['total_documents']  # 总文件数（含票据文件）
+        worksheet['C6'] = statistics['total_invoices']  # 总票据数
+        # worksheet['C7'] = 0  # Invoice数 - not available in current stats
+        # worksheet['C8'] = 0  # Receipt数 - not available in current stats
+        worksheet['C9'] = statistics['total_invoices'] * len(compare_fields)  # 票据下总字段数
+        worksheet['C10'] = statistics.get('model_version', 'N/A')  # 模型版本
+        worksheet['C11'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # 评估时间
+        
+        # 整体指标 section (rows 15-18)
+        # worksheet['C15'] = f"{100.0}%"  # 可识别率 - assume 100% for now
+        worksheet['C16'] = f"{statistics['document_accuracy']}%"  # 文件准确率
+        worksheet['C17'] = f"{statistics['invoice_accuracy']}%"  # 票据准确率
+        worksheet['C18'] = f"{statistics['overall_field_accuracy']}%"  # 字段准确率
+        
+        # 核心字段指标 section (starting from row 22)
+        # Fill in field-specific data
+        current_row = 22
+        total_correct = 0
+        
+        for field in compare_fields:
+            if current_row >= 28:  # Stop before the 总计 row
+                break
+                
+            field_stats = statistics['field_accuracy'].get(field, 0)
+            correct_count = round(statistics['total_invoices'] * field_stats / 100)
+            total_correct += correct_count
+            
+            # Get field label if available
+            field_labels = getattr(evaluation_config.evaluation_config, 'field_labels', {})
+            field_label = field_labels.get(field, field)
+            
+            # Fill in the data
+            worksheet.cell(row=current_row, column=1, value=field_label)  # A列：指标名称
+            worksheet.cell(row=current_row, column=2, value=field_label)  # B列：指标定义
+            worksheet.cell(row=current_row, column=3, value=statistics['total_invoices'])  # C列：总票据数
+            worksheet.cell(row=current_row, column=4, value=correct_count)  # D列：正确识别
+            worksheet.cell(row=current_row, column=5, value=f"{field_stats}%")  # E列：识别正确率
+            
+            current_row += 1
+        
+        # Fill in total row (row 28)
+        total_accuracy = round(total_correct / (statistics['total_invoices'] * len(compare_fields)) * 100, 2) if statistics['total_invoices'] > 0 and len(compare_fields) > 0 else 0
+        worksheet.cell(row=28, column=3, value=statistics['total_invoices'] * len(compare_fields))  # 总票据数
+        worksheet.cell(row=28, column=4, value=total_correct)  # 正确识别总数
+        worksheet.cell(row=28, column=5, value=f"{total_accuracy}%")  # 总识别正确率
+        
+        # Remove the default Sheet if it exists
+        if 'Sheet' in workbook.sheetnames:
+            workbook.remove(workbook['Sheet'])
+        
+    except Exception as e:
+        logger.error(f"Error creating statistics sheet from template: {e}")
+        # Fallback to original method if template loading fails
+        _create_statistics_sheet_fallback(writer, statistics, compare_fields, evaluation_config)
+
+
+def _create_statistics_sheet_fallback(writer, statistics, compare_fields, evaluation_config):
+    """Fallback method for creating statistics sheet if template loading fails"""
     config_name = getattr(evaluation_config.evaluation_config, 'name', 'Unknown')
     
     stats_data = []
