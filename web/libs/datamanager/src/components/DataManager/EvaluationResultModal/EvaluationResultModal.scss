@@ -200,66 +200,200 @@
   }
 
   &__analysis-section {
-    margin-top: 16px;
-    padding: 16px;
-    background: #f8f9fa;
-    border-radius: 8px;
+    margin-top: 24px;
     border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #ffffff;
+    overflow: hidden;
+  }
+
+  &__analysis-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    
+    .download-analysis-button {
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.1);
+      transition: all 0.2s ease;
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+        color: white;
+      }
+    }
   }
 
   &__analysis-title {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
-    color: #212529;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #dee2e6;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   &__analysis-content {
+    padding: 24px;
     line-height: 1.6;
-    color: #495057;
+    font-size: 14px;
+    color: #333;
+    background: #fafbfc;
     
-    h3 {
-      font-size: 14px;
+    // Markdown样式
+    h1, h2, h3 {
+      color: #2c3e50;
+      margin-top: 24px;
+      margin-bottom: 16px;
       font-weight: 600;
-      color: #212529;
-      margin: 16px 0 8px 0;
       
       &:first-child {
         margin-top: 0;
       }
     }
     
-    strong {
-      font-weight: 600;
-      color: #212529;
+    h1 {
+      font-size: 24px;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 8px;
+    }
+    
+    h2 {
+      font-size: 20px;
+      border-bottom: 2px solid #e74c3c;
+      padding-bottom: 6px;
+    }
+    
+    h3 {
+      font-size: 18px;
+      border-bottom: 1px solid #95a5a6;
+      padding-bottom: 4px;
     }
     
     p {
-      margin: 8px 0;
+      margin-bottom: 12px;
+      color: #555;
+    }
+    
+    strong {
+      color: #2c3e50;
+      font-weight: 600;
+    }
+    
+    em {
+      color: #7f8c8d;
+      font-style: italic;
+    }
+    
+    code {
+      background-color: #f1f2f6;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      color: #e74c3c;
+      font-size: 13px;
+      border: 1px solid #e9ecef;
+    }
+    
+    pre {
+      background-color: #f8f9fa;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      border-left: 4px solid #3498db;
+      margin: 16px 0;
+      
+      code {
+        background: none;
+        padding: 0;
+        color: #2c3e50;
+        border: none;
+        font-size: 13px;
+      }
+    }
+    
+    ul, ol {
+      margin: 12px 0;
+      padding-left: 24px;
+      
+      li {
+        margin-bottom: 6px;
+        color: #555;
+        
+        &::marker {
+          color: #3498db;
+        }
+      }
     }
     
     ul {
-      margin: 8px 0;
-      padding-left: 20px;
+      list-style-type: disc;
       
-      li {
-        margin: 4px 0;
+      ul {
+        list-style-type: circle;
+        
+        ul {
+          list-style-type: square;
+        }
       }
+    }
+    
+    blockquote {
+      margin: 16px 0;
+      padding: 12px 16px;
+      background-color: #f8f9fa;
+      border-left: 4px solid #3498db;
+      color: #555;
+      font-style: italic;
     }
   }
 
+  // 按钮样式优化
+  .download-button,
   .analyze-button {
-    color: #0d6efd !important;
+    transition: all 0.2s ease;
+    border-radius: 4px;
     
     &:hover {
-      background-color: #e7f1ff !important;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  .download-button {
+    color: #28a745;
+    border-color: #28a745;
+    
+    &:hover {
+      background-color: #28a745;
+      color: white;
+    }
+  }
+  
+  .analyze-button {
+    color: #007bff;
+    border-color: #007bff;
+    
+    &:hover {
+      background-color: #007bff;
+      color: white;
     }
     
     &:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+      
+      &:hover {
+        transform: none;
+        box-shadow: none;
+        background-color: transparent;
+        color: #007bff;
+      }
     }
   }
 
