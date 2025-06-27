@@ -7,4 +7,4 @@ alwaysApply: false
 
 - 如涉及web测试: 可以用playwright mcp做测试。
  - 用户名,密码: qinqiang2000@qq.com 11111111
-- 如涉及后端API测试, 要加token在header: -H 'Authorization: Token 4f36015cbf62b6af1e37ac91778e5412bec989f9'
+- 如涉及后端API测试, 要source .env, 然后加token在header: -H 'Authorization: Token $LABEL_STUDIO_API_KEY'

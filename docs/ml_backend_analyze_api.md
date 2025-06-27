@@ -15,6 +15,7 @@ POST
   "params": {
     "context": "object",            // 可选，上下文信息
     "analysis_type": "string",      // 可选，分析类型，默认为"evaluation"
+    "prompt": "string",             // 可选，分析使用的prompt名称，为空或"Default"时使用默认prompt
     "extra_params": "object"        // 可选，额外参数
   }
 }
@@ -26,11 +27,18 @@ POST
   "status": "success|error",
   "analysis_result": "string",      // Markdown格式的分析结果
   "metadata": {
-    "model_version": "string"       // 分析模型版本
+    "model_version": "string",       // 分析模型版本
+    "prompt_used": "string"          // 实际使用的prompt名称
   },
   "error": "string"                 // 错误信息（仅在status为error时返回）
 }
 ```
+
+### Prompt参数说明
+- `prompt`: 可选字符串参数，指定分析时使用的prompt
+- 当`prompt`为空字符串、`null`、`undefined`或`"Default"`时，ML Backend将使用默认的分析prompt
+- 当`prompt`为有效的prompt名称时，ML Backend将使用指定的prompt进行分析
+- 如果指定的prompt不存在，将返回错误信息
 
 ### 分析结果格式要求
 - 返回的 `analysis_result` 必须是有效的 Markdown 格式
@@ -45,7 +53,26 @@ POST
 - base64解码失败：返回 400 状态码
 - 文件格式不支持：返回 400 状态码
 - Excel文件损坏：返回 400 状态码
+- 指定的prompt不存在：返回 400 状态码
 - 内部分析错误：返回 500 状态码
+
+### 示例请求
+```json
+{
+  "excel_content": "UEsDBBQAAAAIAAAAAAAAAAAAAAAAAAAAAAAU...",
+  "excel_filename": "evaluation_report.xlsx",
+  "project": "project_123.1641234567",
+  "label_config": "<View>...</View>",
+  "params": {
+    "context": {
+      "evaluation_type": "document_extraction",
+      "description": "评估结果分析"
+    },
+    "analysis_type": "evaluation",
+    "prompt": "detailed_analysis_prompt"
+  }
+}
+```
 
 ### 示例响应
 ```json
@@ -57,7 +84,8 @@ POST
     "excel_file_size": 45632,
     "excel_filename": "evaluation_report.xlsx",
     "analysis_duration": 2.5,
-    "model_version": "v1.2.3"
+    "model_version": "v1.2.3",
+    "prompt_used": "detailed_analysis_prompt"
   }
 }
 ``` 

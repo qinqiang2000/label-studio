@@ -1,10 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Modal } from '../../Common/Modal/ModalPopup';
 import { Button } from '../../Common/Button/Button';
 import { Space } from '../../Common/Space/Space';
 import { Block, Elem } from '../../../utils/bem';
 import { Icon } from '../../Common/Icon/Icon';
 import { IconCopy, IconFileDownload } from '@humansignal/icons';
+import { Select } from '../../Common/Form';
 import './EvaluationResultModal.scss';
 
 // 简单的Markdown渲染函数
@@ -149,6 +150,8 @@ const downloadAnalysisReport = (content, filename = 'analysis_report') => {
 const EvaluationResultModal = ({ result, onClose }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [prompts, setPrompts] = useState([]);
+  const [selectedPrompt, setSelectedPrompt] = useState('Default');
   
   if (!result || !result.evaluation_results) {
     return null;
@@ -159,6 +162,69 @@ const EvaluationResultModal = ({ result, onClose }) => {
   
   // 检查是否为票据提取评估
   const isInvoiceEvaluation = evaluation_type === 'document_extraction' || evaluation_type === 'invoice_extraction';
+
+  // 加载prompts列表
+  useEffect(() => {
+    const loadPrompts = async () => {
+      try {
+        // 获取CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                         document.querySelector('meta[name=csrf-token]')?.content ||
+                         window.localStorage.getItem('token') ||
+                         window.sessionStorage.getItem('token') ||
+                         '';
+        
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+        
+        // 添加认证头
+        if (csrfToken) {
+          if (csrfToken.length > 40) {
+            headers['Authorization'] = `Token ${csrfToken}`;
+          } else {
+            headers['X-CSRFToken'] = csrfToken;
+          }
+        }
+        
+        const response = await fetch('/api/prompts/', {
+          method: 'GET',
+          headers,
+        });
+
+        if (response.ok) {
+          const promptsData = await response.json();
+          setPrompts(promptsData || []);
+          
+          // 恢复用户上次选择的prompt，如果没有则默认选择Default
+          const savedPrompt = localStorage.getItem('evaluation_analysis_prompt');
+          if (savedPrompt && (savedPrompt === 'Default' || promptsData.find(p => p.name === savedPrompt))) {
+            setSelectedPrompt(savedPrompt);
+          } else {
+            // 如果没有保存的选择，默认选择Default
+            setSelectedPrompt('Default');
+          }
+        } else {
+          console.error('Failed to load prompts:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Error loading prompts:', error);
+      }
+    };
+
+    loadPrompts();
+  }, []);
+
+  // 保存用户选择的prompt
+  const handlePromptChange = useCallback((promptName) => {
+    setSelectedPrompt(promptName);
+    localStorage.setItem('evaluation_analysis_prompt', promptName);
+  }, []);
+
+  // 阻止Select组件的点击事件冒泡
+  const handleSelectClick = useCallback((event) => {
+    event.stopPropagation();
+  }, []);
 
   // 下载Excel详情报告
   const downloadExcelReport = useCallback(() => {
@@ -246,54 +312,83 @@ const EvaluationResultModal = ({ result, onClose }) => {
         'Content-Type': 'application/json',
       };
       
-      // 添加认证头
       if (csrfToken) {
-        if (csrfToken.length > 40) {
-          headers['Authorization'] = `Token ${csrfToken}`;
-        } else {
-          headers['X-CSRFToken'] = csrfToken;
-        }
+        headers['X-CSRFToken'] = csrfToken;
       }
+
+      console.log('🚀 [前端调试] 开始分析评估报告');
+      console.log('🚀 [前端调试] 选中的prompt名称:', selectedPrompt);
       
-      const response = await fetch(`/api/dm/analysis/?project=${project_id}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          excel_path: evaluation_results.excel_path,
+      // 构建请求体
+      const requestBody = {
+        excel_path: evaluation_results.excel_path,
+        params: {
           context: {
             evaluation_type: evaluation_type,
             description: '评估结果分析',
           },
           analysis_type: 'evaluation',
-        }),
+        },
+      };
+      
+      // 根据选择的prompt名称找到对应的content并传递
+      if (selectedPrompt && selectedPrompt !== 'Default') {
+        const selectedPromptObj = prompts.find(p => p.name === selectedPrompt);
+        if (selectedPromptObj && selectedPromptObj.content) {
+          requestBody.params.prompt = selectedPromptObj.content;
+          console.log('🚀 [前端调试] 传递prompt内容:', selectedPromptObj.content.substring(0, 100) + '...');
+        } else {
+          console.warn('🚀 [前端调试] 找不到选中prompt的内容:', selectedPrompt);
+        }
+      } else {
+        console.log('🚀 [前端调试] 使用默认prompt (不传递prompt参数)');
+      }
+
+      console.log('🚀 [前端调试] 请求体:', JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch(`/api/dm/analysis/?project=${project_id}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
       });
+
+      console.log('🚀 [前端调试] API响应状态:', response.status);
 
       if (response.ok) {
         const result = await response.json();
-        setAnalysisResult(result.analysis_result);
+        console.log('🚀 [前端调试] API返回结果:', result);
+        setAnalysisResult(result);
         
         if (window.LSF && window.LSF.datamanager) {
           window.LSF.datamanager.invoke('toast', { 
-            message: '分析完成！', 
+            message: '分析完成', 
             type: 'success' 
           });
         }
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '分析请求失败');
+        const errorText = await response.text();
+        console.error('🚀 [前端调试] API错误响应:', errorText);
+        
+        if (window.LSF && window.LSF.datamanager) {
+          window.LSF.datamanager.invoke('toast', { 
+            message: `分析失败: ${errorText}`, 
+            type: 'error' 
+          });
+        }
       }
     } catch (error) {
-      console.error('Analysis error:', error);
+      console.error('🚀 [前端调试] 分析过程异常:', error);
+      
       if (window.LSF && window.LSF.datamanager) {
         window.LSF.datamanager.invoke('toast', { 
-          message: `分析失败: ${error.message}`, 
+          message: `分析异常: ${error.message}`, 
           type: 'error' 
         });
       }
     } finally {
       setIsAnalyzing(false);
     }
-  }, [evaluation_results, project_id, evaluation_type]);
+  }, [evaluation_results, evaluation_type, project_id, selectedPrompt, prompts]);
 
   const formatPercentage = (value) => {
     return (value * 100).toFixed(2) + '%';
@@ -455,6 +550,15 @@ const EvaluationResultModal = ({ result, onClose }) => {
     );
   };
 
+  // 构建prompt选项
+  const promptOptions = [
+    { label: 'Default', value: 'Default' },
+    ...prompts.map(prompt => ({
+      label: prompt.name,
+      value: prompt.name
+    }))
+  ];
+
   return (
     <Modal
       title="Evaluation Results"
@@ -504,18 +608,31 @@ const EvaluationResultModal = ({ result, onClose }) => {
                 >
                   下载Excel
                 </Button>
-                <Button 
-                  type="text" 
-                  size="small" 
-                  icon={<span style={{fontSize: '14px'}}>🧠</span>}
-                  onClick={analyzeEvaluationReport}
-                  loading={isAnalyzing}
-                  className="analyze-button"
-                  title="使用AI分析评估报告"
-                  disabled={isAnalyzing}
-                >
-                  {isAnalyzing ? '分析中...' : '分析'}
-                </Button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div onClick={handleSelectClick}>
+                    <Select
+                      value={selectedPrompt}
+                      onChange={handlePromptChange}
+                      options={promptOptions}
+                      size="small"
+                      style={{ minWidth: '120px' }}
+                      placeholder="选择Prompt"
+                      title="选择分析时使用的Prompt"
+                    />
+                  </div>
+                  <Button 
+                    type="text" 
+                    size="small" 
+                    icon={<span style={{fontSize: '14px'}}>🧠</span>}
+                    onClick={analyzeEvaluationReport}
+                    loading={isAnalyzing}
+                    className="analyze-button"
+                    title={`使用AI分析评估报告${selectedPrompt !== 'Default' ? ` (${selectedPrompt})` : ''}`}
+                    disabled={isAnalyzing}
+                  >
+                    {isAnalyzing ? '分析中...' : '分析'}
+                  </Button>
+                </div>
               </Space>
             </Elem>
             {/* Analysis Result Section */}
