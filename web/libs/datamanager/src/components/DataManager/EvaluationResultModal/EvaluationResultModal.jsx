@@ -513,6 +513,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
     
     const statistics = evaluation_results?.statistics || {};
     const {
+      recognition_rate = 0,
       document_accuracy = 0,
       invoice_accuracy = 0,
       field_accuracy = {}
@@ -524,6 +525,12 @@ const EvaluationResultModal = ({ result, onClose }) => {
         <Elem name="overall-metrics">
           <Elem name="section-title">整体指标</Elem>
           <Elem name="metrics-cards">
+            <Elem name="metric-card">
+              <Elem name="metric-value" mod={{ level: getMetricColor(recognition_rate / 100) }}>
+                {recognition_rate.toFixed(2)}%
+              </Elem>
+              <Elem name="metric-label">可识别率</Elem>
+            </Elem>
             <Elem name="metric-card">
               <Elem name="metric-value" mod={{ level: getMetricColor(document_accuracy / 100) }}>
                 {document_accuracy.toFixed(2)}%
@@ -660,7 +667,25 @@ const EvaluationResultModal = ({ result, onClose }) => {
               Object.keys(evaluation_results.statistics.field_accuracy).length * (evaluation_results?.statistics?.total_invoices || processed_items) : 0}</span></span>
           </Elem>
           <Elem name="summary-item">
-            <span><strong>模型:</strong> <span className="summary-number">{evaluation_results?.statistics?.model_version || 'N/A'}</span></span>
+            <span><strong>Other:</strong> <span className="summary-number">
+              {evaluation_results?.statistics?.only_other_docs || 0}
+              ({evaluation_results?.statistics?.total_documents > 0 ? 
+                ((evaluation_results?.statistics?.only_other_docs || 0) / evaluation_results.statistics.total_documents * 100).toFixed(1) : '0.0'}%)
+            </span></span>
+          </Elem>
+          <Elem name="summary-item">
+            <span><strong>Invoice:</strong> <span className="summary-number">
+              {evaluation_results?.statistics?.invoice_count || 0}
+              ({evaluation_results?.statistics?.total_invoices > 0 ? 
+                ((evaluation_results?.statistics?.invoice_count || 0) / evaluation_results.statistics.total_invoices * 100).toFixed(1) : '0.0'}%)
+            </span></span>
+          </Elem>
+          <Elem name="summary-item">
+            <span><strong>Receipt:</strong> <span className="summary-number">
+              {evaluation_results?.statistics?.receipt_count || 0}
+              ({evaluation_results?.statistics?.total_invoices > 0 ? 
+                ((evaluation_results?.statistics?.receipt_count || 0) / evaluation_results.statistics.total_invoices * 100).toFixed(1) : '0.0'}%)
+            </span></span>
           </Elem>
           <Elem name="summary-item">
             <span><strong>时间:</strong> <span className="summary-number">{formatDate(evaluated_at)}</span></span>
