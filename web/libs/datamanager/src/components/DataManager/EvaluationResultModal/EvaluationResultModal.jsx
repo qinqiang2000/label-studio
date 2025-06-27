@@ -8,45 +8,107 @@ import { IconCopy, IconFileDownload } from '@humansignal/icons';
 import { Select } from '../../Common/Form';
 import './EvaluationResultModal.scss';
 
-// 简单的Markdown渲染函数
-const renderMarkdown = (markdown) => {
-  if (!markdown) return '';
+// 智能内容渲染函数，支持Markdown、HTML和纯文本
+const renderContent = (content) => {
+  // 类型检查和默认值处理
+  if (!content) return '';
   
-  let html = markdown;
+  // 如果是对象，尝试提取文本内容
+  if (typeof content === 'object') {
+    if (content.analysis_result) {
+      content = content.analysis_result;
+    } else if (content.content || content.text || content.message) {
+      content = content.content || content.text || content.message;
+    } else {
+      // 如果是其他对象，转为JSON字符串显示
+      content = JSON.stringify(content, null, 2);
+    }
+  }
   
-  // 处理标题
-  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+  // 确保是字符串
+  if (typeof content !== 'string') {
+    content = String(content);
+  }
   
-  // 处理粗体
-  html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+  // 检测并移除代码块包围符号
+  const trimmedContent = content.trim();
+  const codeBlockRegex = /^```(\w+)?\s*\n([\s\S]*?)\n```$/;
+  const match = trimmedContent.match(codeBlockRegex);
   
-  // 处理斜体
-  html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+  if (match) {
+    const format = match[1]; // html, json, markdown 等
+    const actualContent = match[2].trim();
+    
+    // 根据格式处理内容
+    if (format === 'html') {
+      return actualContent;
+    } else if (format === 'json') {
+      try {
+        const jsonObj = JSON.parse(actualContent);
+        // 如果JSON有特定字段，提取出来
+        if (jsonObj.result || jsonObj.analysis_result || jsonObj.message) {
+          return renderContent(jsonObj.result || jsonObj.analysis_result || jsonObj.message);
+        }
+        return `<pre><code>${JSON.stringify(jsonObj, null, 2)}</code></pre>`;
+      } catch (e) {
+        // JSON解析失败，当作普通文本处理
+        content = actualContent;
+      }
+    } else {
+      // 其他格式或无格式标识，移除包围符号后当作markdown处理
+      content = actualContent;
+    }
+  }
   
-  // 处理代码块
-  html = html.replace(/```([\s\S]*?)```/gim, '<pre><code>$1</code></pre>');
+  // 检测是否已经是HTML格式
+  const hasHtmlTags = /<[^>]*>/g.test(content);
+  if (hasHtmlTags) {
+    // 如果已经包含HTML标签，直接返回
+    return content;
+  }
   
-  // 处理行内代码
-  html = html.replace(/`(.*?)`/gim, '<code>$1</code>');
+  // 否则按Markdown格式处理
+  let html = content;
   
-  // 处理列表
-  html = html.replace(/^\* (.*$)/gim, '<li>$1</li>');
-  html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
-  html = html.replace(/(\<li\>.*<\/li>)/gims, '<ul>$1</ul>');
-  
-  // 处理数字列表
-  html = html.replace(/^\d+\. (.*$)/gim, '<li>$1</li>');
-  
-  // 处理换行
-  html = html.replace(/\n/gim, '<br/>');
-  
-  // 清理多余的br标签
-  html = html.replace(/<br\/><br\/><ul>/gim, '<ul>');
-  html = html.replace(/<\/ul><br\/><br\/>/gim, '</ul>');
-  html = html.replace(/<br\/><li>/gim, '<li>');
-  html = html.replace(/<\/li><br\/>/gim, '</li>');
+  try {
+    // 处理标题
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+    
+    // 处理粗体
+    html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+    
+    // 处理斜体
+    html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+    
+    // 处理代码块
+    html = html.replace(/```([\s\S]*?)```/gim, '<pre><code>$1</code></pre>');
+    
+    // 处理行内代码
+    html = html.replace(/`(.*?)`/gim, '<code>$1</code>');
+    
+    // 处理列表
+    html = html.replace(/^\* (.*$)/gim, '<li>$1</li>');
+    html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
+    html = html.replace(/(\<li\>.*<\/li>)/gims, '<ul>$1</ul>');
+    
+    // 处理数字列表
+    html = html.replace(/^\d+\. (.*$)/gim, '<li>$1</li>');
+    
+    // 处理换行
+    html = html.replace(/\n/gim, '<br/>');
+    
+    // 清理多余的br标签
+    html = html.replace(/<br\/><br\/><ul>/gim, '<ul>');
+    html = html.replace(/<\/ul><br\/><br\/>/gim, '</ul>');
+    html = html.replace(/<br\/><li>/gim, '<li>');
+    html = html.replace(/<\/li><br\/>/gim, '</li>');
+  } catch (error) {
+    console.warn('Content rendering error:', error);
+    // 如果处理失败，返回原始内容并添加换行处理
+    html = content.replace(/\n/g, '<br/>');
+  }
   
   return html;
 };
@@ -125,7 +187,7 @@ const downloadAnalysisReport = (content, filename = 'analysis_report') => {
         <div class="timestamp">生成时间: ${new Date().toLocaleString('zh-CN')}</div>
     </div>
     <div class="content">
-        ${renderMarkdown(content)}
+        ${renderContent(content)}
     </div>
 </body>
 </html>`;
@@ -150,6 +212,7 @@ const downloadAnalysisReport = (content, filename = 'analysis_report') => {
 const EvaluationResultModal = ({ result, onClose }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
   const [prompts, setPrompts] = useState([]);
   const [selectedPrompt, setSelectedPrompt] = useState('Default');
   
@@ -300,6 +363,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
     }
 
     setIsAnalyzing(true);
+    setAnalysisError(null); // 清除之前的错误
     try {
       // 获取CSRF token
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
@@ -315,9 +379,6 @@ const EvaluationResultModal = ({ result, onClose }) => {
       if (csrfToken) {
         headers['X-CSRFToken'] = csrfToken;
       }
-
-      console.log('🚀 [前端调试] 开始分析评估报告');
-      console.log('🚀 [前端调试] 选中的prompt名称:', selectedPrompt);
       
       // 构建请求体
       const requestBody = {
@@ -336,15 +397,8 @@ const EvaluationResultModal = ({ result, onClose }) => {
         const selectedPromptObj = prompts.find(p => p.name === selectedPrompt);
         if (selectedPromptObj && selectedPromptObj.content) {
           requestBody.params.prompt = selectedPromptObj.content;
-          console.log('🚀 [前端调试] 传递prompt内容:', selectedPromptObj.content.substring(0, 100) + '...');
-        } else {
-          console.warn('🚀 [前端调试] 找不到选中prompt的内容:', selectedPrompt);
         }
-      } else {
-        console.log('🚀 [前端调试] 使用默认prompt (不传递prompt参数)');
       }
-
-      console.log('🚀 [前端调试] 请求体:', JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(`/api/dm/analysis/?project=${project_id}`, {
         method: 'POST',
@@ -352,36 +406,61 @@ const EvaluationResultModal = ({ result, onClose }) => {
         body: JSON.stringify(requestBody),
       });
 
-      console.log('🚀 [前端调试] API响应状态:', response.status);
-
       if (response.ok) {
         const result = await response.json();
-        console.log('🚀 [前端调试] API返回结果:', result);
-        setAnalysisResult(result);
         
-        if (window.LSF && window.LSF.datamanager) {
-          window.LSF.datamanager.invoke('toast', { 
-            message: '分析完成', 
-            type: 'success' 
-          });
+        if (result.status === 'success') {
+          setAnalysisResult(result.analysis_result);
+          setAnalysisError(null);
+          
+          if (window.LSF && window.LSF.datamanager) {
+            window.LSF.datamanager.invoke('toast', { 
+              message: '分析完成', 
+              type: 'success' 
+            });
+          }
+        } else {
+          // 处理业务层面的错误
+          const errorMsg = result.error || '分析失败';
+          setAnalysisError(errorMsg);
+          setAnalysisResult(null);
+          
+          if (window.LSF && window.LSF.datamanager) {
+            window.LSF.datamanager.invoke('toast', { 
+              message: `分析失败: ${errorMsg}`, 
+              type: 'error' 
+            });
+          }
         }
       } else {
-        const errorText = await response.text();
-        console.error('🚀 [前端调试] API错误响应:', errorText);
+        // 处理HTTP错误
+        let errorMsg = '网络请求失败';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.message || `HTTP ${response.status}`;
+        } catch {
+          errorMsg = `HTTP ${response.status} - ${response.statusText}`;
+        }
+        
+        setAnalysisError(errorMsg);
+        setAnalysisResult(null);
         
         if (window.LSF && window.LSF.datamanager) {
           window.LSF.datamanager.invoke('toast', { 
-            message: `分析失败: ${errorText}`, 
+            message: `分析失败: ${errorMsg}`, 
             type: 'error' 
           });
         }
       }
     } catch (error) {
-      console.error('🚀 [前端调试] 分析过程异常:', error);
+      // 处理网络异常或其他异常
+      const errorMsg = error.message || '分析过程发生异常';
+      setAnalysisError(errorMsg);
+      setAnalysisResult(null);
       
       if (window.LSF && window.LSF.datamanager) {
         window.LSF.datamanager.invoke('toast', { 
-          message: `分析异常: ${error.message}`, 
+          message: `分析异常: ${errorMsg}`, 
           type: 'error' 
         });
       }
@@ -625,7 +704,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
                     size="small" 
                     icon={<span style={{fontSize: '14px'}}>🧠</span>}
                     onClick={analyzeEvaluationReport}
-                    loading={isAnalyzing}
+                    loading={isAnalyzing || false}
                     className="analyze-button"
                     title={`使用AI分析评估报告${selectedPrompt !== 'Default' ? ` (${selectedPrompt})` : ''}`}
                     disabled={isAnalyzing}
@@ -654,9 +733,33 @@ const EvaluationResultModal = ({ result, onClose }) => {
                 <Elem name="analysis-content">
                   <div 
                     dangerouslySetInnerHTML={{ 
-                      __html: renderMarkdown(analysisResult)
+                      __html: renderContent(analysisResult)
                     }} 
                   />
+                </Elem>
+              </Elem>
+            )}
+            
+            {/* Analysis Error Section */}
+            {analysisError && !analysisResult && (
+              <Elem name="analysis-section" mod={{ error: true }}>
+                <Elem name="analysis-header">
+                  <Elem name="analysis-title">❌ 分析失败</Elem>
+                </Elem>
+                <Elem name="analysis-content" mod={{ error: true }}>
+                  <div className="error-message">
+                    <p><strong>错误信息：</strong></p>
+                    <p>{analysisError}</p>
+                    <div className="error-suggestions">
+                      <p><strong>可能的解决方案：</strong></p>
+                      <ul>
+                        <li>检查网络连接是否正常</li>
+                        <li>确认ML Backend服务运行正常</li>
+                        <li>检查Excel文件是否完整</li>
+                        <li>尝试重新执行分析</li>
+                      </ul>
+                    </div>
+                  </div>
                 </Elem>
               </Elem>
             )}

@@ -613,14 +613,9 @@ class EvaluationAnalysisAPI(APIView):
         project = generics.get_object_or_404(Project, pk=pk)
         self.check_object_permissions(request, project)
 
-        print(f"🔍 [API调试] EvaluationAnalysisAPI被调用")
-        print(f"🔍 [API调试] 项目ID: {pk}")
-        print(f"🔍 [API调试] 原始请求数据: {json.dumps(request.data, indent=2, ensure_ascii=False)}")
-        
         # 验证请求数据
         excel_path = request.data.get('excel_path')
         if not excel_path:
-            print(f"❌ [API调试] 缺少excel_path参数")
             return Response({'error': 'Missing required parameter: excel_path'}, status=400)
 
         # 提取所有参数
@@ -628,21 +623,7 @@ class EvaluationAnalysisAPI(APIView):
         analysis_type = request.data.get('analysis_type', 'evaluation')
         params_data = request.data.get('params', {})
         
-        print(f"🔍 [API调试] 提取的参数:")
-        print(f"  - excel_path: {excel_path}")
-        print(f"  - context: {context}")
-        print(f"  - analysis_type: {analysis_type}")
-        print(f"  - params: {json.dumps(params_data, indent=2, ensure_ascii=False)}")
-        
-        # 检查prompt参数位置
-        prompt_from_root = request.data.get('prompt')
-        prompt_from_params = params_data.get('prompt')
-        
-        print(f"🔍 [API调试] prompt参数检查:")
-        print(f"  - 根级别prompt: {prompt_from_root}")
-        print(f"  - params中的prompt: {prompt_from_params}")
-
-        logger.info(f"🔍 [EVALUATION_ANALYSIS_API] Starting analysis for project {pk}, excel: {excel_path}")
+        logger.info(f"Starting analysis for project {pk}, excel: {excel_path}")
 
         try:
             # 构建传递给analyze_evaluation_report的参数
@@ -650,16 +631,15 @@ class EvaluationAnalysisAPI(APIView):
                 'excel_path': excel_path,
                 'context': context,
                 'analysis_type': analysis_type,
-                'params': params_data,  # 传递完整的params对象
+                'params': params_data,
             }
             
             # 如果根级别有prompt，也加入
+            prompt_from_root = request.data.get('prompt')
             if prompt_from_root:
                 analysis_params['prompt'] = prompt_from_root
-                
-            print(f"📤 [API调试] 传递给analyze_evaluation_report的参数: {json.dumps(analysis_params, indent=2, ensure_ascii=False)}")
             
-            # 调用分析函数，使用新的签名
+            # 调用分析函数
             result = analyze_evaluation_report(
                 user_id=request.user.id,
                 project_id=pk,
@@ -667,18 +647,15 @@ class EvaluationAnalysisAPI(APIView):
                 **analysis_params
             )
             
-            print(f"📥 [API调试] analyze_evaluation_report返回结果: {json.dumps(result, indent=2, ensure_ascii=False)}")
-            logger.info(f"🔍 [EVALUATION_ANALYSIS_API] Analysis completed successfully for project {pk}")
-            return Response(result, status=200)
+            logger.info(f"Analysis completed successfully for project {pk}")
+            return Response({
+                'status': 'success',
+                'analysis_result': result
+            }, status=200)
             
         except Exception as e:
-            print(f"❌ [API调试] 分析失败: {str(e)}")
-            import traceback
-            print(f"❌ [API调试] 错误堆栈:\n{traceback.format_exc()}")
-            logger.error(f"🔍 [EVALUATION_ANALYSIS_API] Analysis failed for project {pk}: {str(e)}")
+            logger.error(f"Analysis failed for project {pk}: {str(e)}")
             return Response({
                 'status': 'error',
-                'error': str(e),
-                'analysis_result': None,
-                'metadata': None
+                'error': str(e)
             }, status=500)
