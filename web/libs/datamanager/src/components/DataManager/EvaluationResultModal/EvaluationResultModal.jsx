@@ -660,18 +660,15 @@ const EvaluationResultModal = ({ result, onClose }) => {
             <span><strong>总文档数:</strong> <span className="summary-number">{evaluation_results?.statistics?.total_documents || task_count}</span></span>
           </Elem>
           <Elem name="summary-item">
-            <span><strong>总票据数:</strong> <span className="summary-number">{evaluation_results?.statistics?.total_invoices || processed_items}</span></span>
-          </Elem>
-          <Elem name="summary-item">
-            <span><strong>总字段数:</strong> <span className="summary-number">{evaluation_results?.statistics?.field_accuracy ? 
-              Object.keys(evaluation_results.statistics.field_accuracy).length * (evaluation_results?.statistics?.total_invoices || processed_items) : 0}</span></span>
-          </Elem>
-          <Elem name="summary-item">
-            <span><strong>Other:</strong> <span className="summary-number">
+            <span><strong>纯Other:</strong> <span className="summary-number">
               {evaluation_results?.statistics?.only_other_docs || 0}
               ({evaluation_results?.statistics?.total_documents > 0 ? 
                 ((evaluation_results?.statistics?.only_other_docs || 0) / evaluation_results.statistics.total_documents * 100).toFixed(1) : '0.0'}%)
             </span></span>
+          </Elem>
+          <strong>|</strong>
+          <Elem name="summary-item">
+            <span><strong>总票据数:</strong> <span className="summary-number">{evaluation_results?.statistics?.total_invoices || processed_items}</span></span>
           </Elem>
           <Elem name="summary-item">
             <span><strong>Invoice:</strong> <span className="summary-number">
@@ -686,6 +683,11 @@ const EvaluationResultModal = ({ result, onClose }) => {
               ({evaluation_results?.statistics?.total_invoices > 0 ? 
                 ((evaluation_results?.statistics?.receipt_count || 0) / evaluation_results.statistics.total_invoices * 100).toFixed(1) : '0.0'}%)
             </span></span>
+          </Elem>
+          <strong>|</strong>
+          <Elem name="summary-item">
+            <span><strong>总字段数:</strong> <span className="summary-number">{evaluation_results?.statistics?.field_accuracy ? 
+              Object.keys(evaluation_results.statistics.field_accuracy).length * (evaluation_results?.statistics?.total_invoices || processed_items) : 0}</span></span>
           </Elem>
           <Elem name="summary-item">
             <span><strong>时间:</strong> <span className="summary-number">{formatDate(evaluated_at)}</span></span>
