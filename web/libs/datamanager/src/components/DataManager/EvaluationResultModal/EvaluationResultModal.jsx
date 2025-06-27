@@ -689,15 +689,16 @@ const EvaluationResultModal = ({ result, onClose }) => {
                 </Button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div onClick={handleSelectClick}>
-                    <Select
-                      value={selectedPrompt}
-                      onChange={handlePromptChange}
-                      options={promptOptions}
-                      size="small"
-                      style={{ minWidth: '120px' }}
-                      placeholder="选择Prompt"
-                      title="选择分析时使用的Prompt"
-                    />
+                    <div title="用于分析报告生成的prompt - 选择不同的prompt可以调整AI分析的角度和重点">
+                      <Select
+                        value={selectedPrompt}
+                        onChange={handlePromptChange}
+                        options={promptOptions}
+                        size="small"
+                        style={{ minWidth: '120px' }}
+                        placeholder="选择Prompt"
+                      />
+                    </div>
                   </div>
                   <Button 
                     type="text" 
