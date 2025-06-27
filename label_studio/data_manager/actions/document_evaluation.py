@@ -576,17 +576,26 @@ def _create_statistics_sheet(writer, statistics, compare_fields, evaluation_conf
         current_row = 22
         total_correct = 0
         
+        # Calculate the total row position based on the number of fields
+        total_row = 22 + len(compare_fields)
+        
+        # If we need more rows than the template provides, insert them
+        if len(compare_fields) > 6:  # Template supports 6 fields (rows 22-27)
+            rows_to_insert = len(compare_fields) - 6
+            # Insert rows before the total row (which was originally at row 28)
+            worksheet.insert_rows(28, rows_to_insert)
+            # Update total_row position
+            total_row = 28 + rows_to_insert
+        
         for field in compare_fields:
-            if current_row >= 28:  # Stop before the 总计 row
-                break
-                
             field_stats = statistics['field_accuracy'].get(field, 0)
             correct_count = round(statistics['total_invoices'] * field_stats / 100)
             total_correct += correct_count
             
-            # Get field label if available
-            field_labels = getattr(evaluation_config.evaluation_config, 'field_labels', {})
-            field_label = field_labels.get(field, field)
+            # 使用原始字段名称，不进行翻译
+            # field_labels = getattr(evaluation_config.evaluation_config, 'field_labels', {})
+            # field_label = field_labels.get(field, field)
+            field_label = field  # 直接使用原始字段名称
             
             # Fill in the data
             worksheet.cell(row=current_row, column=1, value=field_label)  # A列：指标名称
@@ -602,16 +611,16 @@ def _create_statistics_sheet(writer, statistics, compare_fields, evaluation_conf
             
             current_row += 1
         
-        # Fill in total row (row 28)
+        # Fill in total row (at the calculated total_row position)
         total_accuracy = round(total_correct / (statistics['total_invoices'] * len(compare_fields)) * 100, 2) if statistics['total_invoices'] > 0 and len(compare_fields) > 0 else 0
-        worksheet.cell(row=28, column=3, value=statistics['total_invoices'] * len(compare_fields))  # 总票据数
-        worksheet.cell(row=28, column=4, value=total_correct)  # 正确识别总数
+        worksheet.cell(row=total_row, column=3, value=statistics['total_invoices'] * len(compare_fields))  # 总票据数
+        worksheet.cell(row=total_row, column=4, value=total_correct)  # 正确识别总数
         
-        # E28总识别正确率 - 使用数值而非字符串，保持模板的百分比格式
-        e28_cell = worksheet.cell(row=28, column=5, value=total_accuracy / 100)
+        # E总识别正确率 - 使用数值而非字符串，保持模板的百分比格式
+        e_total_cell = worksheet.cell(row=total_row, column=5, value=total_accuracy / 100)
         # 只有当需要统一为无小数点格式时才覆盖模板格式
-        if e28_cell.number_format and '%' in e28_cell.number_format and '.' in e28_cell.number_format:
-            e28_cell.number_format = '0%'
+        if e_total_cell.number_format and '%' in e_total_cell.number_format and '.' in e_total_cell.number_format:
+            e_total_cell.number_format = '0%'
         
         # Remove the default Sheet if it exists
         if 'Sheet' in workbook.sheetnames:
@@ -661,9 +670,10 @@ def _create_statistics_sheet_fallback(writer, statistics, compare_fields, evalua
         correct_count = round(statistics['total_invoices'] * field_stats / 100)
         total_correct += correct_count
         
-        # Get field label if available
-        field_labels = getattr(evaluation_config.evaluation_config, 'field_labels', {})
-        field_label = field_labels.get(field, field)
+        # 使用原始字段名称，不进行翻译
+        # field_labels = getattr(evaluation_config.evaluation_config, 'field_labels', {})
+        # field_label = field_labels.get(field, field)
+        field_label = field  # 直接使用原始字段名称
         
         stats_data.append([
             field_label,
