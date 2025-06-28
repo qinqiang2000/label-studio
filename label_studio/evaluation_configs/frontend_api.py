@@ -119,10 +119,18 @@ def get_project_config(request, project_id):
                         logger.warning(f"Configuration '{document_type}' not found for project {project_id}")
             
             # Return default configuration as last resort
+            # Use 'invoice' as default to match frontend behavior
             default_config = EvaluationFieldConfig.objects.filter(
-                is_system_default=True,
+                key='invoice',
                 is_active=True
             ).first()
+            
+            # Fallback to any system default if invoice not found
+            if not default_config:
+                default_config = EvaluationFieldConfig.objects.filter(
+                    is_system_default=True,
+                    is_active=True
+                ).first()
             
             if default_config:
                 return Response({
