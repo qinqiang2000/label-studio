@@ -13,6 +13,7 @@ const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const { EnvironmentPlugin, DefinePlugin, ProgressPlugin, optimize } = require("webpack");
 const TerserPlugin = require("terser-webpack-plugin");
 const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
+// const CompressionPlugin = require("compression-webpack-plugin");
 
 const RELEASE = require("./release").getReleaseName();
 
@@ -42,6 +43,18 @@ const plugins = [
   }),
   new EnvironmentPlugin(LOCAL_ENV),
 ];
+
+// Add compression plugin for production builds
+// if (mode === "production") {
+//   plugins.push(
+//     new CompressionPlugin({
+//       algorithm: "gzip",
+//       test: /\.(js|css|html|svg|json)$/,
+//       threshold: 8192,
+//       minRatio: 0.8,
+//     })
+//   );
+// }
 
 const optimizer = () => {
   const result = {

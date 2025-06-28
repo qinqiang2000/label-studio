@@ -78,6 +78,7 @@ dependencies = [
     ## HumanSignal repo dependencies :end
     "openpyxl (>=3.0.0)",
     "aenum (>=3.0.0)",
+    "whitenoise (>=6.0.0)",
 ]
 
 [project.urls]
