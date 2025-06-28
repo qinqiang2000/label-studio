@@ -282,17 +282,20 @@ class TaskListAPI(generics.ListCreateAPIView):
 
     @staticmethod
     def prefetch(queryset):
-        return queryset.prefetch_related(
+        # Optimized: use select_related for foreign keys, conditional prefetch
+        return queryset.select_related(
+            'project',
+            'file_upload',
+        ).prefetch_related(
             'annotations',
             'predictions',
             'annotations__completed_by',
-            'project',
-            'io_storages_azureblobimportstoragelink',
-            'io_storages_gcsimportstoragelink',
-            'io_storages_localfilesimportstoragelink',
-            'io_storages_redisimportstoragelink',
-            'io_storages_s3importstoragelink',
-            'file_upload',
+            # Only load storage links when needed - these are expensive prefetches
+            # 'io_storages_azureblobimportstoragelink',
+            # 'io_storages_gcsimportstoragelink', 
+            # 'io_storages_localfilesimportstoragelink',
+            # 'io_storages_redisimportstoragelink',
+            # 'io_storages_s3importstoragelink',
         )
 
     def get(self, request):
@@ -348,7 +351,10 @@ class TaskListAPI(generics.ListCreateAPIView):
                 # if project.retrieve_predictions_automatically is deprecated now and no longer used
                 tasks_for_predictions = Task.objects.filter(id__in=ids, predictions__isnull=True)
                 evaluate_predictions(tasks_for_predictions)
-                [tasks_by_ids[_id].refresh_from_db() for _id in ids]
+                # Optimized: bulk refresh instead of N+1 queries
+                if tasks_for_predictions.exists():
+                    refreshed_tasks = Task.objects.filter(id__in=ids).in_bulk()
+                    tasks_by_ids.update(refreshed_tasks)
 
             serializer = self.task_serializer_class(page, many=True, context=context)
             return self.get_paginated_response(serializer.data)

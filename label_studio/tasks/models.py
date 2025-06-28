@@ -174,6 +174,11 @@ class Task(TaskMixin, models.Model):
             models.Index(fields=['id', 'overlap']),
             models.Index(fields=['overlap']),
             models.Index(fields=['project', 'id']),
+            # Performance optimization indexes for data manager
+            models.Index(fields=['project', 'updated_at']),
+            models.Index(fields=['project', 'created_at']),
+            models.Index(fields=['project', 'total_annotations']),
+            models.Index(fields=['project', 'is_labeled', 'id']),
         ]
 
     @property

@@ -813,23 +813,23 @@ if ENABLE_CSP := get_bool_env('ENABLE_CSP', True):
         "'unsafe-eval'",
         'blob:',
         'browser.sentry-cdn.com',
-        'https://*.googletagmanager.com',
+        # 'https://*.googletagmanager.com',  # Disabled for China compatibility
     )
     CSP_IMG_SRC = (
         "'self'",
         "'report-sample'",
         'data:',
-        'https://*.google-analytics.com',
-        'https://*.googletagmanager.com',
-        'https://*.google.com',
+        # 'https://*.google-analytics.com',  # Disabled for China compatibility
+        # 'https://*.googletagmanager.com',  # Disabled for China compatibility
+        # 'https://*.google.com',  # Disabled for China compatibility
     )
     CSP_CONNECT_SRC = (
         "'self'",
         "'report-sample'",
-        'https://*.google-analytics.com',
-        'https://*.analytics.google.com',
-        'https://analytics.google.com',
-        'https://*.googletagmanager.com',
+        # 'https://*.google-analytics.com',  # Disabled for China compatibility
+        # 'https://*.analytics.google.com',  # Disabled for China compatibility
+        # 'https://analytics.google.com',  # Disabled for China compatibility
+        # 'https://*.googletagmanager.com',  # Disabled for China compatibility
         'https://*.g.double' + 'click.net',  # hacky way of suppressing codespell complaint
         'https://*.ingest.sentry.io',
     )

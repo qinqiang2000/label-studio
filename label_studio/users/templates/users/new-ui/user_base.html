@@ -8,13 +8,14 @@
 <link rel="stylesheet" href="{{ settings.HOSTNAME }}{% static 'css/fonts.hellix.css' %}"/>
 <link rel="stylesheet" href="{{ settings.HOSTNAME }}{% static 'css/login.css' %}"/>
 
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-129877673-1" nonce="{{request.csp_nonce}}"></script>
+<!-- Google Analytics blocked in China, disabled for better performance -->
+<!-- <script async src="https://www.googletagmanager.com/gtag/js?id=UA-129877673-1" nonce="{{request.csp_nonce}}"></script>
 <script nonce="{{request.csp_nonce}}">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
 gtag('config', 'UA-129877673-1');
-</script>
+</script> -->
 {% endblock %}
 
 {% block content %}
@@ -66,7 +67,7 @@ gtag('config', 'UA-129877673-1');
       }
     });
     const origin = window.location.origin;
-    iframe.src = `https://labelstud.io/track/?event=${event}&origin=${origin}`;
+    // iframe.src = `https://labelstud.io/track/?event=${event}&origin=${origin}`; // Disabled for China compatibility
     iframe.style.display = "none";
     iframe.style.visibility = "hidden";
     document.body.appendChild(iframe);
