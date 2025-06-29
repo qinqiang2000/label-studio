@@ -339,7 +339,7 @@ const HtxResizableView = observer(({ item }) => {
         background: '#fafafa',
         borderLeft: '1px solid #ddd',
         position: 'relative',
-        padding: '0 8px 0 8px' // 左侧12px，右侧8px的padding
+        padding: '0 0px 0 0px' // padding
       }}>
         {rightChild}
       </div>
