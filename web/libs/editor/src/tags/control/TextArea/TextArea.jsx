@@ -1547,19 +1547,32 @@ const HtxTextArea = observer(({ item }) => {
                         }
                         
                         return jsonArray.map((itemData, arrayIndex) => {
-                          const sequenceNumber = itemData["序号"] || (arrayIndex + 1);
                           
                           return (
-                            <div key={arrayIndex} style={{ marginBottom: 20, border: "1px solid #e8e8e8", borderRadius: 4, padding: 12 }}>
-                              <div style={{ fontWeight: "bold", marginBottom: 8, color: "#1890ff" }}>
-                                序号: {sequenceNumber}
-                              </div>
-                              {Object.keys(itemData).map((key) => {
-                                // 不显示"序号"字段，因为已经作为标题显示
-                                if (key === "序号") return null;
+                            <div key={arrayIndex}>
+                              <div style={{ 
+                                marginBottom: arrayIndex === jsonArray.length - 1 ? 0 : 10, 
+                                paddingBottom: arrayIndex === jsonArray.length - 1 ? 0 : 10,
+                                borderBottom: arrayIndex === jsonArray.length - 1 ? "none" : "1px dashed #d9d9d9"
+                              }}>
+                                {Object.keys(itemData).map((key) => {
                                 
                                 const value = itemData[key];
                                 const displayValue = typeof value === "object" ? JSON.stringify(value) : String(value);
+                                
+                                // 序号字段特殊处理：直接显示为标签
+                                if (key === "序号") {
+                                  return (
+                                    <div key={key} style={{ 
+                                      marginBottom: 4,
+                                      color: "#1890ff",
+                                      fontWeight: "bold",
+                                      fontSize: 13
+                                    }}>
+                                      序号：{displayValue}
+                                    </div>
+                                  );
+                                }
                                 
                                 return (
                                   <div key={key} style={{ 
@@ -1575,7 +1588,8 @@ const HtxTextArea = observer(({ item }) => {
                                       paddingTop: 4,
                                       wordBreak: "break-word",
                                       lineHeight: "1.3",
-                                      hyphens: "auto"
+                                      hyphens: "auto",
+                                      fontSize: 13
                                     }}>
                                       {key}:
                                     </div>
@@ -1604,6 +1618,7 @@ const HtxTextArea = observer(({ item }) => {
                                   </div>
                                 );
                               })}
+                              </div>
                             </div>
                           );
                         });
