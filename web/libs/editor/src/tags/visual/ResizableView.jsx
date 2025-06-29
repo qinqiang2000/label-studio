@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef, useState, useEffect } from "react";
 import { observer } from "mobx-react";
 import { types } from "mobx-state-tree";
 
@@ -7,6 +7,34 @@ import Tree from "../../core/Tree";
 import Types from "../../core/Types";
 import VisibilityMixin from "../../mixins/Visibility";
 import { AnnotationMixin } from "../../mixins/AnnotationMixin";
+
+// 用户偏好设置管理
+const USER_PREFERENCE_KEY = 'ls_resizable_view_preferences';
+
+const getUserPreferences = () => {
+  try {
+    const stored = localStorage.getItem(USER_PREFERENCE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch (error) {
+    console.warn('Failed to load ResizableView user preferences:', error);
+    return {};
+  }
+};
+
+const saveUserPreference = (key, value) => {
+  try {
+    const preferences = getUserPreferences();
+    preferences[key] = value;
+    localStorage.setItem(USER_PREFERENCE_KEY, JSON.stringify(preferences));
+  } catch (error) {
+    console.warn('Failed to save ResizableView user preferences:', error);
+  }
+};
+
+const getUserPreference = (key, defaultValue) => {
+  const preferences = getUserPreferences();
+  return preferences[key] !== undefined ? preferences[key] : defaultValue;
+};
 
 /**
  * The `ResizableView` element creates a resizable container with two panels that can be adjusted with a draggable separator.
@@ -76,20 +104,42 @@ const HtxResizableView = observer(({ item }) => {
   const rightMinWidth = parseInt(item.rightminwidth) || 250;
   const rightInitialWidth = parseInt(item.rightinitialwidth) || 350;
   
-  const [rightPanelWidth, setRightPanelWidth] = useState(rightInitialWidth);
+  // 生成唯一的偏好设置key，基于组件配置
+  const preferenceKey = `rightPanelWidth_${leftMinWidth}_${rightMinWidth}_${rightInitialWidth}`;
+  
+  // 从用户偏好设置中获取保存的宽度，如果没有则使用默认值
+  const savedWidth = getUserPreference(preferenceKey, rightInitialWidth);
+  const [rightPanelWidth, setRightPanelWidth] = useState(savedWidth);
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [isOptimized, setIsOptimized] = useState(false); // 性能优化模式
   const containerRef = useRef(null);
   const animationIdRef = useRef(null);
   const lastUpdateRef = useRef(0);
+  const saveTimeoutRef = useRef(null);
+
+  // 防抖保存用户偏好设置
+  const saveUserPreferenceDebounced = useCallback((width) => {
+    // 清除之前的延时保存
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // 延时保存，避免拖拽过程中频繁写入localStorage
+    saveTimeoutRef.current = setTimeout(() => {
+      saveUserPreference(preferenceKey, width);
+      console.log(`已保存面板宽度偏好设置: ${width}px`);
+    }, 500); // 500ms后保存
+  }, [preferenceKey]);
 
   // 内存优化：防抖设置宽度
   const setRightPanelWidthOptimized = useCallback((width) => {
     if (Math.abs(width - rightPanelWidth) > 1) { // 只有变化超过1px才更新
       setRightPanelWidth(width);
+      // 同时保存用户偏好
+      saveUserPreferenceDebounced(width);
     }
-  }, [rightPanelWidth]);
+  }, [rightPanelWidth, saveUserPreferenceDebounced]);
 
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -147,8 +197,8 @@ const HtxResizableView = observer(({ item }) => {
           containerWidth - leftMinWidth
         );
         
-        // 直接使用 setRightPanelWidth 避免循环依赖
-        setRightPanelWidth(clampedWidth);
+        // 使用优化的设置函数，会自动保存用户偏好
+        setRightPanelWidthOptimized(clampedWidth);
       });
     };
 
@@ -190,11 +240,23 @@ const HtxResizableView = observer(({ item }) => {
 
     document.addEventListener('mousemove', handleMouseMove, { passive: true });
     document.addEventListener('mouseup', handleMouseUp);
-  }, [leftMinWidth, rightMinWidth]);
+  }, [leftMinWidth, rightMinWidth, setRightPanelWidthOptimized]);
 
   const handleDoubleClick = useCallback(() => {
     setRightPanelWidth(rightInitialWidth);
-  }, [rightInitialWidth]);
+    // 保存重置后的偏好设置
+    saveUserPreference(preferenceKey, rightInitialWidth);
+    console.log(`已重置面板宽度并保存偏好设置: ${rightInitialWidth}px`);
+  }, [rightInitialWidth, preferenceKey]);
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   let containerStyle = {
     display: 'flex',
