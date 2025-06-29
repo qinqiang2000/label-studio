@@ -260,7 +260,7 @@ const HtxResizableView = observer(({ item }) => {
 
   let containerStyle = {
     display: 'flex',
-    height: '100vh',
+    minHeight: '100vh',
     width: '100%',
     position: 'relative'
   };
@@ -301,7 +301,7 @@ const HtxResizableView = observer(({ item }) => {
       <div style={{ 
         flex: 1,
         minWidth: `${leftMinWidth}px`,
-        overflow: 'hidden',
+        overflow: 'auto',
         position: 'relative',
         // 动态性能优化
         willChange: isDragging ? 'width' : 'auto',
@@ -335,7 +335,7 @@ const HtxResizableView = observer(({ item }) => {
       <div style={{
         width: `${rightPanelWidth}px`,
         minWidth: `${rightMinWidth}px`,
-        overflow: 'hidden',
+        overflow: 'auto',
         background: '#fafafa',
         borderLeft: '1px solid #ddd',
         position: 'relative',

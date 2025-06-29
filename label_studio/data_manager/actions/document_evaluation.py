@@ -22,6 +22,48 @@ all_permissions = AllPermissions()
 logger = logging.getLogger(__name__)
 
 
+def get_available_prediction_options(project, queryset):
+    """
+    Get available prompt names and model versions from the selected tasks
+    
+    :param project: Project instance
+    :param queryset: QuerySet of selected tasks
+    :return: Dictionary with available options
+    """
+    # Get tasks with both annotations and predictions
+    tasks_with_both = queryset.filter(
+        annotations__isnull=False,
+        predictions__isnull=False
+    ).distinct()
+    
+    # Get all predictions for these tasks
+    predictions = Prediction.objects.filter(task__in=tasks_with_both)
+    
+    # Get unique prompt names (excluding None and empty strings)
+    prompt_names = list(predictions.exclude(
+        Q(prompt_name__isnull=True) | Q(prompt_name='')
+    ).values_list('prompt_name', flat=True).distinct())
+    
+    # Get unique model versions (excluding None and empty strings)
+    model_versions = list(predictions.exclude(
+        Q(model_version__isnull=True) | Q(model_version='')
+    ).values_list('model_version', flat=True).distinct())
+    
+    # Get unique combinations
+    combinations = list(predictions.exclude(
+        Q(prompt_name__isnull=True) | Q(prompt_name='') |
+        Q(model_version__isnull=True) | Q(model_version='')
+    ).values_list('prompt_name', 'model_version').distinct())
+    
+    return {
+        'prompt_names': sorted(prompt_names),
+        'model_versions': sorted(model_versions),
+        'combinations': sorted(combinations),
+        'total_predictions': predictions.count(),
+        'total_tasks': tasks_with_both.count()
+    }
+
+
 def get_project_evaluation_config(project):
     """
     Get the evaluation configuration for a project
@@ -1011,6 +1053,29 @@ def eval_documents(eval_list, project_config, model_version='N/A'):
     return excel_path, all_rows, statistics
 
 
+def filter_predictions_by_criteria(task_predictions, prompt_filter, model_filter):
+    """
+    Filter predictions based on the filter criteria
+    
+    :param task_predictions: QuerySet of predictions for a task
+    :param prompt_filter: Prompt name to filter by (empty string for no filter)
+    :param model_filter: Model version to filter by (empty string for no filter)
+    :return: Filtered prediction or None
+    """
+    filtered = task_predictions
+    
+    # Apply prompt filter if specified
+    if prompt_filter:
+        filtered = filtered.filter(prompt_name=prompt_filter)
+    
+    # Apply model version filter if specified
+    if model_filter:
+        filtered = filtered.filter(model_version=model_filter)
+    
+    # Return the latest matching prediction
+    return filtered.last() if filtered.exists() else None
+
+
 def get_last_value(task_ann_preds):
     """Get the last value from queryset or result list"""
     ann_pred_list = list(task_ann_preds)
@@ -1041,6 +1106,11 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
     """
     logger.info(f"Starting document extraction evaluation, project ID: {project.id}, task count: {queryset.count()}")
     
+    # Get filter criteria from form data
+    prompt_filter = kwargs.get('prompt_filter', '')
+    model_filter = kwargs.get('model_filter', '')
+    logger.info(f"Using prediction filters - prompt: '{prompt_filter}', model: '{model_filter}'")
+    
     # Get project evaluation configuration
     project_config = get_project_evaluation_config(project)
     
@@ -1070,25 +1140,30 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
             # Get last annotation as ground truth
             ann_text = get_last_value(task_annotations)
             
-            # Get last prediction
-            last_prediction = task_predictions.last()
-            pred_text = get_last_value([last_prediction.result])
+            # Apply prediction filtering
+            selected_prediction = filter_predictions_by_criteria(task_predictions, prompt_filter, model_filter)
             
-            # Extract model version
-            if model_version == 'N/A' and hasattr(last_prediction, 'model_version'):
-                model_version = last_prediction.model_version or 'N/A'
-            
-            # Extract prompt name
-            prompt_name = getattr(last_prediction, 'prompt_name', 'N/A')
-            
-            task_data_dict = getattr(task, 'data', {})
+            if selected_prediction:
+                pred_text = get_last_value([selected_prediction.result])
+                
+                # Extract model version
+                if model_version == 'N/A' and hasattr(selected_prediction, 'model_version'):
+                    model_version = selected_prediction.model_version or 'N/A'
+                
+                # Extract prompt name
+                prompt_name = getattr(selected_prediction, 'prompt_name', 'N/A')
+                
+                task_data_dict = getattr(task, 'data', {})
 
-            if 'filename' in task_data_dict:
-                filename = task_data_dict['filename']
-                results[filename] = (ann_text, pred_text, prompt_name)
+                if 'filename' in task_data_dict:
+                    filename = task_data_dict['filename']
+                    results[filename] = (ann_text, pred_text, prompt_name)
+                else:
+                    task_id = getattr(task, 'id', 'NO_ID')
+                    logger.error(f"Task {task_id} missing filename, skipping")
             else:
                 task_id = getattr(task, 'id', 'NO_ID')
-                logger.error(f"Task {task_id} missing filename, skipping")
+                logger.warning(f"Task {task_id} has no predictions matching filter criteria: prompt='{prompt_filter}', model='{model_filter}'")
 
     # Perform evaluation
     excel_path, all_rows, statistics = eval_documents(results, project_config, model_version=model_version)
@@ -1118,9 +1193,19 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
         'statistics': statistics
     }
     
+    # Build detailed description based on filter criteria
+    filter_description = ""
+    if prompt_filter or model_filter:
+        filter_parts = []
+        if prompt_filter:
+            filter_parts.append(f"prompt: {prompt_filter}")
+        if model_filter:
+            filter_parts.append(f"model: {model_filter}")
+        filter_description = f" (filtered by {', '.join(filter_parts)})"
+    
     return {
         'processed_items': len(results),
-        'detail': f'{len(results)} tasks evaluated using {project_config.evaluation_config.name} configuration',
+        'detail': f'{len(results)} tasks evaluated using {project_config.evaluation_config.name} configuration{filter_description}',
         'evaluation_type': 'document_extraction',
         'evaluation_results': evaluation_summary
     }
@@ -1128,11 +1213,107 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
 
 def create_evaluation_form(user, project):
     """
-    Create form for evaluation action with current project configuration display
-    Note: Form removed to avoid mobx-state-tree compatibility issues
+    Create form for evaluation action with prediction filtering options
     """
-    # Return None to disable form - configuration info is now shown in dialog text
-    return None
+    # Default options
+    filter_choices = [('all', 'All predictions (latest for each task)')]
+    help_text = 'Select how to filter predictions for evaluation'
+    
+    try:
+        # Get all tasks with both annotations and predictions for this project
+        all_tasks_with_both = Task.objects.filter(
+            project=project,
+            annotations__isnull=False,
+            predictions__isnull=False
+        ).distinct()
+        
+        if all_tasks_with_both.exists():
+            options = get_available_prediction_options(project, all_tasks_with_both)
+            
+            # Add prompt name options
+            for prompt_name in options['prompt_names']:
+                filter_choices.append((f'prompt:{prompt_name}', f'Prompt: {prompt_name}'))
+            
+            # Add model version options  
+            for model_version in options['model_versions']:
+                filter_choices.append((f'model:{model_version}', f'Model Version: {model_version}'))
+            
+            # Add combination options
+            for prompt_name, model_version in options['combinations']:
+                filter_choices.append((
+                    f'combo:{prompt_name}:{model_version}', 
+                    f'Combo: {prompt_name} + {model_version}'
+                ))
+            
+            help_text = f'Select which predictions to evaluate. Project has {options["total_predictions"]} predictions in {options["total_tasks"]} tasks.'
+        else:
+            help_text = 'No tasks with both annotations and predictions found in this project.'
+            
+    except Exception as e:
+        # Fall back to default options if there's an error
+        logger.warning(f"Error getting prediction options: {e}")
+    
+    # Prepare separate options for prompt and model version
+    prompt_options = [{'value': '', 'label': 'Any Prompt'}]
+    model_options = [{'value': '', 'label': 'Any Model Version'}]
+    
+    try:
+        # Get all tasks with both annotations and predictions for this project
+        all_tasks_with_both = Task.objects.filter(
+            project=project,
+            annotations__isnull=False,
+            predictions__isnull=False
+        ).distinct()
+        
+        if all_tasks_with_both.exists():
+            options = get_available_prediction_options(project, all_tasks_with_both)
+            
+            # Add prompt name options
+            for prompt_name in options['prompt_names']:
+                prompt_options.append({'value': prompt_name, 'label': prompt_name})
+            
+            # Add model version options  
+            for model_version in options['model_versions']:
+                model_options.append({'value': model_version, 'label': model_version})
+            
+            help_text = f'Select filters to apply. Project has {options["total_predictions"]} predictions in {options["total_tasks"]} tasks.'
+        else:
+            help_text = 'No tasks with both annotations and predictions found in this project.'
+            
+    except Exception as e:
+        # Fall back to default options if there's an error
+        logger.warning(f"Error getting prediction options: {e}")
+        help_text = 'Error loading prediction options. Using default settings.'
+    
+    # Return form field configuration in Label Studio format with two separate dropdowns
+    return [
+        {
+            'columnCount': 1,
+            'fields': [
+                {
+                    'type': 'select',
+                    'name': 'prompt_filter',
+                    'label': 'Prompt Filter',
+                    'options': prompt_options,
+                    'value': '',
+                    'help_text': 'Filter by prompt name (optional)'
+                }
+            ],
+        },
+        {
+            'columnCount': 1,
+            'fields': [
+                {
+                    'type': 'select',
+                    'name': 'model_filter',
+                    'label': 'Model Version Filter',
+                    'options': model_options,
+                    'value': '',
+                    'help_text': 'Filter by model version (optional)'
+                }
+            ],
+        }
+    ]
 
 
 # Register document extraction evaluation action
@@ -1144,8 +1325,9 @@ actions = [
         'title': 'Evaluate Document Extraction',
         'order': 202,
         'dialog': {
-            'text': 'This evaluation will compare annotation and prediction results for accuracy. If multiple versions exist, the latest will be used. The evaluation will use the current project configuration. To change evaluation fields, configure them in Project Settings > General Settings.',
+            'text': 'This evaluation will compare annotation and prediction results for accuracy. The evaluation will use the current project configuration. To change evaluation fields, configure them in Project Settings > General Settings.',
             'type': 'confirm',
+            'form': create_evaluation_form,
         },
     },
 ]

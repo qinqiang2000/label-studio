@@ -8,10 +8,10 @@ config: |
     <!-- 左侧：文档渲染区 -->
     <View>
       <!-- 用内嵌 HTML 渲染 PDF / 图片，也可换成 <Image> / <PDF> -->
-      <HyperText name="pdf" value="$pdf" inline="true" height="1100px"/>
+      <HyperText name="pdf" value="$pdf" inline="true" height="100%"/>
     </View>
     <!-- 右侧：字段校对区 -->
-    <View>
+    <View style="flex: 30%;padding-left: 1em; border-left: 1px solid #ddd;">
       <Text name="filename_display" value="$filename" /> 
         <TextArea
           name="invoices_json"
