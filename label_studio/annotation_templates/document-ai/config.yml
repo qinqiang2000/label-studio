@@ -4,14 +4,14 @@ group: Document AI
 image: /static/templates/optical-character-recognition.png
 details: <h1>Write down the JSON text of the document</h1>
 config: |
-  <View style="display: flex;">
+  <ResizableView leftMinWidth="300" rightMinWidth="250" rightInitialWidth="410">
     <!-- 左侧：文档渲染区 -->
-    <View style="flex: 75%;">
+    <View>
       <!-- 用内嵌 HTML 渲染 PDF / 图片，也可换成 <Image> / <PDF> -->
       <HyperText name="pdf" value="$pdf" inline="true" height="1100px"/>
     </View>
     <!-- 右侧：字段校对区 -->
-    <View style="flex: 30%;padding-left: 1em; border-left: 1px solid #ddd;">
+    <View>
       <Text name="filename_display" value="$filename" /> 
         <TextArea
           name="invoices_json"
@@ -30,4 +30,4 @@ config: |
           showSubmitButton="false"
         />
     </View>
-  </View>
+  </ResizableView>

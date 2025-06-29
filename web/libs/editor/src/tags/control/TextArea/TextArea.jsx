@@ -728,7 +728,6 @@ const HtxTextArea = observer(({ item }) => {
     [item],
   );
 
-  console.log('[AutoFill Debug] HtxTextArea rendered. Item name:', item.name, 'Item value:', item._value);
 
   // Load evaluation configuration on component mount
   useEffect(() => {
@@ -832,21 +831,12 @@ const HtxTextArea = observer(({ item }) => {
     item.name &&
     item.name.toLowerCase().includes("json");
 
-  console.log('[AutoFill Debug] showAutoFill components:', {
-    is_value_empty: !item._value,
-    is_displaymode_tag: item.displaymode === PER_REGION_MODES.TAG,
-    item_name_exists: !!item.name,
-    item_name_includes_json: item.name ? item.name.toLowerCase().includes("json") : false,
-    final_showAutoFill: showAutoFill,
-  });
-
   // 检查是否应该执行自动更新（不仅是空字段，切换tab时也要更新）
   const shouldAutoUpdate =
     item.displaymode === PER_REGION_MODES.TAG &&
     item.name &&
     item.name.toLowerCase().includes("json");
 
-  console.log('[AutoFill Debug] shouldAutoUpdate:', shouldAutoUpdate, 'current annotation type:', item.annotation?.type);
 
   // 辅助函数：提取(id: xxx)中的xxx
   const extractName = (str) => {
@@ -864,19 +854,13 @@ const HtxTextArea = observer(({ item }) => {
       const preds = annotationStore?.predictions?.toJSON ? annotationStore.predictions.toJSON() : annotationStore.predictions;
       let filled = false;
 
-      console.log('[AutoFill Debug] handleAutoFill called for item:', item.name, 'toname:', item.toname);
-      console.log('[AutoFill Debug] Current item._value:', item._value);
-
       // 检查当前选中的是否为prediction
       const isPredictionSelected = item.annotation?.type === "prediction";
-      console.log('[AutoFill Debug] isPredictionSelected:', isPredictionSelected);
 
       if (isPredictionSelected) {
         // 当前在查看prediction时，优先使用predictions数据
-        console.log('[AutoFill Debug] Mode: Prediction tab. Trying predictions first.');
         // 1. 先用 predictions
         if (Array.isArray(preds)) {
-          console.log('[AutoFill Debug] Available predictions:', preds.length, preds);
           for (const pred of preds) {
             if (pred.trackedState && pred.trackedState.areas) {
               Array.from(pred.trackedState.areas.values()).forEach(area => {
@@ -891,7 +875,6 @@ const HtxTextArea = observer(({ item }) => {
                       r.value && r.value.text && r.value.text.length > 0
                     ) {
                       const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                      console.log('[AutoFill Debug] Found match in prediction (trackedState.areas), setting value:', value);
                       item.setValue(value);
                       validateJsonAndFields(value);
                       filled = true;
@@ -911,7 +894,6 @@ const HtxTextArea = observer(({ item }) => {
                   r.value && r.value.text && r.value.text.length > 0
                 ) {
                   const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                  console.log('[AutoFill Debug] Found match in prediction (pred.result), setting value:', value);
                   item.setValue(value);
                   validateJsonAndFields(value);
                   filled = true;
@@ -923,7 +905,6 @@ const HtxTextArea = observer(({ item }) => {
 
         // 2. predictions 没命中再用 annotations
         if (!filled && annotationStore?.annotations) {
-          console.log('[AutoFill Debug] Predictions not found, trying annotations. Available annotations:', annotationStore.annotations.length, annotationStore.annotations.toJSON());
           const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
           let lastMatchedValue = null;
           for (const ann of anns) {
@@ -962,7 +943,6 @@ const HtxTextArea = observer(({ item }) => {
             }
           }
           if (lastMatchedValue !== null) {
-            console.log('[AutoFill Debug] Found match in annotation, setting value (fallback):', lastMatchedValue);
             item.setValue(lastMatchedValue);
             validateJsonAndFields(lastMatchedValue);
             filled = true;
@@ -970,10 +950,8 @@ const HtxTextArea = observer(({ item }) => {
         }
       } else {
         // 当前在查看annotation时，保持原有逻辑：优先使用annotations数据
-        console.log('[AutoFill Debug] Mode: Annotation tab. Trying annotations first.');
         // 1. 先用 annotations
         if (annotationStore?.annotations) {
-          console.log('[AutoFill Debug] Available annotations:', annotationStore.annotations.length, annotationStore.annotations.toJSON());
           const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
           let lastMatchedValue = null;
           for (const ann of anns) {
@@ -1012,7 +990,6 @@ const HtxTextArea = observer(({ item }) => {
             }
           }
           if (lastMatchedValue !== null) {
-            console.log('[AutoFill Debug] Found match in annotation, setting value:', lastMatchedValue);
             item.setValue(lastMatchedValue);
             validateJsonAndFields(lastMatchedValue);
             filled = true;
@@ -1021,7 +998,6 @@ const HtxTextArea = observer(({ item }) => {
 
         // 2. annotations 没命中再用 predictions
         if (!filled && Array.isArray(preds)) {
-          console.log('[AutoFill Debug] Annotations not found, trying predictions. Available predictions:', preds.length, preds);
           for (const pred of preds) {
             if (pred.trackedState && pred.trackedState.areas) {
               Array.from(pred.trackedState.areas.values()).forEach(area => {
@@ -1056,7 +1032,6 @@ const HtxTextArea = observer(({ item }) => {
                   r.value && r.value.text && r.value.text.length > 0
                 ) {
                   const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                  console.log('[AutoFill Debug] Found match in prediction (pred.result), setting value (fallback):', value);
                   item.setValue(value);
                   validateJsonAndFields(value);
                   filled = true;
@@ -1074,13 +1049,11 @@ const HtxTextArea = observer(({ item }) => {
       }
     } finally {
       setAutoFillLoading(false);
-      console.log('[AutoFill Debug] handleAutoFill finished.');
     }
   };
 
   // 新增：labelstream/Label All Tasks模式下自动触发自动填充
   useEffect(() => {
-    console.log('[AutoFill Debug] useEffect triggered. showAutoFill:', showAutoFill);
     // 关键节点日志：自动填充触发
     if (showAutoFill) {
       console.log('[AutoFill] 自动填充触发');
@@ -1092,9 +1065,7 @@ const HtxTextArea = observer(({ item }) => {
 
   // 新增：监听annotation类型变化，当切换tab时自动更新内容
   useEffect(() => {
-    console.log('[AutoFill Debug] annotation type change useEffect triggered. shouldAutoUpdate:', shouldAutoUpdate, 'annotation type:', item.annotation?.type);
     if (shouldAutoUpdate) {
-      console.log('[AutoFill Debug] Triggering auto-update due to annotation type change');
       handleAutoFill();
     }
   }, [item.annotation?.type, shouldAutoUpdate]);

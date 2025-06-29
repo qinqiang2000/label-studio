@@ -85,24 +85,76 @@ const HtxResizableView = observer(({ item }) => {
     e.preventDefault();
     setIsDragging(true);
     
+    // 添加临时样式来提高拖拽性能
+    if (containerRef.current) {
+      containerRef.current.style.pointerEvents = 'none'; // 禁用子元素的鼠标事件
+      const leftPanel = containerRef.current.children[0];
+      const rightPanel = containerRef.current.children[2];
+      if (leftPanel) {
+        leftPanel.style.userSelect = 'none';
+        leftPanel.style.pointerEvents = 'none';
+        // 暂时降低PDF渲染质量
+        leftPanel.style.transform = 'translateZ(0)'; // 启用硬件加速
+      }
+      if (rightPanel) {
+        rightPanel.style.userSelect = 'none';
+        rightPanel.style.pointerEvents = 'none';
+      }
+    }
+    
+    let animationId;
+    let lastUpdate = 0;
+    const throttleDelay = 16; // 约60fps
+    
     const handleMouseMove = (moveEvent) => {
-      if (!containerRef.current) return;
+      const now = Date.now();
+      if (now - lastUpdate < throttleDelay) return;
+      lastUpdate = now;
       
-      const rect = containerRef.current.getBoundingClientRect();
-      const containerWidth = rect.width;
-      const newRightWidth = rect.right - moveEvent.clientX;
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
       
-      // Apply constraints
-      const clampedWidth = Math.min(
-        Math.max(newRightWidth, rightMinWidth),
-        containerWidth - leftMinWidth
-      );
-      
-      setRightPanelWidth(clampedWidth);
+      animationId = requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        
+        const rect = containerRef.current.getBoundingClientRect();
+        const containerWidth = rect.width;
+        const newRightWidth = rect.right - moveEvent.clientX;
+        
+        // Apply constraints
+        const clampedWidth = Math.min(
+          Math.max(newRightWidth, rightMinWidth),
+          containerWidth - leftMinWidth
+        );
+        
+        setRightPanelWidth(clampedWidth);
+      });
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
+      
+      // 恢复原始样式
+      if (containerRef.current) {
+        containerRef.current.style.pointerEvents = '';
+        const leftPanel = containerRef.current.children[0];
+        const rightPanel = containerRef.current.children[2];
+        if (leftPanel) {
+          leftPanel.style.userSelect = '';
+          leftPanel.style.pointerEvents = '';
+          leftPanel.style.transform = '';
+        }
+        if (rightPanel) {
+          rightPanel.style.userSelect = '';
+          rightPanel.style.pointerEvents = '';
+        }
+      }
+      
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+      
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
@@ -131,11 +183,11 @@ const HtxResizableView = observer(({ item }) => {
   const rightChild = children[1];
 
   const resizerStyle = {
-    width: isDragging || isHovering ? '3px' : '1px',
-    background: isDragging ? '#007bff' : (isHovering ? 'rgba(0,123,255,0.2)' : 'transparent'),
+    width: isDragging ? '4px' : (isHovering ? '2px' : '1px'),
+    background: isDragging ? '#007bff' : 'transparent',
     cursor: 'ew-resize',
     userSelect: 'none',
-    borderLeft: isDragging ? '1px solid #007bff' : (isHovering ? '1px solid rgba(0,123,255,0.3)' : 'none'),
+    borderLeft: isDragging ? '1px solid #007bff' : (isHovering ? '1px solid rgba(0,0,0,0.1)' : 'none'),
     borderRight: 'none',
     display: 'flex',
     alignItems: 'center',
@@ -146,10 +198,10 @@ const HtxResizableView = observer(({ item }) => {
   };
 
   const dotStyle = {
-    color: isDragging ? '#007bff' : (isHovering ? 'rgba(0,123,255,0.7)' : 'rgba(0,0,0,0.3)'),
+    color: isDragging ? '#007bff' : (isHovering ? 'rgba(0,0,0,0.4)' : 'transparent'),
     fontSize: '10px',
     transform: 'rotate(90deg)',
-    opacity: isDragging || isHovering ? 1 : 0.3
+    opacity: isDragging ? 1 : (isHovering ? 0.6 : 0)
   };
 
   return (
@@ -159,7 +211,11 @@ const HtxResizableView = observer(({ item }) => {
         flex: 1,
         minWidth: `${leftMinWidth}px`,
         overflow: 'hidden',
-        position: 'relative'
+        position: 'relative',
+        // 性能优化
+        willChange: isDragging ? 'width' : 'auto',
+        transform: 'translateZ(0)', // 启用硬件加速
+        backfaceVisibility: 'hidden' // 避免不必要的重绘
       }}>
         {leftChild}
       </div>
@@ -184,7 +240,7 @@ const HtxResizableView = observer(({ item }) => {
         background: '#fafafa',
         borderLeft: '1px solid #ddd',
         position: 'relative',
-        padding: '0 8px 0 12px' // 左侧12px，右侧8px的padding
+        padding: '0 8px 0 8px' // 左侧12px，右侧8px的padding
       }}>
         {rightChild}
       </div>
