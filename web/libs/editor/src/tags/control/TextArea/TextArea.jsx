@@ -1518,6 +1518,47 @@ const HtxTextArea = observer(({ item }) => {
                         }
                         
                         return jsonArray.map((itemData, arrayIndex) => {
+                          // 获取当前文档类型对应的必填字段
+                          const docType = itemData.docType;
+                          const docConfig = allConfigs[docType];
+                          let fieldsToCheck = requiredFields; // 默认使用项目配置
+                          
+                          // 如果找到了对应文档类型的配置，使用它
+                          if (docConfig && docConfig.required_fields) {
+                            fieldsToCheck = docConfig.required_fields;
+                          }
+                          
+                          // 创建一个包含所有必填字段的完整对象
+                          const completeItemData = { ...itemData };
+                          
+                          // 确保所有必填字段都存在，如果缺失则添加空值
+                          fieldsToCheck.forEach(field => {
+                            if (!Object.hasOwn(completeItemData, field)) {
+                              completeItemData[field] = "";
+                            }
+                          });
+                          
+                          // 创建字段排序：序号在最前，其他必填字段按配置顺序，然后是非必填字段
+                          const sortedKeys = [];
+                          
+                          // 1. 先添加序号字段（如果存在）
+                          if (Object.hasOwn(completeItemData, "序号")) {
+                            sortedKeys.push("序号");
+                          }
+                          
+                          // 2. 按配置顺序添加其他必填字段
+                          fieldsToCheck.forEach(field => {
+                            if (field !== "序号" && Object.hasOwn(completeItemData, field)) {
+                              sortedKeys.push(field);
+                            }
+                          });
+                          
+                          // 3. 添加剩余的非必填字段
+                          Object.keys(completeItemData).forEach(key => {
+                            if (!sortedKeys.includes(key)) {
+                              sortedKeys.push(key);
+                            }
+                          });
                           
                           return (
                             <div key={arrayIndex}>
@@ -1526,10 +1567,10 @@ const HtxTextArea = observer(({ item }) => {
                                 paddingBottom: arrayIndex === jsonArray.length - 1 ? 0 : 10,
                                 borderBottom: arrayIndex === jsonArray.length - 1 ? "none" : "1px dashed #d9d9d9"
                               }}>
-                                {Object.keys(itemData).map((key) => {
+                                {sortedKeys.map((key) => {
                                 
-                                const value = itemData[key];
-                                const displayValue = typeof value === "object" ? JSON.stringify(value) : String(value);
+                                const value = completeItemData[key];
+                                const displayValue = typeof value === "object" ? JSON.stringify(value) : String(value || "");
                                 
                                 // 序号字段特殊处理：直接显示为标签
                                 if (key === "序号") {
@@ -1545,17 +1586,10 @@ const HtxTextArea = observer(({ item }) => {
                                   );
                                 }
                                 
-                                // 检查是否为必填字段
-                                const docType = itemData.docType;
-                                const docConfig = allConfigs[docType];
-                                let fieldsToCheck = requiredFields; // 默认使用项目配置
-                                
-                                // 如果找到了对应文档类型的配置，使用它
-                                if (docConfig && docConfig.required_fields) {
-                                  fieldsToCheck = docConfig.required_fields;
-                                }
-                                
+                                // 检查是否为必填字段（使用之前计算的fieldsToCheck）
                                 const isRequired = fieldsToCheck.includes(key);
+                                // 检查是否为缺失的必填字段
+                                const isMissingRequired = isRequired && (!Object.hasOwn(itemData, key) || !itemData[key]);
                                 
                                 return (
                                   <div key={key} style={{ 
@@ -1567,7 +1601,7 @@ const HtxTextArea = observer(({ item }) => {
                                   }}>
                                     <div style={{ 
                                       fontWeight: "500", 
-                                      color: isRequired ? "#666" : "#666",
+                                      color: isMissingRequired ? "#d4380d" : "#666",
                                       paddingTop: 4,
                                       wordBreak: "break-word",
                                       lineHeight: "1.3",
@@ -1601,6 +1635,7 @@ const HtxTextArea = observer(({ item }) => {
                                             backgroundColor: "#fff2e8"
                                           } : {})
                                         }}
+                                        placeholder={isMissingRequired ? `Missing field: ${key}` : undefined}
                                       />
                                     </div>
                                   </div>
