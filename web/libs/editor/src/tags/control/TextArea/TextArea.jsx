@@ -1574,6 +1574,18 @@ const HtxTextArea = observer(({ item }) => {
                                   );
                                 }
                                 
+                                // 检查是否为必填字段
+                                const docType = itemData.docType;
+                                const docConfig = allConfigs[docType];
+                                let fieldsToCheck = requiredFields; // 默认使用项目配置
+                                
+                                // 如果找到了对应文档类型的配置，使用它
+                                if (docConfig && docConfig.required_fields) {
+                                  fieldsToCheck = docConfig.required_fields;
+                                }
+                                
+                                const isRequired = fieldsToCheck.includes(key);
+                                
                                 return (
                                   <div key={key} style={{ 
                                     marginBottom: 8, 
@@ -1584,7 +1596,7 @@ const HtxTextArea = observer(({ item }) => {
                                   }}>
                                     <div style={{ 
                                       fontWeight: "500", 
-                                      color: "#666",
+                                      color: isRequired ? "#1890ff" : "#666",
                                       paddingTop: 4,
                                       wordBreak: "break-word",
                                       lineHeight: "1.3",
@@ -1612,7 +1624,12 @@ const HtxTextArea = observer(({ item }) => {
                                         }}
                                         disabled={item.isReadOnly()}
                                         autoSize={{ minRows: 1, maxRows: 6 }}
-                                        style={{ fontSize: 12 }}
+                                        style={{ 
+                                          fontSize: 12,
+                                          ...(isRequired ? { 
+                                            backgroundColor: "#fff2e8"
+                                          } : {})
+                                        }}
                                       />
                                     </div>
                                   </div>
@@ -1628,7 +1645,7 @@ const HtxTextArea = observer(({ item }) => {
                 },
                 {
                   key: "json",
-                  label: "Json",
+                  label: "JSON",
                   children: (
                     <div
                       style={{
