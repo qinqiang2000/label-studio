@@ -2,6 +2,7 @@ import { createRef, useCallback, useState, useEffect } from "react";
 import Button from "antd/lib/button/index";
 import Form from "antd/lib/form/index";
 import Input from "antd/lib/input/index";
+import Tabs from "antd/lib/tabs";
 import { observer } from "mobx-react";
 import { destroy, isAlive, types } from "mobx-state-tree";
 import ReactSimpleCodeEditor from "react-simple-code-editor";
@@ -718,6 +719,7 @@ const HtxTextArea = observer(({ item }) => {
   const [requiredFields, setRequiredFields] = useState(FALLBACK_REQUIRED_FIELDS);
   const [evaluationConfig, setEvaluationConfig] = useState(null);
   const [allConfigs, setAllConfigs] = useState({}); // 所有评估配置
+  const [activeTab, setActiveTab] = useState("json"); // 添加tab状态
   
   const onFocus = useCallback(
     (ev, model) => {
@@ -1413,6 +1415,42 @@ const HtxTextArea = observer(({ item }) => {
     }
   };
 
+  // 处理KV模式下的值变更
+  const handleKVValueChange = useCallback((arrayIndex, key, value) => {
+    try {
+      const parsed = JSON.parse(item._value || "[]");
+      if (Array.isArray(parsed) && parsed[arrayIndex]) {
+        // 创建新的对象来更新值
+        const updatedItem = { ...parsed[arrayIndex] };
+        updatedItem[key] = value;
+        
+        // 更新数组
+        const updatedArray = [...parsed];
+        updatedArray[arrayIndex] = updatedItem;
+        
+        // 更新JSON值
+        const updatedJson = JSON.stringify(updatedArray, null, 2);
+        item.setValue(updatedJson);
+        validateJsonAndFields(updatedJson);
+      }
+    } catch (error) {
+      console.error('Error updating KV value:', error);
+    }
+  }, [item, validateJsonAndFields]);
+
+  // 解析JSON数据用于KV显示
+  const parseJsonForKV = useCallback(() => {
+    try {
+      const parsed = JSON.parse(item._value || "[]");
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      return [];
+    } catch (error) {
+      return [];
+    }
+  }, [item._value]);
+
   return item.displaymode === PER_REGION_MODES.TAG ? (
     <div className={textareaClassName} style={visibleStyle} ref={item.elementRef}>
       {/* 调试按钮 - 开发环境可见 */}
@@ -1479,39 +1517,134 @@ const HtxTextArea = observer(({ item }) => {
           }}
         >
           <Form.Item style={itemStyle}>
-            <div
-              style={{
-                maxHeight: "610px",
-                overflowY: "auto",
-                border: "1px solid #d9d9d9",
-                borderRadius: 4,
-              }}
-            >
-              <ReactSimpleCodeEditor
-                value={item._value}
-                onValueChange={(value) => {
-                  if (!item.annotation.isReadOnly()) {
-                    item.setValue(value);
-                    validateJsonAndFields(value);
-                  }
-                }}
-                highlight={(code) => highlightWithDynamicRequiredFields(code, allConfigs, requiredFields)}
-                padding={10}
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: 14,
-                  minHeight: rows > 1 ? rows * 22 : 22,
-                  background: item.isReadOnly() ? "#f5f5f5" : "white",
-                  outline: "none",
-                  width: "100%",
-                  border: "none",
-                  ...itemStyle,
-                }}
-                readOnly={item.isReadOnly()}
-                aria-label="TextArea Input"
-                placeholder={item.placeholder}
-              />
-            </div>
+            <Tabs
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              size="small"
+              items={[
+                {
+                  key: "json",
+                  label: "Json",
+                  children: (
+                    <div
+                      style={{
+                        maxHeight: "610px",
+                        overflowY: "auto",
+                        border: "1px solid #d9d9d9",
+                        borderRadius: 4,
+                      }}
+                    >
+                      <ReactSimpleCodeEditor
+                        value={item._value}
+                        onValueChange={(value) => {
+                          if (!item.annotation.isReadOnly()) {
+                            item.setValue(value);
+                            validateJsonAndFields(value);
+                          }
+                        }}
+                        highlight={(code) => highlightWithDynamicRequiredFields(code, allConfigs, requiredFields)}
+                        padding={10}
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: 14,
+                          minHeight: rows > 1 ? rows * 22 : 22,
+                          background: item.isReadOnly() ? "#f5f5f5" : "white",
+                          outline: "none",
+                          width: "100%",
+                          border: "none",
+                          ...itemStyle,
+                        }}
+                        readOnly={item.isReadOnly()}
+                        aria-label="TextArea Input"
+                        placeholder={item.placeholder}
+                      />
+                    </div>
+                  ),
+                },
+                {
+                  key: "kv",
+                  label: "Text",
+                  children: (
+                    <div
+                      style={{
+                        maxHeight: "610px",
+                        overflowY: "auto",
+                        border: "1px solid #d9d9d9",
+                        borderRadius: 4,
+                        padding: 10,
+                        background: item.isReadOnly() ? "#f5f5f5" : "white",
+                      }}
+                    >
+                      {(() => {
+                        const jsonArray = parseJsonForKV();
+                        if (jsonArray.length === 0) {
+                          return (
+                            <div style={{ color: "#999", textAlign: "center", padding: "20px" }}>
+                              暂无数据
+                            </div>
+                          );
+                        }
+                        
+                        return jsonArray.map((itemData, arrayIndex) => {
+                          const sequenceNumber = itemData["序号"] || (arrayIndex + 1);
+                          
+                          return (
+                            <div key={arrayIndex} style={{ marginBottom: 20, border: "1px solid #e8e8e8", borderRadius: 4, padding: 12 }}>
+                              <div style={{ fontWeight: "bold", marginBottom: 8, color: "#1890ff" }}>
+                                序号: {sequenceNumber}
+                              </div>
+                              {Object.keys(itemData).map((key) => {
+                                // 不显示"序号"字段，因为已经作为标题显示
+                                if (key === "序号") return null;
+                                
+                                const value = itemData[key];
+                                const displayValue = typeof value === "object" ? JSON.stringify(value) : String(value);
+                                
+                                return (
+                                  <div key={key} style={{ marginBottom: 8, display: "flex", alignItems: "flex-start" }}>
+                                    <div style={{ 
+                                      minWidth: 120, 
+                                      fontWeight: "500", 
+                                      color: "#666",
+                                      paddingRight: 8,
+                                      paddingTop: 4 
+                                    }}>
+                                      {key}:
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                      <Input.TextArea
+                                        value={displayValue}
+                                        onChange={(e) => {
+                                          if (!item.isReadOnly()) {
+                                            let newValue = e.target.value;
+                                            // 尝试解析JSON字符串
+                                            try {
+                                              if (newValue.startsWith("{") || newValue.startsWith("[")) {
+                                                newValue = JSON.parse(newValue);
+                                              }
+                                            } catch (error) {
+                                              // 如果不是有效JSON，保持字符串
+                                            }
+                                            handleKVValueChange(arrayIndex, key, newValue);
+                                          }
+                                        }}
+                                        disabled={item.isReadOnly()}
+                                        autoSize={{ minRows: 1, maxRows: 6 }}
+                                        style={{ fontSize: 12 }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  ),
+                },
+              ]}
+            />
             {showAddButton && (
               <Button style={{ marginTop: "10px" }} type="primary" htmlType="submit">
                 Add
