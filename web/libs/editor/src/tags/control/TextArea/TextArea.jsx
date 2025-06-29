@@ -1596,7 +1596,7 @@ const HtxTextArea = observer(({ item }) => {
                                   }}>
                                     <div style={{ 
                                       fontWeight: "500", 
-                                      color: isRequired ? "#1890ff" : "#666",
+                                      color: isRequired ? "#666" : "#666",
                                       paddingTop: 4,
                                       wordBreak: "break-word",
                                       lineHeight: "1.3",

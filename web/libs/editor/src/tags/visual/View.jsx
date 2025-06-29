@@ -77,6 +77,7 @@ const Model = types
     type: "view",
     children: Types.unionArray([
       "view",
+      "resizableview",
       "header",
       "labels",
       "label",
