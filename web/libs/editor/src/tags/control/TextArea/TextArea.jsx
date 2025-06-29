@@ -719,7 +719,7 @@ const HtxTextArea = observer(({ item }) => {
   const [requiredFields, setRequiredFields] = useState(FALLBACK_REQUIRED_FIELDS);
   const [evaluationConfig, setEvaluationConfig] = useState(null);
   const [allConfigs, setAllConfigs] = useState({}); // 所有评估配置
-  const [activeTab, setActiveTab] = useState("json"); // 添加tab状态
+  const [activeTab, setActiveTab] = useState("kv"); // 添加tab状态
   
   const onFocus = useCallback(
     (ev, model) => {
@@ -1523,47 +1523,8 @@ const HtxTextArea = observer(({ item }) => {
               size="small"
               items={[
                 {
-                  key: "json",
-                  label: "Json",
-                  children: (
-                    <div
-                      style={{
-                        maxHeight: "610px",
-                        overflowY: "auto",
-                        border: "1px solid #d9d9d9",
-                        borderRadius: 4,
-                      }}
-                    >
-                      <ReactSimpleCodeEditor
-                        value={item._value}
-                        onValueChange={(value) => {
-                          if (!item.annotation.isReadOnly()) {
-                            item.setValue(value);
-                            validateJsonAndFields(value);
-                          }
-                        }}
-                        highlight={(code) => highlightWithDynamicRequiredFields(code, allConfigs, requiredFields)}
-                        padding={10}
-                        style={{
-                          fontFamily: "monospace",
-                          fontSize: 14,
-                          minHeight: rows > 1 ? rows * 22 : 22,
-                          background: item.isReadOnly() ? "#f5f5f5" : "white",
-                          outline: "none",
-                          width: "100%",
-                          border: "none",
-                          ...itemStyle,
-                        }}
-                        readOnly={item.isReadOnly()}
-                        aria-label="TextArea Input"
-                        placeholder={item.placeholder}
-                      />
-                    </div>
-                  ),
-                },
-                {
                   key: "kv",
-                  label: "Text",
+                  label: "KV",
                   children: (
                     <div
                       style={{
@@ -1601,17 +1562,24 @@ const HtxTextArea = observer(({ item }) => {
                                 const displayValue = typeof value === "object" ? JSON.stringify(value) : String(value);
                                 
                                 return (
-                                  <div key={key} style={{ marginBottom: 8, display: "flex", alignItems: "flex-start" }}>
+                                  <div key={key} style={{ 
+                                    marginBottom: 8, 
+                                    display: "grid", 
+                                    gridTemplateColumns: "115px 1fr",
+                                    gap: "8px",
+                                    alignItems: "start"
+                                  }}>
                                     <div style={{ 
-                                      minWidth: 120, 
                                       fontWeight: "500", 
                                       color: "#666",
-                                      paddingRight: 8,
-                                      paddingTop: 4 
+                                      paddingTop: 4,
+                                      wordBreak: "break-word",
+                                      lineHeight: "1.3",
+                                      hyphens: "auto"
                                     }}>
                                       {key}:
                                     </div>
-                                    <div style={{ flex: 1 }}>
+                                    <div>
                                       <Input.TextArea
                                         value={displayValue}
                                         onChange={(e) => {
@@ -1640,6 +1608,45 @@ const HtxTextArea = observer(({ item }) => {
                           );
                         });
                       })()}
+                    </div>
+                  ),
+                },
+                {
+                  key: "json",
+                  label: "Json",
+                  children: (
+                    <div
+                      style={{
+                        maxHeight: "610px",
+                        overflowY: "auto",
+                        border: "1px solid #d9d9d9",
+                        borderRadius: 4,
+                      }}
+                    >
+                      <ReactSimpleCodeEditor
+                        value={item._value}
+                        onValueChange={(value) => {
+                          if (!item.annotation.isReadOnly()) {
+                            item.setValue(value);
+                            validateJsonAndFields(value);
+                          }
+                        }}
+                        highlight={(code) => highlightWithDynamicRequiredFields(code, allConfigs, requiredFields)}
+                        padding={10}
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: 14,
+                          minHeight: rows > 1 ? rows * 22 : 22,
+                          background: item.isReadOnly() ? "#f5f5f5" : "white",
+                          outline: "none",
+                          width: "100%",
+                          border: "none",
+                          ...itemStyle,
+                        }}
+                        readOnly={item.isReadOnly()}
+                        aria-label="TextArea Input"
+                        placeholder={item.placeholder}
+                      />
                     </div>
                   ),
                 },

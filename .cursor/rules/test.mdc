@@ -3,8 +3,7 @@ description: 用于web和后端的api测试验证
 globs: 
 alwaysApply: false
 ---
-注意：当做验证时, 一般不用重新构建和重启服务器, 当前已经是热更新。
-
+注意：当做验证时, 一般不用重新构建和重启服务器, 当前已经是热更新。地址：http://127.0.0.1:8080
 - 如涉及web测试: 可以用playwright mcp做测试。
  - 用户名,密码: qinqiang2000@qq.com 11111111
 - 如涉及后端API测试, 要source .env, 然后加token在header: -H 'Authorization: Token $LABEL_STUDIO_API_KEY'
