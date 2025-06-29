@@ -79,43 +79,62 @@ const HtxResizableView = observer(({ item }) => {
   const [rightPanelWidth, setRightPanelWidth] = useState(rightInitialWidth);
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
+  const [isOptimized, setIsOptimized] = useState(false); // 性能优化模式
   const containerRef = useRef(null);
+  const animationIdRef = useRef(null);
+  const lastUpdateRef = useRef(0);
+
+  // 内存优化：防抖设置宽度
+  const setRightPanelWidthOptimized = useCallback((width) => {
+    if (Math.abs(width - rightPanelWidth) > 1) { // 只有变化超过1px才更新
+      setRightPanelWidth(width);
+    }
+  }, [rightPanelWidth]);
 
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
     setIsDragging(true);
+    setIsOptimized(true);
     
-    // 添加临时样式来提高拖拽性能
+    // 更激进的性能优化
     if (containerRef.current) {
-      containerRef.current.style.pointerEvents = 'none'; // 禁用子元素的鼠标事件
+      containerRef.current.style.pointerEvents = 'none';
       const leftPanel = containerRef.current.children[0];
       const rightPanel = containerRef.current.children[2];
+      
       if (leftPanel) {
         leftPanel.style.userSelect = 'none';
         leftPanel.style.pointerEvents = 'none';
-        // 暂时降低PDF渲染质量
-        leftPanel.style.transform = 'translateZ(0)'; // 启用硬件加速
+        leftPanel.style.transform = 'translateZ(0)';
+        leftPanel.style.willChange = 'width';
+        // 暂时降低渲染质量
+        leftPanel.style.backfaceVisibility = 'hidden';
+        leftPanel.style.perspective = '1000px';
+        // 减少重排和重绘
+        leftPanel.style.contain = 'layout style paint';
       }
+      
       if (rightPanel) {
         rightPanel.style.userSelect = 'none';
         rightPanel.style.pointerEvents = 'none';
+        rightPanel.style.transform = 'translateZ(0)';
+        rightPanel.style.willChange = 'width';
+        rightPanel.style.contain = 'layout style paint';
       }
     }
     
-    let animationId;
-    let lastUpdate = 0;
-    const throttleDelay = 16; // 约60fps
+    const throttleDelay = 8; // 提高到约120fps
     
     const handleMouseMove = (moveEvent) => {
-      const now = Date.now();
-      if (now - lastUpdate < throttleDelay) return;
-      lastUpdate = now;
+      const now = performance.now(); // 使用更精确的时间
+      if (now - lastUpdateRef.current < throttleDelay) return;
+      lastUpdateRef.current = now;
       
-      if (animationId) {
-        cancelAnimationFrame(animationId);
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
       }
       
-      animationId = requestAnimationFrame(() => {
+      animationIdRef.current = requestAnimationFrame(() => {
         if (!containerRef.current) return;
         
         const rect = containerRef.current.getBoundingClientRect();
@@ -128,38 +147,48 @@ const HtxResizableView = observer(({ item }) => {
           containerWidth - leftMinWidth
         );
         
+        // 直接使用 setRightPanelWidth 避免循环依赖
         setRightPanelWidth(clampedWidth);
       });
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
+      setIsOptimized(false);
       
       // 恢复原始样式
       if (containerRef.current) {
         containerRef.current.style.pointerEvents = '';
         const leftPanel = containerRef.current.children[0];
         const rightPanel = containerRef.current.children[2];
+        
         if (leftPanel) {
           leftPanel.style.userSelect = '';
           leftPanel.style.pointerEvents = '';
-          leftPanel.style.transform = '';
+          leftPanel.style.willChange = '';
+          leftPanel.style.backfaceVisibility = '';
+          leftPanel.style.perspective = '';
+          leftPanel.style.contain = '';
         }
+        
         if (rightPanel) {
           rightPanel.style.userSelect = '';
           rightPanel.style.pointerEvents = '';
+          rightPanel.style.willChange = '';
+          rightPanel.style.contain = '';
         }
       }
       
-      if (animationId) {
-        cancelAnimationFrame(animationId);
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
+        animationIdRef.current = null;
       }
       
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mousemove', handleMouseMove, { passive: true });
     document.addEventListener('mouseup', handleMouseUp);
   }, [leftMinWidth, rightMinWidth]);
 
@@ -212,10 +241,18 @@ const HtxResizableView = observer(({ item }) => {
         minWidth: `${leftMinWidth}px`,
         overflow: 'hidden',
         position: 'relative',
-        // 性能优化
+        // 动态性能优化
         willChange: isDragging ? 'width' : 'auto',
-        transform: 'translateZ(0)', // 启用硬件加速
-        backfaceVisibility: 'hidden' // 避免不必要的重绘
+        transform: 'translateZ(0)',
+        backfaceVisibility: 'hidden',
+        // 拖拽时额外优化
+        ...(isOptimized && {
+          contain: 'layout style paint',
+          isolation: 'isolate',
+          // 降低渲染精度以提高性能
+          imageRendering: 'optimizeSpeed',
+          textRendering: 'optimizeSpeed'
+        })
       }}>
         {leftChild}
       </div>
