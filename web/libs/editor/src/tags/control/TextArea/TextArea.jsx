@@ -336,6 +336,26 @@ function getRequiredFields(item) {
   return fallbackFields;
 }
 
+// 统一的必填字段获取函数 - 同时用于JSON验证和KV界面高亮
+function getRequiredFieldsForDocument(docType, defaultRequiredFields, allConfigs) {
+  // 对于docType为"other"或"unknown"的文档，不设置任何必填字段
+  if (docType) {
+    const docTypeLower = docType.toLowerCase();
+    if (docTypeLower === 'other' || docTypeLower === 'unknown') {
+      return []; // 不设置任何必填字段
+    } else {
+      // 如果找到了对应文档类型的配置，使用它
+      const docConfig = allConfigs[docType];
+      if (docConfig && docConfig.required_fields) {
+        return docConfig.required_fields;
+      }
+    }
+  }
+  
+  // 默认使用项目配置
+  return defaultRequiredFields;
+}
+
 // 扩展的高亮函数：根据文档类型动态高亮必填字段
 function highlightWithDynamicRequiredFields(code, allConfigs = {}, fallbackFields = FALLBACK_REQUIRED_FIELDS) {
   let html = Prism.highlight(code, Prism.languages.json, "json");
@@ -1215,21 +1235,13 @@ const HtxTextArea = observer(({ item }) => {
                   pageCount[page]++;
                 }
 
-                // 动态字段验证逻辑 - 根据文档类型使用对应的配置
+                // 动态字段验证逻辑 - 使用统一的必填字段获取函数
                 const docType = x.docType;
+                const fieldsToCheck = getRequiredFieldsForDocument(docType, currentRequiredFields, currentAllConfigs);
                 const docConfig = currentAllConfigs[docType];
+                let docConfigForLabel = docConfig || currentEvaluationConfig;
                 
-                let fieldsToCheck = currentRequiredFields; // 默认使用项目配置
-                let docConfigForLabel = currentEvaluationConfig;
-                
-                // 如果找到了对应文档类型的配置，使用它
-                if (docConfig && docConfig.required_fields) {
-                  fieldsToCheck = docConfig.required_fields;
-                  docConfigForLabel = docConfig;
-                  console.log(`[Validation] Using ${docType} specific config, required fields:`, fieldsToCheck);
-                } else {
-                  console.log(`[Validation] No specific config for ${docType}, using project default:`, fieldsToCheck);
-                }
+                console.log(`[Validation] Document ${i + 1} (${docType}): required fields:`, fieldsToCheck);
                 
                 fieldsToCheck.forEach((field) => {
                   if (!x.hasOwnProperty(field)) {
@@ -1518,15 +1530,9 @@ const HtxTextArea = observer(({ item }) => {
                         }
                         
                         return jsonArray.map((itemData, arrayIndex) => {
-                          // 获取当前文档类型对应的必填字段
+                          // 使用统一的必填字段获取函数
                           const docType = itemData.docType;
-                          const docConfig = allConfigs[docType];
-                          let fieldsToCheck = requiredFields; // 默认使用项目配置
-                          
-                          // 如果找到了对应文档类型的配置，使用它
-                          if (docConfig && docConfig.required_fields) {
-                            fieldsToCheck = docConfig.required_fields;
-                          }
+                          const fieldsToCheck = getRequiredFieldsForDocument(docType, requiredFields, allConfigs);
                           
                           // 创建一个包含所有必填字段的完整对象
                           const completeItemData = { ...itemData };

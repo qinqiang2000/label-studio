@@ -548,8 +548,8 @@ class InvoiceComparer:
         # 加载数据
         standard_invoices = self.load_data(standard_data)
         prediction_invoices = self.load_data(prediction_data)
-        print(f"\nstandard_invoices: {standard_invoices}")
-        print(f"prediction_invoices: {prediction_invoices}\n")
+        # print(f"\nstandard_invoices: {standard_invoices}")
+        # print(f"prediction_invoices: {prediction_invoices}\n")
         
         if not isinstance(standard_invoices, list) or not isinstance(prediction_invoices, list):
             raise ValueError("输入数据必须是数组格式")

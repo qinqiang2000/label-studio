@@ -1062,18 +1062,36 @@ def filter_predictions_by_criteria(task_predictions, prompt_filter, model_filter
     :param model_filter: Model version to filter by (empty string for no filter)
     :return: Filtered prediction or None
     """
+    original_count = task_predictions.count()
+    logger.debug(f"Starting with {original_count} predictions for task")
+    
+    # Log all available predictions for debugging
+    if logger.isEnabledFor(logging.DEBUG):
+        for pred in task_predictions:
+            logger.debug(f"Available prediction: prompt_name='{pred.prompt_name}', model_version='{pred.model_version}', id={pred.id}")
+    
     filtered = task_predictions
     
     # Apply prompt filter if specified
     if prompt_filter:
+        logger.debug(f"Applying prompt filter: '{prompt_filter}'")
         filtered = filtered.filter(prompt_name=prompt_filter)
+        logger.debug(f"After prompt filter: {filtered.count()} predictions remaining")
     
     # Apply model version filter if specified
     if model_filter:
+        logger.debug(f"Applying model version filter: '{model_filter}'")
         filtered = filtered.filter(model_version=model_filter)
+        logger.debug(f"After model version filter: {filtered.count()} predictions remaining")
     
     # Return the latest matching prediction
-    return filtered.last() if filtered.exists() else None
+    result = filtered.last() if filtered.exists() else None
+    if result:
+        logger.debug(f"Selected prediction: prompt_name='{result.prompt_name}', model_version='{result.model_version}', id={result.id}")
+    else:
+        logger.debug("No predictions matched the filter criteria")
+    
+    return result
 
 
 def get_last_value(task_ann_preds):
@@ -1107,9 +1125,24 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
     logger.info(f"Starting document extraction evaluation, project ID: {project.id}, task count: {queryset.count()}")
     
     # Get filter criteria from form data
+    # First try to get from kwargs (direct parameter passing)
     prompt_filter = kwargs.get('prompt_filter', '')
     model_filter = kwargs.get('model_filter', '')
+    
+    # If not found in kwargs, try to get from request.data (form submission)
+    if 'request' in kwargs and hasattr(kwargs['request'], 'data'):
+        request_data = kwargs['request'].data
+        if not prompt_filter:
+            prompt_filter = request_data.get('prompt_filter', '')
+        if not model_filter:
+            model_filter = request_data.get('model_filter', '')
+    
     logger.info(f"Using prediction filters - prompt: '{prompt_filter}', model: '{model_filter}'")
+    logger.info(f"Raw kwargs received: {kwargs}")
+    
+    # Also log request.data if available
+    if 'request' in kwargs and hasattr(kwargs['request'], 'data'):
+        logger.info(f"Request data: {kwargs['request'].data}")
     
     # Get project evaluation configuration
     project_config = get_project_evaluation_config(project)
@@ -1123,9 +1156,13 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
         predictions__isnull=False
     ).distinct()
     
+    logger.info(f"Found {tasks_with_both.count()} tasks with both annotations and predictions")
+    
     # Collect annotation and prediction data
     results = {}
     model_version = 'N/A'
+    processed_tasks = 0
+    skipped_tasks = 0
     
     for task in tasks_with_both:
         # Get completed annotations
@@ -1158,13 +1195,20 @@ def evaluate_document_extraction_task(project, queryset, **kwargs):
                 if 'filename' in task_data_dict:
                     filename = task_data_dict['filename']
                     results[filename] = (ann_text, pred_text, prompt_name)
+                    processed_tasks += 1
+                    logger.debug(f"Processed task {task.id} with filename {filename}")
                 else:
                     task_id = getattr(task, 'id', 'NO_ID')
                     logger.error(f"Task {task_id} missing filename, skipping")
+                    skipped_tasks += 1
             else:
                 task_id = getattr(task, 'id', 'NO_ID')
                 logger.warning(f"Task {task_id} has no predictions matching filter criteria: prompt='{prompt_filter}', model='{model_filter}'")
+                skipped_tasks += 1
 
+    # Log final processing summary
+    logger.info(f"Task processing summary: {processed_tasks} processed, {skipped_tasks} skipped, {len(results)} total results")
+    
     # Perform evaluation
     excel_path, all_rows, statistics = eval_documents(results, project_config, model_version=model_version)
     
@@ -1215,47 +1259,10 @@ def create_evaluation_form(user, project):
     """
     Create form for evaluation action with prediction filtering options
     """
-    # Default options
-    filter_choices = [('all', 'All predictions (latest for each task)')]
-    help_text = 'Select how to filter predictions for evaluation'
-    
-    try:
-        # Get all tasks with both annotations and predictions for this project
-        all_tasks_with_both = Task.objects.filter(
-            project=project,
-            annotations__isnull=False,
-            predictions__isnull=False
-        ).distinct()
-        
-        if all_tasks_with_both.exists():
-            options = get_available_prediction_options(project, all_tasks_with_both)
-            
-            # Add prompt name options
-            for prompt_name in options['prompt_names']:
-                filter_choices.append((f'prompt:{prompt_name}', f'Prompt: {prompt_name}'))
-            
-            # Add model version options  
-            for model_version in options['model_versions']:
-                filter_choices.append((f'model:{model_version}', f'Model Version: {model_version}'))
-            
-            # Add combination options
-            for prompt_name, model_version in options['combinations']:
-                filter_choices.append((
-                    f'combo:{prompt_name}:{model_version}', 
-                    f'Combo: {prompt_name} + {model_version}'
-                ))
-            
-            help_text = f'Select which predictions to evaluate. Project has {options["total_predictions"]} predictions in {options["total_tasks"]} tasks.'
-        else:
-            help_text = 'No tasks with both annotations and predictions found in this project.'
-            
-    except Exception as e:
-        # Fall back to default options if there's an error
-        logger.warning(f"Error getting prediction options: {e}")
-    
     # Prepare separate options for prompt and model version
     prompt_options = [{'value': '', 'label': 'Any Prompt'}]
     model_options = [{'value': '', 'label': 'Any Model Version'}]
+    help_text = 'Select filters to apply'
     
     try:
         # Get all tasks with both annotations and predictions for this project
@@ -1316,6 +1323,90 @@ def create_evaluation_form(user, project):
     ]
 
 
+def preview_evaluation_filter(project, queryset, **kwargs):
+    """
+    预览过滤条件影响的任务数量，不执行实际评估
+    """
+    logger.info(f"Starting evaluation filter preview, project ID: {project.id}")
+    
+    # Get filter criteria from form data (same logic as main evaluation)
+    prompt_filter = kwargs.get('prompt_filter', '')
+    model_filter = kwargs.get('model_filter', '')
+    
+    # If not found in kwargs, try to get from request.data (form submission)
+    if 'request' in kwargs and hasattr(kwargs['request'], 'data'):
+        request_data = kwargs['request'].data
+        if not prompt_filter:
+            prompt_filter = request_data.get('prompt_filter', '')
+        if not model_filter:
+            model_filter = request_data.get('model_filter', '')
+    
+    logger.info(f"Preview filters - prompt: '{prompt_filter}', model: '{model_filter}'")
+    
+    # Get tasks with both annotations and predictions
+    tasks_with_both = queryset.filter(
+        annotations__isnull=False,
+        predictions__isnull=False
+    ).distinct()
+    
+    total_tasks = tasks_with_both.count()
+    matching_tasks = 0
+    sample_filenames = []
+    
+    for task in tasks_with_both:
+        # Get prediction objects
+        task_predictions = task.predictions.all()
+        
+        # Apply prediction filtering using the same logic as main evaluation
+        selected_prediction = filter_predictions_by_criteria(task_predictions, prompt_filter, model_filter)
+        
+        if selected_prediction:
+            matching_tasks += 1
+            # Collect some sample filenames for preview
+            if len(sample_filenames) < 3:
+                filename = task.data.get('filename', f'Task {task.id}')
+                sample_filenames.append(filename)
+    
+    skipped_tasks = total_tasks - matching_tasks
+    
+    # Build filter summary
+    filter_parts = []
+    if prompt_filter:
+        filter_parts.append(f"prompt: '{prompt_filter}'")
+    if model_filter:
+        filter_parts.append(f"model: '{model_filter}'")
+    
+    filter_summary = f"Filters: {', '.join(filter_parts)}" if filter_parts else "No filters applied"
+    
+    # Create detailed message
+    if matching_tasks == 0:
+        detail_message = f"⚠️ No tasks match the filter criteria. All {total_tasks} tasks will be skipped."
+    elif matching_tasks == total_tasks:
+        detail_message = f"✅ All {total_tasks} tasks match the filter criteria. All will be processed."
+    else:
+        detail_message = f"📊 {matching_tasks} out of {total_tasks} tasks match the filter criteria. {skipped_tasks} tasks will be skipped."
+        
+    if sample_filenames:
+        detail_message += f"\n\nSample matching files: {', '.join(sample_filenames)}"
+        if matching_tasks > len(sample_filenames):
+            detail_message += f" (and {matching_tasks - len(sample_filenames)} more...)"
+    
+    result = {
+        'total_tasks_with_data': total_tasks,
+        'matching_tasks': matching_tasks,
+        'skipped_tasks': skipped_tasks,
+        'filter_summary': filter_summary,
+        'sample_filenames': sample_filenames,
+        'detail': detail_message,
+        'processed_items': 0,  # This is preview only, no actual processing
+        'evaluation_type': 'preview'
+    }
+    
+    logger.info(f"Preview result: {matching_tasks}/{total_tasks} tasks match criteria")
+    
+    return result
+
+
 # Register document extraction evaluation action
 actions = [
     {
@@ -1326,6 +1417,18 @@ actions = [
         'order': 202,
         'dialog': {
             'text': 'This evaluation will compare annotation and prediction results for accuracy. The evaluation will use the current project configuration. To change evaluation fields, configure them in Project Settings > General Settings.',
+            'type': 'confirm',
+            'form': create_evaluation_form,
+        },
+    },
+    {
+        'id': 'preview_document_evaluation_filter',
+        'entry_point': preview_evaluation_filter,
+        'permission': all_permissions.predictions_any,
+        'title': 'Preview Evaluation Filter',
+        'order': 201,
+        'dialog': {
+            'text': 'Preview how many tasks will be affected by your filter criteria.',
             'type': 'confirm',
             'form': create_evaluation_form,
         },
