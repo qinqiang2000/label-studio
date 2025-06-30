@@ -157,4 +157,18 @@
   &.disappear &__wrapper {
     transform: scale(1.05);
   }
+
+  // Fix for dropdown z-index issues within modal
+  // Ensure dropdown components render above modal backdrop
+  :global([data-radix-popper-content-wrapper]) {
+    z-index: 100000 !important;
+  }
+
+  :global([data-radix-select-content]) {
+    z-index: 100000 !important;
+  }
+
+  :global([data-radix-popover-content]) {
+    z-index: 100000 !important;
+  }
 }

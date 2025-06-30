@@ -283,6 +283,32 @@ class ProjectListAPI(generics.ListCreateAPIView):
                     'Project with the same name already exists: {}'.format(ser.validated_data.get('title', ''))
                 )
             raise LabelStudioDatabaseException('Database error during project creation. Try again.')
+        except Exception as e:
+            # Enhanced error handling for project creation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Project creation failed: {str(e)}")
+            logger.error(f"Request data: {self.request.data}")
+            
+            # Provide more specific error messages
+            if 'JSON' in str(e) or 'json' in str(e).lower():
+                raise RestValidationError({
+                    'detail': 'Invalid JSON format in request data',
+                    'error_type': 'json_parse_error',
+                    'original_error': str(e)
+                })
+            elif 'validation' in str(e).lower():
+                raise RestValidationError({
+                    'detail': 'Data validation failed',
+                    'error_type': 'validation_error',
+                    'original_error': str(e)
+                })
+            else:
+                raise RestValidationError({
+                    'detail': 'Project creation failed due to server error',
+                    'error_type': 'server_error',
+                    'original_error': str(e)
+                })
 
     def get(self, request, *args, **kwargs):
         return super(ProjectListAPI, self).get(request, *args, **kwargs)

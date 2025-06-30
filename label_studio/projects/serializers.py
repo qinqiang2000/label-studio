@@ -175,15 +175,69 @@ class ProjectSerializer(FlexFieldsModelSerializer):
     def to_internal_value(self, data):
         # FIXME: remake this logic with start_training_on_annotation_update
         initial_data = data
-        data = super().to_internal_value(data)
+        
+        # Enhanced data validation and sanitization for project duplication
+        try:
+            data = super().to_internal_value(data)
+        except Exception as e:
+            # Log the original data for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Serialization error for project data: {initial_data}")
+            logger.error(f"Error details: {str(e)}")
+            raise
 
         if 'start_training_on_annotation_update' in initial_data:
-            data['min_annotations_to_start_training'] = int(initial_data['start_training_on_annotation_update'])
+            try:
+                data['min_annotations_to_start_training'] = int(initial_data['start_training_on_annotation_update'])
+            except (ValueError, TypeError):
+                data['min_annotations_to_start_training'] = 0
 
         if 'expert_instruction' in initial_data:
             data['expert_instruction'] = bleach.clean(
                 initial_data['expert_instruction'], tags=SAFE_HTML_TAGS, attributes=SAFE_HTML_ATTRIBUTES
             )
+        
+        # Sanitize control_weights to ensure it's properly serializable
+        if 'control_weights' in data:
+            try:
+                if isinstance(data['control_weights'], str):
+                    import json
+                    data['control_weights'] = json.loads(data['control_weights'])
+                elif data['control_weights'] is None:
+                    data['control_weights'] = {}
+                # Ensure it's a valid dict
+                if not isinstance(data['control_weights'], dict):
+                    data['control_weights'] = {}
+            except (json.JSONDecodeError, TypeError, ValueError):
+                data['control_weights'] = {}
+        
+        # Ensure boolean fields are properly converted
+        boolean_fields = [
+            'show_instruction', 'show_skip_button', 'enable_empty_annotation',
+            'show_annotation_history', 'reveal_preannotations_interactively',
+            'show_collab_predictions', 'evaluate_predictions_automatically',
+            'is_published', 'is_draft'
+        ]
+        
+        for field in boolean_fields:
+            if field in data:
+                if isinstance(data[field], str):
+                    data[field] = data[field].lower() in ('true', '1', 'yes', 'on')
+                else:
+                    data[field] = bool(data[field])
+        
+        # Ensure integer fields are properly converted
+        integer_fields = ['maximum_annotations', 'min_annotations_to_start_training']
+        for field in integer_fields:
+            if field in data and data[field] is not None:
+                try:
+                    data[field] = int(data[field])
+                except (ValueError, TypeError):
+                    if field == 'maximum_annotations':
+                        data[field] = 1
+                    elif field == 'min_annotations_to_start_training':
+                        data[field] = 0
 
         return data
 

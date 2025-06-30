@@ -1,21 +1,28 @@
 import chr from "chroma-js";
 import { format } from "date-fns";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { IconCheck, IconEllipsis, IconMinus, IconSparks } from "@humansignal/icons";
 import { Userpic } from "@humansignal/ui";
 import { Button, Dropdown, Menu, Pagination } from "../../components";
 import { Block, Elem } from "../../utils/bem";
 import { absoluteURL } from "../../utils/helpers";
+import { DuplicateProjectModal } from "./DuplicateProjectModal";
 
 const DEFAULT_CARD_COLORS = ["#FFFFFF", "#FDFDFC"];
 
 export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, pageSize }) => {
+  const [activeModal, setActiveModal] = useState(null);
+
   return (
     <>
       <Elem name="list">
         {projects.map((project) => (
-          <ProjectCard key={project.id} project={project} />
+          <ProjectCard 
+            key={project.id} 
+            project={project} 
+            onShowDuplicateModal={() => setActiveModal(project.id)}
+          />
         ))}
       </Elem>
       <Elem name="pages">
@@ -30,6 +37,14 @@ export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, 
           onPageLoad={(page, pageSize) => loadNextPage(page, pageSize)}
         />
       </Elem>
+      
+      {/* Render modal outside of project cards */}
+      {activeModal && (
+        <DuplicateProjectModal
+          project={projects.find(p => p.id === activeModal)}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
     </>
   );
 };
@@ -49,7 +64,7 @@ export const EmptyProjectsList = ({ openModal }) => {
   );
 };
 
-const ProjectCard = ({ project }) => {
+const ProjectCard = ({ project, onShowDuplicateModal }) => {
   const color = useMemo(() => {
     return DEFAULT_CARD_COLORS.includes(project.color) ? null : project.color;
   }, [project]);
@@ -88,6 +103,11 @@ const ProjectCard = ({ project }) => {
                   <Menu contextual>
                     <Menu.Item href={`/projects/${project.id}/settings`}>Settings</Menu.Item>
                     <Menu.Item href={`/projects/${project.id}/data?labeling=1`}>Label</Menu.Item>
+                    <Menu.Item onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onShowDuplicateModal();
+                    }}>Duplicate</Menu.Item>
                   </Menu>
                 }
               >
