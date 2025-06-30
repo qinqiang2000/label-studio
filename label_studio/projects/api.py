@@ -39,6 +39,7 @@ from projects.serializers import (
     ProjectSummarySerializer,
 )
 from rest_framework import filters, generics, status
+from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import ValidationError as RestValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -47,7 +48,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import exception_handler
-from tasks.models import Task
+from tasks.models import Task, Annotation, Prediction
 from tasks.serializers import (
     NextTaskSerializer,
     TaskSerializer,
@@ -511,6 +512,253 @@ class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
     @api_webhook(WebhookAction.PROJECT_UPDATED)
     def put(self, request, *args, **kwargs):
         return super(ProjectAPI, self).put(request, *args, **kwargs)
+
+
+@method_decorator(
+    name='post',
+    decorator=swagger_auto_schema(
+        tags=['Projects'],
+        x_fern_sdk_group_name='projects',
+        x_fern_sdk_method_name='duplicate',
+        x_fern_audiences=['public'],
+        operation_summary='Duplicate project',
+        operation_description='Create a complete copy of a project including all tasks, annotations and predictions.',
+        manual_parameters=[
+            openapi.Parameter(
+                name='id',
+                type=openapi.TYPE_INTEGER,
+                in_=openapi.IN_PATH,
+                description='A unique integer value identifying the source project to duplicate.',
+            ),
+        ],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'title': openapi.Schema(
+                    title='title',
+                    description='Title for the new project',
+                    type=openapi.TYPE_STRING,
+                    example='My project (Copy)',
+                ),
+                'workspace': openapi.Schema(
+                    title='workspace',
+                    description='Workspace ID for the new project (optional)',
+                    type=openapi.TYPE_INTEGER,
+                    example=1,
+                ),
+            },
+            required=['title'],
+        ),
+        responses={
+            201: openapi.Response(
+                description='Project duplicated successfully',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'title': openapi.Schema(type=openapi.TYPE_STRING),
+                        'task_count': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'annotation_count': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'prediction_count': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    },
+                ),
+            ),
+            400: openapi.Response(description='Invalid request data'),
+            404: openapi.Response(description='Source project not found'),
+        },
+    ),
+)
+class ProjectDuplicateAPI(generics.CreateAPIView):
+    """Duplicate a project with all tasks, annotations and predictions"""
+    
+    parser_classes = (JSONParser, FormParser, MultiPartParser)
+    permission_required = ViewClassPermission(
+        POST=all_permissions.projects_create,
+    )
+    queryset = Project.objects.all()
+    serializer_class = ProjectSerializer
+
+    def get_queryset(self):
+        """Filter projects based on user permissions"""
+        from django.db.models import Q
+        projects = Project.objects.filter(organization=self.request.user.active_organization)
+        
+        # Filter projects based on workspace membership (unless user is superuser)
+        if not self.request.user.is_superuser:
+            projects = projects.filter(
+                Q(workspace__isnull=True) |  # Projects without workspace
+                Q(workspace__members=self.request.user)  # Projects in workspaces where user is a member
+            )
+        
+        return projects
+
+    def post(self, request, *args, **kwargs):
+        """Duplicate a project with all its data"""
+        from django.db import transaction
+        
+        source_project_id = kwargs.get('pk')
+        source_project = generics.get_object_or_404(self.get_queryset(), pk=source_project_id)
+        self.check_object_permissions(request, source_project)
+        
+        # Get request data
+        new_title = request.data.get('title')
+        workspace_id = request.data.get('workspace')
+        
+        if not new_title:
+            return Response(
+                {'error': 'title is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                # Step 1: Duplicate the project
+                new_project = self._duplicate_project(source_project, new_title, workspace_id, request.user)
+                
+                # Step 2: Duplicate all tasks
+                task_count = self._duplicate_tasks(source_project, new_project)
+                
+                # Step 3: Duplicate annotations and predictions
+                annotation_count, prediction_count = self._duplicate_annotations_and_predictions(
+                    source_project, new_project
+                )
+                
+                # Step 4: Update project summary/stats
+                new_project.summary.reset()
+                
+                logger.info(
+                    f'Successfully duplicated project {source_project.id} -> {new_project.id}: '
+                    f'{task_count} tasks, {annotation_count} annotations, {prediction_count} predictions'
+                )
+                
+                return Response({
+                    'id': new_project.id,
+                    'title': new_project.title,
+                    'task_count': task_count,
+                    'annotation_count': annotation_count,
+                    'prediction_count': prediction_count,
+                }, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            logger.error(f'Failed to duplicate project {source_project_id}: {str(e)}')
+            return Response(
+                {'error': f'Failed to duplicate project: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def _duplicate_project(self, source_project, new_title, workspace_id, user):
+        """Create a new project with copied settings"""
+        from workspaces.models import Workspace
+        
+        # Create new project with copied settings
+        new_project = Project(
+            title=new_title,
+            description=source_project.description,
+            label_config=source_project.label_config,
+            expert_instruction=source_project.expert_instruction,
+            show_instruction=source_project.show_instruction,
+            show_skip_button=source_project.show_skip_button,
+            enable_empty_annotation=source_project.enable_empty_annotation,
+            show_annotation_history=source_project.show_annotation_history,
+            reveal_preannotations_interactively=source_project.reveal_preannotations_interactively,
+            show_collab_predictions=source_project.show_collab_predictions,
+            maximum_annotations=source_project.maximum_annotations,
+            color=source_project.color,
+            control_weights=source_project.control_weights,
+            organization=user.active_organization,
+            created_by=user,
+            # Copy other relevant fields
+            min_annotations_to_start_training=source_project.min_annotations_to_start_training,
+            show_ground_truth_first=source_project.show_ground_truth_first,
+            show_overlap_first=source_project.show_overlap_first,
+            overlap_cohort_percentage=source_project.overlap_cohort_percentage,
+            task_data_login=source_project.task_data_login,
+            task_data_password=source_project.task_data_password,
+            evaluate_predictions_automatically=source_project.evaluate_predictions_automatically,
+            skip_queue=source_project.skip_queue,
+            sampling=source_project.sampling,
+        )
+        
+        # Set workspace if provided
+        if workspace_id:
+            workspace = generics.get_object_or_404(
+                Workspace.objects.filter(organization=user.active_organization), 
+                pk=workspace_id
+            )
+            new_project.workspace = workspace
+        
+        new_project.save()
+        return new_project
+
+    def _duplicate_tasks(self, source_project, new_project):
+        """Duplicate all tasks from source to new project"""
+        tasks = Task.objects.filter(project=source_project)
+        task_count = 0
+        
+        for task in tasks:
+            # Create new task with copied data
+            new_task = Task(
+                data=task.data,
+                meta=task.meta,
+                project=new_project,
+                overlap=task.overlap,
+                is_labeled=False,  # Reset labeling status
+                # Copy file upload reference if exists
+                file_upload=task.file_upload,
+            )
+            new_task.save()
+            task_count += 1
+        
+        return task_count
+
+    def _duplicate_annotations_and_predictions(self, source_project, new_project):
+        """Duplicate annotations and predictions for all tasks"""
+        annotation_count = 0
+        prediction_count = 0
+        
+        # Get task mappings (source task ID -> new task)
+        source_tasks = Task.objects.filter(project=source_project).order_by('id')
+        new_tasks = Task.objects.filter(project=new_project).order_by('id')
+        
+        # Create task mapping based on order (should match 1:1)
+        task_mapping = {}
+        for source_task, new_task in zip(source_tasks, new_tasks):
+            task_mapping[source_task.id] = new_task
+        
+        # Duplicate annotations
+        for source_task_id, new_task in task_mapping.items():
+            # Copy annotations
+            annotations = Annotation.objects.filter(task_id=source_task_id)
+            for annotation in annotations:
+                new_annotation = Annotation(
+                    task=new_task,
+                    result=annotation.result,
+                    completed_by=annotation.completed_by,
+                    was_cancelled=annotation.was_cancelled,
+                    ground_truth=annotation.ground_truth,
+                    parent_annotation=None,  # Don't copy parent relationship
+                    parent_prediction=None,  # Don't copy parent relationship
+                    project=new_project,
+                    # Note: created_at and updated_at will be set automatically
+                )
+                new_annotation.save()
+                annotation_count += 1
+            
+            # Copy predictions
+            predictions = Prediction.objects.filter(task_id=source_task_id)
+            for prediction in predictions:
+                new_prediction = Prediction(
+                    task=new_task,
+                    result=prediction.result,
+                    score=prediction.score,
+                    model_version=prediction.model_version,
+                    model_name=prediction.model_name,
+                    project=new_project,
+                )
+                new_prediction.save()
+                prediction_count += 1
+        
+        return annotation_count, prediction_count
 
 
 @method_decorator(

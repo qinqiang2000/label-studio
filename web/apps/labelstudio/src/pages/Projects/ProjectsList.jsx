@@ -1,6 +1,6 @@
 import chr from "chroma-js";
 import { format } from "date-fns";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { NavLink } from "react-router-dom";
 import { IconCheck, IconEllipsis, IconMinus, IconSparks } from "@humansignal/icons";
 import { Userpic } from "@humansignal/ui";
@@ -11,8 +11,21 @@ import { DuplicateProjectModal } from "./DuplicateProjectModal";
 
 const DEFAULT_CARD_COLORS = ["#FFFFFF", "#FDFDFC"];
 
-export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, pageSize }) => {
+export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, pageSize, onRefresh }) => {
   const [activeModal, setActiveModal] = useState(null);
+
+  const handleModalClose = useCallback((newProject) => {
+    setActiveModal(null);
+    if (newProject && onRefresh) {
+      // Refresh the projects list after successful project creation
+      try {
+        onRefresh();
+      } catch (error) {
+        console.error("Failed to refresh projects list:", error);
+        // Even if refresh fails, we still want to close the modal
+      }
+    }
+  }, [onRefresh]);
 
   return (
     <>
@@ -42,7 +55,7 @@ export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, 
       {activeModal && (
         <DuplicateProjectModal
           project={projects.find(p => p.id === activeModal)}
-          onClose={() => setActiveModal(null)}
+          onClose={handleModalClose}
         />
       )}
     </>
@@ -54,7 +67,7 @@ export const EmptyProjectsList = ({ openModal }) => {
     <Block name="empty-projects-page">
       <Elem name="heidi" tag="img" src={absoluteURL("/static/images/opossum_looking.png")} />
       <Elem name="header" tag="h1">
-        Heidi doesn’t see any projects here!
+        Heidi doesn't see any projects here!
       </Elem>
       <p>Create one and start labeling your data.</p>
       <Elem name="action" tag={Button} onClick={openModal} look="primary">
@@ -139,7 +152,7 @@ const ProjectCard = ({ project, onShowDuplicateModal }) => {
         </Elem>
         <Elem name="description">{project.description}</Elem>
         <Elem name="info">
-          <Elem name="created-date">{format(new Date(project.created_at), "dd MMM ’yy, HH:mm")}</Elem>
+          <Elem name="created-date">{format(new Date(project.created_at), "dd MMM 'yy, HH:mm")}</Elem>
           <Elem name="created-by">
             <Userpic src="#" user={project.created_by} showUsername />
           </Elem>

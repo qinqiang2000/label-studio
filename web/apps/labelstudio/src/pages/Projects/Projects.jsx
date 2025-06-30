@@ -37,64 +37,81 @@ export const ProjectsPage = () => {
   const closeModal = () => setModal(false);
 
   const fetchProjects = async (page = currentPage, pageSize = defaultPageSize) => {
-    setNetworkState("loading");
-    abortController.renew(); // Cancel any in flight requests
+    try {
+      setNetworkState("loading");
+      abortController.renew(); // Cancel any in flight requests
 
-    const requestParams = { page, page_size: pageSize };
+      const requestParams = { page, page_size: pageSize };
 
-    requestParams.include = [
-      "id",
-      "title",
-      "created_by",
-      "created_at",
-      "color",
-      "is_published",
-      "assignment_settings",
-    ].join(",");
+      requestParams.include = [
+        "id",
+        "title",
+        "created_by",
+        "created_at",
+        "color",
+        "is_published",
+        "assignment_settings",
+      ].join(",");
 
-    const data = await api.callApi("projects", {
-      params: requestParams,
-      signal: abortController.controller.current.signal,
-      errorFilter: (e) => e.error.includes("aborted"),
-    });
-
-    setTotalItems(data?.count ?? 1);
-    setProjectsList(data.results ?? []);
-    setNetworkState("loaded");
-
-    if (data?.results?.length) {
-      const additionalData = await api.callApi("projects", {
-        params: {
-          ids: data?.results?.map(({ id }) => id).join(","),
-          include: [
-            "id",
-            "description",
-            "num_tasks_with_annotations",
-            "task_number",
-            "skipped_annotations_number",
-            "total_annotations_number",
-            "total_predictions_number",
-            "ground_truth_number",
-            "finished_task_number",
-          ].join(","),
-          page_size: pageSize,
-        },
+      const data = await api.callApi("projects", {
+        params: requestParams,
         signal: abortController.controller.current.signal,
         errorFilter: (e) => e.error.includes("aborted"),
+        headers: {
+          'Accept': 'application/json',
+        },
       });
 
-      if (additionalData?.results?.length) {
-        setProjectsList((prev) =>
-          additionalData.results.map((project) => {
-            const prevProject = prev.find(({ id }) => id === project.id);
-
-            return {
-              ...prevProject,
-              ...project,
-            };
-          }),
-        );
+      if (!data || data.error) {
+        console.error("Failed to fetch projects:", data?.error);
+        setNetworkState("error");
+        return;
       }
+
+      setTotalItems(data?.count ?? 1);
+      setProjectsList(data.results ?? []);
+      setNetworkState("loaded");
+
+      if (data?.results?.length) {
+        const additionalData = await api.callApi("projects", {
+          params: {
+            ids: data?.results?.map(({ id }) => id).join(","),
+            include: [
+              "id",
+              "description",
+              "num_tasks_with_annotations",
+              "task_number",
+              "skipped_annotations_number",
+              "total_annotations_number",
+              "total_predictions_number",
+              "ground_truth_number",
+              "finished_task_number",
+            ].join(","),
+            page_size: pageSize,
+          },
+          signal: abortController.controller.current.signal,
+          errorFilter: (e) => e.error.includes("aborted"),
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+
+        if (additionalData?.results?.length) {
+          setProjectsList((prev) =>
+            additionalData.results.map((project) => {
+              const prevProject = prev.find(({ id }) => id === project.id);
+
+              return {
+                ...prevProject,
+                ...project,
+              };
+            }),
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      setNetworkState("error");
     }
   };
 
@@ -127,6 +144,7 @@ export const ProjectsPage = () => {
               totalItems={totalItems}
               loadNextPage={loadNextPage}
               pageSize={defaultPageSize}
+              onRefresh={() => fetchProjects(currentPage, defaultPageSize)}
             />
           ) : (
             <EmptyProjectsList openModal={openModal} />

@@ -41,6 +41,8 @@ _api_urlpatterns = [
     path('<int:pk>/reimports/<int:reimport_pk>/', api.ProjectReimportAPI.as_view(), name='project-reimports'),
     # Tasks list for the project: get and destroy
     path('<int:pk>/tasks/', api.ProjectTaskListAPI.as_view(), name='project-tasks-list'),
+    # Duplicate project with all data
+    path('<int:pk>/duplicate/', api.ProjectDuplicateAPI.as_view(), name='project-duplicate'),
     # Generate sample task for this project
     path('<int:pk>/sample-task/', api.ProjectSampleTask.as_view(), name='project-sample-task'),
     # List available model versions
