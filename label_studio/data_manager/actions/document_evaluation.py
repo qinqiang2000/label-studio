@@ -1323,88 +1323,6 @@ def create_evaluation_form(user, project):
     ]
 
 
-def preview_evaluation_filter(project, queryset, **kwargs):
-    """
-    预览过滤条件影响的任务数量，不执行实际评估
-    """
-    logger.info(f"Starting evaluation filter preview, project ID: {project.id}")
-    
-    # Get filter criteria from form data (same logic as main evaluation)
-    prompt_filter = kwargs.get('prompt_filter', '')
-    model_filter = kwargs.get('model_filter', '')
-    
-    # If not found in kwargs, try to get from request.data (form submission)
-    if 'request' in kwargs and hasattr(kwargs['request'], 'data'):
-        request_data = kwargs['request'].data
-        if not prompt_filter:
-            prompt_filter = request_data.get('prompt_filter', '')
-        if not model_filter:
-            model_filter = request_data.get('model_filter', '')
-    
-    logger.info(f"Preview filters - prompt: '{prompt_filter}', model: '{model_filter}'")
-    
-    # Get tasks with both annotations and predictions
-    tasks_with_both = queryset.filter(
-        annotations__isnull=False,
-        predictions__isnull=False
-    ).distinct()
-    
-    total_tasks = tasks_with_both.count()
-    matching_tasks = 0
-    sample_filenames = []
-    
-    for task in tasks_with_both:
-        # Get prediction objects
-        task_predictions = task.predictions.all()
-        
-        # Apply prediction filtering using the same logic as main evaluation
-        selected_prediction = filter_predictions_by_criteria(task_predictions, prompt_filter, model_filter)
-        
-        if selected_prediction:
-            matching_tasks += 1
-            # Collect some sample filenames for preview
-            if len(sample_filenames) < 3:
-                filename = task.data.get('filename', f'Task {task.id}')
-                sample_filenames.append(filename)
-    
-    skipped_tasks = total_tasks - matching_tasks
-    
-    # Build filter summary
-    filter_parts = []
-    if prompt_filter:
-        filter_parts.append(f"prompt: '{prompt_filter}'")
-    if model_filter:
-        filter_parts.append(f"model: '{model_filter}'")
-    
-    filter_summary = f"Filters: {', '.join(filter_parts)}" if filter_parts else "No filters applied"
-    
-    # Create detailed message
-    if matching_tasks == 0:
-        detail_message = f"⚠️ No tasks match the filter criteria. All {total_tasks} tasks will be skipped."
-    elif matching_tasks == total_tasks:
-        detail_message = f"✅ All {total_tasks} tasks match the filter criteria. All will be processed."
-    else:
-        detail_message = f"📊 {matching_tasks} out of {total_tasks} tasks match the filter criteria. {skipped_tasks} tasks will be skipped."
-        
-    if sample_filenames:
-        detail_message += f"\n\nSample matching files: {', '.join(sample_filenames)}"
-        if matching_tasks > len(sample_filenames):
-            detail_message += f" (and {matching_tasks - len(sample_filenames)} more...)"
-    
-    result = {
-        'total_tasks_with_data': total_tasks,
-        'matching_tasks': matching_tasks,
-        'skipped_tasks': skipped_tasks,
-        'filter_summary': filter_summary,
-        'sample_filenames': sample_filenames,
-        'detail': detail_message,
-        'processed_items': 0,  # This is preview only, no actual processing
-        'evaluation_type': 'preview'
-    }
-    
-    logger.info(f"Preview result: {matching_tasks}/{total_tasks} tasks match criteria")
-    
-    return result
 
 
 # Register document extraction evaluation action
@@ -1417,18 +1335,6 @@ actions = [
         'order': 202,
         'dialog': {
             'text': 'This evaluation will compare annotation and prediction results for accuracy. The evaluation will use the current project configuration. To change evaluation fields, configure them in Project Settings > General Settings.',
-            'type': 'confirm',
-            'form': create_evaluation_form,
-        },
-    },
-    {
-        'id': 'preview_document_evaluation_filter',
-        'entry_point': preview_evaluation_filter,
-        'permission': all_permissions.predictions_any,
-        'title': 'Preview Evaluation Filter',
-        'order': 201,
-        'dialog': {
-            'text': 'Preview how many tasks will be affected by your filter criteria.',
             'type': 'confirm',
             'form': create_evaluation_form,
         },
