@@ -410,10 +410,19 @@ class MLBackend(models.Model):
 
     def predict_tasks(self, tasks, prompt_name=None, model_version=None):
         logger.info(f"🎯 [PARAMS DEBUG] MLBackend.predict_tasks called with prompt_name: '{prompt_name}', model_version: '{model_version}'")
-        model_version = self.update_state()
+        
+        # 更新状态，但不覆盖传入的model_version参数
+        backend_model_version = self.update_state()
         if self.not_ready:
             logger.debug(f'ML backend {self} is not ready')
             return
+        
+        # 如果没有传入model_version，使用backend的默认版本
+        if not model_version:
+            model_version = backend_model_version
+            logger.info(f"🎯 [PARAMS DEBUG] No model_version provided, using backend default: '{model_version}'")
+        else:
+            logger.info(f"🎯 [PARAMS DEBUG] Using provided model_version: '{model_version}'")
 
         if isinstance(tasks, list):
             from tasks.models import Task
