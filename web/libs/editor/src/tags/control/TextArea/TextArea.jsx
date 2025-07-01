@@ -118,8 +118,6 @@ class EvaluationConfigAPI {
     const now = Date.now();
     const cacheKey = String(projectId);
     
-    console.log('[Evaluation Config API] Fetching config for project:', projectId, 'forceRefresh:', forceRefresh);
-    
     // Force refresh if requested
     if (forceRefresh) {
       this.clearCache(projectId);
@@ -128,24 +126,16 @@ class EvaluationConfigAPI {
     // Return cached data if still valid and not forcing refresh
     const cachedData = evaluationConfigCache.get(cacheKey);
     if (!forceRefresh && cachedData && cachedData.expiry > now) {
-      console.log('[Evaluation Config API] Using cached config for project', projectId, ':', cachedData.config.config_key);
       return cachedData.config;
     }
     
     try {
       // Use the unified API endpoint pattern
       const apiUrl = `/api/frontend/evaluation-configs/project/${projectId}/`;
-      console.log('[Evaluation Config API] Making request to:', apiUrl);
-      
       const headers = this.createHeaders();
-      console.log('[Evaluation Config API] Request headers:', headers);
-      
       const response = await fetch(apiUrl, {
         headers: headers
       });
-      
-      console.log('[Evaluation Config API] Response status:', response.status);
-      console.log('[Evaluation Config API] Response ok:', response.ok);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -154,7 +144,6 @@ class EvaluationConfigAPI {
       }
       
       const config = await response.json();
-      console.log('[Evaluation Config API] Raw config response:', config);
       
       const requiredFields = [...(config.required_fields || [])];
       
@@ -173,15 +162,12 @@ class EvaluationConfigAPI {
         project_default_fields: config.project_default_fields || []
       };
       
-      console.log('[Evaluation Config API] Processed config data:', configData);
-      
       // Cache the result
       evaluationConfigCache.set(cacheKey, {
         config: configData,
         expiry: now + this.CACHE_DURATION
       });
       
-      console.log('[Evaluation Config API] Loaded config for project', projectId, ':', configData.config_key, 'Required fields:', requiredFields);
       return configData;
       
     } catch (error) {
@@ -203,7 +189,6 @@ class EvaluationConfigAPI {
   static async fetchAllConfigs() {
     try {
       const apiUrl = '/api/frontend/evaluation-configs/active/';
-      console.log('[Evaluation Config API] Fetching all configs from:', apiUrl);
       
       const headers = this.createHeaders();
       const response = await fetch(apiUrl, { headers });
@@ -213,7 +198,6 @@ class EvaluationConfigAPI {
       }
       
       const configs = await response.json();
-      console.log('[Evaluation Config API] All configs fetched:', configs);
       
       // 转换为以key为索引的对象
       const configsByKey = {};
@@ -238,7 +222,6 @@ class EvaluationConfigAPI {
         });
       }
       
-      console.log('[Evaluation Config API] Processed all configs:', configsByKey);
       return configsByKey;
     } catch (error) {
       console.error('[Evaluation Config API] Failed to fetch all configs:', error);
@@ -754,29 +737,23 @@ const HtxTextArea = observer(({ item }) => {
     const loadEvaluationConfig = async () => {
       try {
         const annotation = item?.annotation;
-        console.log('[Evaluation Config Debug] Component mount - annotation:', !!annotation);
         
         if (!annotation) {
-          console.log('[Evaluation Config Debug] No annotation found');
           return;
         }
         
         const store = annotation.store;
-        console.log('[Evaluation Config Debug] Store:', !!store);
         
         if (!store) {
-          console.log('[Evaluation Config Debug] No store found');
           return;
         }
         
         // Try multiple ways to get project ID with enhanced logging
         let projectId = store.projectId || store.project?.id;
-        console.log('[Evaluation Config Debug] Store projectId:', projectId);
         
         // Try to get from window object if not found
         if (!projectId && window.APP_SETTINGS?.projectId) {
           projectId = window.APP_SETTINGS.projectId;
-          console.log('[Evaluation Config Debug] Window APP_SETTINGS projectId:', projectId);
         }
         
         // Try to get from URL if still not found
@@ -784,31 +761,23 @@ const HtxTextArea = observer(({ item }) => {
           const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
           if (urlMatch) {
             projectId = parseInt(urlMatch[1]);
-            console.log('[Evaluation Config Debug] URL extracted projectId:', projectId);
           }
         }
         
         // Try to get from history state
         if (!projectId && window.history?.state?.projectId) {
           projectId = window.history.state.projectId;
-          console.log('[Evaluation Config Debug] History state projectId:', projectId);
         }
         
         // Try to get from global store if available
         if (!projectId && window.LSF?.store?.projectId) {
           projectId = window.LSF.store.projectId;
-          console.log('[Evaluation Config Debug] LSF store projectId:', projectId);
         }
         
-        console.log('[Evaluation Config Debug] Final projectId:', projectId);
-        
         if (!projectId) {
-          console.log('[Evaluation Config Debug] No project ID found, using fallback');
           setRequiredFields(FALLBACK_REQUIRED_FIELDS);
           return;
         }
-        
-        console.log('[Evaluation Config Debug] Fetching config for project:', projectId);
         
         // 并行获取项目配置和所有配置
         const [config, allConfigsData] = await Promise.all([
@@ -817,24 +786,20 @@ const HtxTextArea = observer(({ item }) => {
         ]);
         
         if (config) {
-          console.log('[Evaluation Config Debug] Config loaded successfully:', config);
           setRequiredFields(config.required_fields);
           setEvaluationConfig(config);
           console.log('[Evaluation Config] Loaded configuration:', config.config_key, 'Required fields:', config.required_fields);
         } else {
-          console.log('[Evaluation Config Debug] No config returned, using fallback');
           setRequiredFields(FALLBACK_REQUIRED_FIELDS);
         }
         
         if (allConfigsData && Object.keys(allConfigsData).length > 0) {
-          console.log('[Evaluation Config Debug] All configs loaded:', Object.keys(allConfigsData));
           setAllConfigs(allConfigsData);
         } else {
-          console.log('[Evaluation Config Debug] No all configs returned');
           setAllConfigs({});
         }
       } catch (error) {
-        console.error('[Evaluation Config Debug] Error loading configuration:', error);
+        console.error('[Evaluation Config] Error loading configuration:', error);
         setRequiredFields(FALLBACK_REQUIRED_FIELDS);
       }
     };
@@ -1032,7 +997,6 @@ const HtxTextArea = observer(({ item }) => {
                       r.value && r.value.text && r.value.text.length > 0
                     ) {
                       const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                      console.log('[AutoFill Debug] Found match in prediction (trackedState.areas), setting value (fallback):', value);
                       item.setValue(value);
                       validateJsonAndFields(value);
                       filled = true;
@@ -1062,11 +1026,6 @@ const HtxTextArea = observer(({ item }) => {
         }
       }
       
-      if (filled) {
-        console.log('[AutoFill Debug] Auto-fill successful. Final filled status:', filled);
-      } else {
-        console.log('[AutoFill Debug] Auto-fill did not find a match. Final filled status:', filled);
-      }
     } finally {
       setAutoFillLoading(false);
     }
@@ -1076,7 +1035,7 @@ const HtxTextArea = observer(({ item }) => {
   useEffect(() => {
     // 关键节点日志：自动填充触发
     if (showAutoFill) {
-      console.log('[AutoFill] 自动填充触发');
+      
     }
     if (showAutoFill) {
       handleAutoFill();

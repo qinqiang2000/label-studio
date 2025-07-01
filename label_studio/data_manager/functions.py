@@ -353,7 +353,11 @@ def evaluate_predictions(tasks, prompt_name=None, model_version=None, project=No
     print(f"\n🔥 EVALUATE_PREDICTIONS CALLED:")
     print(f"🔥 prompt_name: '{prompt_name}'")
     print(f"🔥 model_version: '{model_version}'")
-    print(f"🔥 tasks count: {tasks.count() if hasattr(tasks, 'count') else len(tasks)}")
+    try:
+        tasks_count = tasks.count() if hasattr(tasks, 'count') and not isinstance(tasks, list) else len(tasks)
+    except TypeError:
+        tasks_count = len(tasks)
+    print(f"🔥 tasks count: {tasks_count}")
     print(f"🔥 project: {project}")
     logger.info(f"🔥 [EVALUATE] RECEIVED: prompt_name='{prompt_name}', model_version='{model_version}'")
     
