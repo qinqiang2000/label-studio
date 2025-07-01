@@ -841,14 +841,22 @@ const HtxTextArea = observer(({ item }) => {
 
       // 检查当前选中的是否为prediction
       const isPredictionSelected = item.annotation?.type === "prediction";
+      
+      // 获取当前选中的prediction ID（如果是prediction模式）
+      const currentPredictionId = isPredictionSelected ? item.annotation?.id : null;
 
-      if (isPredictionSelected) {
-        // 当前在查看prediction时，优先使用predictions数据
-        // 1. 先用 predictions
+      if (isPredictionSelected && currentPredictionId) {
+        // 当前在查看prediction时，只使用当前选中的prediction数据
+        console.log('[TextArea AutoFill] Current prediction ID:', currentPredictionId);
         if (Array.isArray(preds)) {
-          for (const pred of preds) {
-            if (pred.trackedState && pred.trackedState.areas) {
-              Array.from(pred.trackedState.areas.values()).forEach(area => {
+          // 找到当前选中的prediction
+          const currentPred = preds.find(pred => pred.id === currentPredictionId);
+          console.log('[TextArea AutoFill] Available predictions:', preds.map(p => ({ id: p.id, model_version: p.model_version })));
+          console.log('[TextArea AutoFill] Found current prediction:', !!currentPred, currentPred?.model_version);
+          if (currentPred) {
+            // 只处理当前选中的prediction
+            if (currentPred.trackedState && currentPred.trackedState.areas) {
+              Array.from(currentPred.trackedState.areas.values()).forEach(area => {
                 if (Array.isArray(area.results)) {
                   area.results.forEach(r => {
                     const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
@@ -860,6 +868,7 @@ const HtxTextArea = observer(({ item }) => {
                       r.value && r.value.text && r.value.text.length > 0
                     ) {
                       const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                      console.log('[TextArea AutoFill] Found value from trackedState for prediction', currentPred.model_version, ':', value.substring(0, 100) + '...');
                       item.setValue(value);
                       validateJsonAndFields(value);
                       filled = true;
@@ -868,8 +877,8 @@ const HtxTextArea = observer(({ item }) => {
                 }
               });
             }
-            if (pred.result) {
-              for (const r of pred.result) {
+            if (!filled && currentPred.result) {
+              for (const r of currentPred.result) {
                 const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
                 const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
                 if (
@@ -879,62 +888,24 @@ const HtxTextArea = observer(({ item }) => {
                   r.value && r.value.text && r.value.text.length > 0
                 ) {
                   const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
+                  console.log('[TextArea AutoFill] Found value from result for prediction', currentPred.model_version, ':', value.substring(0, 100) + '...');
                   item.setValue(value);
                   validateJsonAndFields(value);
                   filled = true;
+                  break; // 找到就退出
                 }
               }
             }
           }
         }
 
-        // 2. predictions 没命中再用 annotations
-        if (!filled && annotationStore?.annotations) {
-          const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
-          let lastMatchedValue = null;
-          for (const ann of anns) {
-            let results = ann.result;
-            if (!results && ann.resultSnapshot) results = ann.resultSnapshot;
-            if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result) results = ann._initialAnnotationObj.result;
-            // If still no results, treat _initialAnnotationObj as an array of result items
-            if (
-              !results &&
-              ann._initialAnnotationObj &&
-              (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === 'object')
-            ) {
-              // Convert to array if it's an object with numeric keys
-              const arr = Array.isArray(ann._initialAnnotationObj)
-                ? ann._initialAnnotationObj
-                : Object.values(ann._initialAnnotationObj).filter(v => v && typeof v === 'object' && v.type);
-              if (arr.length > 0) results = arr;
-            }
-            if (results && typeof results.toJSON === 'function') {
-              results = results.toJSON();
-            }
-            if (Array.isArray(results)) {
-              for (const r of results) {
-                const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-                const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
-                if (
-                  fromName === item.name &&
-                  toName === item.toname &&
-                  r.type === "textarea" &&
-                  r.value && r.value.text && r.value.text.length > 0
-                ) {
-                  const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                  lastMatchedValue = value;
-                }
-              }
-            }
-          }
-          if (lastMatchedValue !== null) {
-            item.setValue(lastMatchedValue);
-            validateJsonAndFields(lastMatchedValue);
-            filled = true;
-          }
+        // 如果当前prediction没有数据，不要fallback到annotations，保持一致性
+        if (!filled) {
+          console.log('[TextArea AutoFill] Current prediction has no data for this field, keeping empty to maintain consistency');
         }
       } else {
         // 当前在查看annotation时，保持原有逻辑：优先使用annotations数据
+        console.log('[TextArea AutoFill] In annotation mode, using annotation data');
         // 1. 先用 annotations
         if (annotationStore?.annotations) {
           const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
@@ -1115,6 +1086,8 @@ const HtxTextArea = observer(({ item }) => {
 
               for (let i = 0; i < parsed.length; i++) {
                 const x = parsed[i];
+                // 创建原始数据副本用于字段验证
+                const originalDoc = { ...x };
                 const missing = [];
 
                 // 获取页码，默认为第1页
@@ -1149,49 +1122,50 @@ const HtxTextArea = observer(({ item }) => {
                     isValidDocType = true;
                   }
                 } else {
-                  // 如果仍然没有docType，但包含其他关键字段，则允许通过
-                  console.log(`[Validation] Document missing docType but contains other fields, allowing through`);
-                  isValidDocType = true;
+                  // 如果仍然没有docType，标记为无效票据类型（不参与统计）
+                  console.log(`[Validation] Document missing docType, excluding from ticket statistics but will validate required fields`);
+                  isValidDocType = false;
                 }
                 
-                // 如果不是有效票据类型，跳过统计但继续字段验证
-                if (!isValidDocType) {
-                  continue; // 跳过票据统计，但继续处理下一个文档
-                }
+                // 票据统计处理（但不影响字段验证）
+                let shouldCountForStats = isValidDocType;
 
-                // 如果是跨多页的票据，记录范围信息
-                if (pages.length > 1) {
-                  const sortedPages = [...pages].sort((a, b) => a - b);
-                  // 检查是否为连续页码
-                  let isConsecutive = true;
-                  for (let j = 1; j < sortedPages.length; j++) {
-                    if (sortedPages[j] !== sortedPages[j - 1] + 1) {
-                      isConsecutive = false;
-                      break;
-                    }
-                  }
-                  if (isConsecutive) {
-                    multiPageTickets.push({
-                      range: `p${sortedPages[0]}-p${sortedPages[sortedPages.length - 1]}`,
-                      pages: sortedPages,
-                      startPage: sortedPages[0],
-                    });
-                  } else {
-                    // 非连续页码，按单页处理
-                    sortedPages.forEach((page) => {
-                      if (!pageCount[page]) {
-                        pageCount[page] = 0;
+                // 只有有效票据类型才进行统计
+                if (shouldCountForStats) {
+                  // 如果是跨多页的票据，记录范围信息
+                  if (pages.length > 1) {
+                    const sortedPages = [...pages].sort((a, b) => a - b);
+                    // 检查是否为连续页码
+                    let isConsecutive = true;
+                    for (let j = 1; j < sortedPages.length; j++) {
+                      if (sortedPages[j] !== sortedPages[j - 1] + 1) {
+                        isConsecutive = false;
+                        break;
                       }
-                      pageCount[page]++;
-                    });
+                    }
+                    if (isConsecutive) {
+                      multiPageTickets.push({
+                        range: `p${sortedPages[0]}-p${sortedPages[sortedPages.length - 1]}`,
+                        pages: sortedPages,
+                        startPage: sortedPages[0],
+                      });
+                    } else {
+                      // 非连续页码，按单页处理
+                      sortedPages.forEach((page) => {
+                        if (!pageCount[page]) {
+                          pageCount[page] = 0;
+                        }
+                        pageCount[page]++;
+                      });
+                    }
+                  } else {
+                    // 单页票据
+                    const page = pages[0];
+                    if (!pageCount[page]) {
+                      pageCount[page] = 0;
+                    }
+                    pageCount[page]++;
                   }
-                } else {
-                  // 单页票据
-                  const page = pages[0];
-                  if (!pageCount[page]) {
-                    pageCount[page] = 0;
-                  }
-                  pageCount[page]++;
                 }
 
                 // 动态字段验证逻辑 - 使用统一的必填字段获取函数
@@ -1201,12 +1175,26 @@ const HtxTextArea = observer(({ item }) => {
                 let docConfigForLabel = docConfig || currentEvaluationConfig;
                 
                 console.log(`[Validation] Document ${i + 1} (${docType}): required fields:`, fieldsToCheck);
+                console.log(`[Validation] Document has docType field:`, x.hasOwnProperty('docType'), 'value:', x.docType);
+                console.log(`[Validation] Original document has docType field:`, originalDoc.hasOwnProperty('docType'), 'value:', originalDoc.docType);
+                console.log(`[Validation] Current required fields:`, currentRequiredFields);
+                console.log(`[Validation] All configs available:`, Object.keys(currentAllConfigs));
                 
                 fieldsToCheck.forEach((field) => {
-                  if (!x.hasOwnProperty(field)) {
-                    missing.push(field);
+                  // 对于docType字段，检查原始数据是否包含
+                  if (field === 'docType') {
+                    if (!originalDoc.hasOwnProperty('docType')) {
+                      missing.push(field);
+                    }
+                  } else {
+                    // 其他字段检查当前数据
+                    if (!x.hasOwnProperty(field)) {
+                      missing.push(field);
+                    }
                   }
                 });
+                
+                console.log(`[Validation] Document ${i + 1}: missing fields:`, missing);
                 
                 if (missing.length > 0) {
                   hasFieldErrors = true;
@@ -1219,7 +1207,9 @@ const HtxTextArea = observer(({ item }) => {
                     docTypeText = docConfigForLabel.field_labels.docType[x.docType] || docTypeText;
                   }
                   
-                  allErrorMessages.push(`${docTypeText}[${i + 1}]缺: ${missing.map((m) => `"${m}"`).join(", ")}`);
+                  const errorMsg = `${docTypeText}[${i + 1}]缺: ${missing.map((m) => `"${m}"`).join(", ")}`;
+                  console.log(`[Validation] Adding error message:`, errorMsg);
+                  allErrorMessages.push(errorMsg);
                 }
               }
 
@@ -1245,13 +1235,21 @@ const HtxTextArea = observer(({ item }) => {
               setPageStats(statsArray.length > 0 ? statsArray.map((item) => item.text).join(", ") : "暂无票据");
               
               // 显示所有错误信息，但限制最多显示3个，超过则显示省略号
+              console.log(`[Validation] Total error messages:`, allErrorMessages.length, 'hasFieldErrors:', hasFieldErrors);
+              console.log(`[Validation] All error messages:`, allErrorMessages);
+              
               if (hasFieldErrors) {
                 if (allErrorMessages.length <= 3) {
-                  setJsonFieldError(allErrorMessages.join("\n"));
+                  const finalErrorMsg = allErrorMessages.join("\n");
+                  console.log(`[Validation] Setting jsonFieldError to:`, finalErrorMsg);
+                  setJsonFieldError(finalErrorMsg);
                 } else {
-                  setJsonFieldError(`${allErrorMessages.slice(0, 3).join("\n")}\n...等共${allErrorMessages.length}票，缺核心字段`);
+                  const finalErrorMsg = `${allErrorMessages.slice(0, 3).join("\n")}\n...等共${allErrorMessages.length}票，缺核心字段`;
+                  console.log(`[Validation] Setting jsonFieldError to (truncated):`, finalErrorMsg);
+                  setJsonFieldError(finalErrorMsg);
                 }
               } else {
+                console.log(`[Validation] No field errors, clearing jsonFieldError`);
                 setJsonFieldError("");
               }
             } else {
@@ -1441,7 +1439,7 @@ const HtxTextArea = observer(({ item }) => {
       {pageStats && <div style={{ color: "blue", marginBottom: 4, fontWeight: "normal" }}>{pageStats}</div>}
       {jsonError && <div style={{ color: "red", marginBottom: 4, fontWeight: "bold" }}>{jsonError}</div>}
       {jsonFieldError && (
-        <div style={{ color: "green", marginBottom: 4, fontWeight: "normal" }}>
+        <div style={{ color: "#d4380d", marginBottom: 4, fontWeight: "bold" }}>
           {jsonFieldError.split("\n").map((line, index) => (
             <div key={index}>{line}</div>
           ))}
