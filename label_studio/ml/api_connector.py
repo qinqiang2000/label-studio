@@ -246,9 +246,9 @@ class MLApi(BaseHTTPAPI):
             }
             return self._request('train', request, verbose=False, timeout=TIMEOUT_PREDICT)
 
-    def _prep_prediction_req(self, tasks, project, context=None, prompt_name=None):
+    def _prep_prediction_req(self, tasks, project, context=None, prompt_name=None, model_version=None):
         # 使用print来确保能看到输出
-        print(f"\n🚀 PREP_PREDICTION_REQ CALLED! prompt_name='{prompt_name}'")
+        print(f"\n🚀 PREP_PREDICTION_REQ CALLED! prompt_name='{prompt_name}', model_version='{model_version}'")
         
         params = {
             'login': project.task_data_login,
@@ -263,6 +263,12 @@ class MLApi(BaseHTTPAPI):
             'params': params,
         }
         
+        # Add model_version to params if provided
+        if model_version:
+            params['model_version'] = model_version
+            print(f"🔧 Added model_version to params: '{model_version}'")
+            logger.info(f"🔧 [PREP_REQUEST] Added model_version to params: '{model_version}'")
+
         # Add prompt content and runtime config if prompt_name is provided
         if prompt_name:
             print(f"📝 Processing prompt_name: '{prompt_name}'")
@@ -276,6 +282,9 @@ class MLApi(BaseHTTPAPI):
                 # Add runtime_config if available
                 runtime_config = prompt.get_runtime_config()
                 if runtime_config:
+                    # If model_version is provided, also add it to runtime_config for ML backend convenience
+                    if model_version:
+                        runtime_config['model_version'] = model_version
                     params['runtime_config'] = runtime_config
                     logger.info(f"[RUNTIME_CONFIG] Added to params: {json.dumps(runtime_config, ensure_ascii=False)}")
             except Prompt.DoesNotExist:
@@ -288,21 +297,22 @@ class MLApi(BaseHTTPAPI):
         print(f"🚀 PREP_PREDICTION_REQ FINISHED! Request keys: {list(request.keys())}")
         return request
 
-    def make_predictions(self, tasks, project, context=None, prompt_name=None):
+    def make_predictions(self, tasks, project, context=None, prompt_name=None, model_version=None):
         import logging
         logger = logging.getLogger(__name__)
         
-        print(f"\n🎯 MAKE_PREDICTIONS CALLED! prompt_name='{prompt_name}'")
+        print(f"\n🎯 MAKE_PREDICTIONS CALLED! prompt_name='{prompt_name}', model_version='{model_version}'")
         print(f"🎯 Task count: {len(tasks)}, Project: {project.title} (ID: {project.id})")
         
         logger.info("🔥" * 30)
         logger.info(f"🎯 [MAKE_PREDICTIONS] Starting prediction request")
         logger.info(f"🎯 [MAKE_PREDICTIONS] Prompt name: '{prompt_name}'")
+        logger.info(f"🎯 [MAKE_PREDICTIONS] Model version: '{model_version}'")
         logger.info(f"🎯 [MAKE_PREDICTIONS] Task count: {len(tasks)}")
         logger.info(f"🎯 [MAKE_PREDICTIONS] Project: {project.title} (ID: {project.id})")
         
         # 构建请求
-        request = self._prep_prediction_req(tasks, project, context=context, prompt_name=prompt_name)
+        request = self._prep_prediction_req(tasks, project, context=context, prompt_name=prompt_name, model_version=model_version)
         
         print(f"🎯 Request preparation completed, keys: {list(request.keys())}")
         logger.info(f"🎯 [MAKE_PREDICTIONS] Request preparation completed")

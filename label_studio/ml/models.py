@@ -259,7 +259,7 @@ class MLBackend(models.Model):
         }
 
     def _get_predictions_from_ml_backend_one_by_one(
-        self, serialized_tasks: List[Dict], current_responses: List[Dict], prompt_name=None
+        self, serialized_tasks: List[Dict], current_responses: List[Dict], prompt_name=None, model_version=None
     ) -> List[Dict]:
         """
         This is helper method to get predictions from ML backend one by one
@@ -277,7 +277,7 @@ class MLBackend(models.Model):
             predictions = []
             for serialized_task in serialized_tasks:
                 # get predictions per task
-                predictions.extend(self._get_predictions_from_ml_backend([serialized_task], prompt_name=prompt_name))
+                predictions.extend(self._get_predictions_from_ml_backend([serialized_task], prompt_name=prompt_name, model_version=model_version))
 
             return predictions
         else:
@@ -289,10 +289,10 @@ class MLBackend(models.Model):
             )
             return []
 
-    def _get_predictions_from_ml_backend(self, serialized_tasks: List[Dict], prompt_name=None) -> List[Dict]:
-        # print(f"\n🚀 _get_predictions_from_ml_backend CALLED! prompt_name='{prompt_name}'")
+    def _get_predictions_from_ml_backend(self, serialized_tasks: List[Dict], prompt_name=None, model_version=None) -> List[Dict]:
+        # print(f"\n🚀 _get_predictions_from_ml_backend CALLED! prompt_name='{prompt_name}', model_version='{model_version}'")
         print(f"🚀 About to call api.make_predictions with {len(serialized_tasks)} tasks")
-        result = self.api.make_predictions(serialized_tasks, self.project, prompt_name=prompt_name)
+        result = self.api.make_predictions(serialized_tasks, self.project, prompt_name=prompt_name, model_version=model_version)
         # print(f"🚀 api.make_predictions returned: {type(result)}")
 
         # response validation
@@ -378,7 +378,7 @@ class MLBackend(models.Model):
             # Number of tasks and responses are not equal
             # It can happen if ML backend doesn't support batch processing but only process one task at a time
             # In the future versions, we may better consider this as an error and deprecate this code branch
-            return self._get_predictions_from_ml_backend_one_by_one(serialized_tasks, responses, prompt_name=prompt_name)
+            return self._get_predictions_from_ml_backend_one_by_one(serialized_tasks, responses, prompt_name=prompt_name, model_version=model_version)
 
         # ML backend supports batch processing
         for task, response in zip(serialized_tasks, responses):
@@ -408,8 +408,8 @@ class MLBackend(models.Model):
                 predictions.append(prediction_data)
         return predictions
 
-    def predict_tasks(self, tasks, prompt_name=None):
-        logger.info(f"🎯 [PROMPT DEBUG] MLBackend.predict_tasks called with prompt_name: '{prompt_name}'")
+    def predict_tasks(self, tasks, prompt_name=None, model_version=None):
+        logger.info(f"🎯 [PARAMS DEBUG] MLBackend.predict_tasks called with prompt_name: '{prompt_name}', model_version: '{model_version}'")
         model_version = self.update_state()
         if self.not_ready:
             logger.debug(f'ML backend {self} is not ready')
@@ -436,7 +436,7 @@ class MLBackend(models.Model):
                 Q(predictions__model_version=model_version) & 
                 (Q(predictions__prompt_name__isnull=True) | Q(predictions__prompt_name=''))
             )
-            logger.info(f"🎯 [PROMPT DEBUG] Filtering tasks with model_version='{model_version}' and no prompt_name")
+            logger.info(f"🎯 [PARAMS DEBUG] Filtering tasks with model_version='{model_version}' and no prompt_name")
         
         if not tasks.exists():
             if prompt_name:
@@ -452,8 +452,8 @@ class MLBackend(models.Model):
             }
         
         tasks_ser = TaskSimpleSerializer(tasks, many=True).data
-        logger.info(f"🎯 [PROMPT DEBUG] Serialized {len(tasks_ser)} tasks, calling _get_predictions_from_ml_backend with prompt_name: '{prompt_name}'")
-        predictions = self._get_predictions_from_ml_backend(tasks_ser, prompt_name=prompt_name)
+        logger.info(f"🎯 [PARAMS DEBUG] Serialized {len(tasks_ser)} tasks, calling _get_predictions_from_ml_backend with prompt_name: '{prompt_name}', model_version: '{model_version}'")
+        predictions = self._get_predictions_from_ml_backend(tasks_ser, prompt_name=prompt_name, model_version=model_version)
         
         # 获取错误信息
         errors = getattr(self, '_last_prediction_errors', [])

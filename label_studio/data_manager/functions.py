@@ -335,7 +335,7 @@ def get_prepared_queryset(request, project):
     return queryset
 
 
-def evaluate_predictions(tasks, prompt_name=None, project=None):
+def evaluate_predictions(tasks, prompt_name=None, model_version=None, project=None):
     """
     Call the given ML backend to retrieve predictions with the task queryset as an input.
     If backend is not specified, we'll assume the tasks' project only has one associated
@@ -343,26 +343,35 @@ def evaluate_predictions(tasks, prompt_name=None, project=None):
     
     :param tasks: task queryset
     :param prompt_name: optional prompt name to use for prediction generation
+    :param model_version: optional model version to use for prediction generation
     :param project: project instance (optional, will be derived from tasks if not provided)
     """
     import logging
     logger = logging.getLogger(__name__)
     
+    # 调试输出
+    print(f"\n🔥 EVALUATE_PREDICTIONS CALLED:")
+    print(f"🔥 prompt_name: '{prompt_name}'")
+    print(f"🔥 model_version: '{model_version}'")
+    print(f"🔥 tasks count: {tasks.count() if hasattr(tasks, 'count') else len(tasks)}")
+    print(f"🔥 project: {project}")
+    logger.info(f"🔥 [EVALUATE] RECEIVED: prompt_name='{prompt_name}', model_version='{model_version}'")
+    
     if not tasks:
-        logger.info("🎯 [PROMPT DEBUG] No tasks provided to evaluate_predictions")
+        logger.info("🎯 [PARAMS DEBUG] No tasks provided to evaluate_predictions")
         return
 
     # 使用传入的项目实例，如果没有则从 tasks 中获取
     if project is None:
         project = tasks[0].project
     
-    logger.info(f"🎯 [PROMPT DEBUG] evaluate_predictions called for project '{project.title}' (ID: {project.id}) with prompt_name: '{prompt_name}'")
+    logger.info(f"🎯 [PARAMS DEBUG] evaluate_predictions called for project '{project.title}' (ID: {project.id}) with prompt_name: '{prompt_name}', model_version: '{model_version}'")
 
     backend = project.ml_backend
 
     if backend:
-        logger.info(f"🎯 [PROMPT DEBUG] Found ML backend '{backend.title}', calling predict_tasks")
-        result = backend.predict_tasks(tasks=tasks, prompt_name=prompt_name)
+        logger.info(f"🎯 [PARAMS DEBUG] Found ML backend '{backend.title}', calling predict_tasks")
+        result = backend.predict_tasks(tasks=tasks, prompt_name=prompt_name, model_version=model_version)
         
         # 处理新的返回格式（包含错误信息）
         if isinstance(result, dict) and 'errors' in result:
@@ -375,17 +384,17 @@ def evaluate_predictions(tasks, prompt_name=None, project=None):
                 logger.info(f"🎯 [ML ERRORS] 已将错误信息存储到项目 {project.id}")
         elif result is None:
             # 处理没有ML backend的情况
-            logger.info("🎯 [PROMPT DEBUG] No ML backend result")
+            logger.info("🎯 [PARAMS DEBUG] No ML backend result")
         else:
             # 兼容旧格式（直接返回model_version字符串或instances列表）
-            logger.info(f"🎯 [PROMPT DEBUG] 收到旧格式结果: {type(result)}")
+            logger.info(f"🎯 [PARAMS DEBUG] 收到旧格式结果: {type(result)}")
             # 清除之前的错误信息
             if hasattr(project, '_last_ml_errors'):
                 delattr(project, '_last_ml_errors')
         
         return result
     else:
-        logger.warning(f"🎯 [PROMPT DEBUG] No ML backend found for project '{project.title}'")
+        logger.warning(f"🎯 [PARAMS DEBUG] No ML backend found for project '{project.title}'")
 
 
 def filters_ordering_selected_items_exist(data):

@@ -19,26 +19,27 @@ logger = logging.getLogger(__name__)
 
 
 def retrieve_tasks_predictions_form(user, project):
-    """Form for retrieve predictions action with prompt selection"""
+    """Form for retrieve predictions action with prompt and model version selection"""
     # 构建 prompt 选项
     prompt_options = [{"label": "None", "value": ""}]  # 默认"无"选项
-    default_value = ""
+    default_prompt_value = ""
     
-    # 安全地获取所有可用的 prompts
+    # 安全地获取可用的 prompts（限制数量）
     try:
         from prompts.models import Prompt
-        prompts = Prompt.objects.all().order_by('-updated_at')
+        # 限制最多显示10个最新的prompts
+        prompts = Prompt.objects.all().order_by('-updated_at')[:10]
         for prompt in prompts:
             prompt_options.append({
                 "label": prompt.name,
                 "value": prompt.name
             })
-        logger.debug(f"Found {len(prompts)} prompts for selection")
+        logger.debug(f"Found {len(prompts)} prompts for selection (limited to 10)")
         
         # 如果有可用的 prompts，默认选择第一个（最新的）
-        if prompts.exists():
-            default_value = prompts.first().name
-            logger.debug(f"Setting default prompt to: {default_value}")
+        if prompts:
+            default_prompt_value = prompts[0].name
+            logger.debug(f"Setting default prompt to: {default_prompt_value}")
             
     except (ImportError, AttributeError, Exception):
         # 如果 prompts 模块不存在或有其他错误，只显示"无"选项
@@ -55,23 +56,122 @@ def retrieve_tasks_predictions_form(user, project):
         if preference and preference.preference_value:
             # 检查用户偏好的prompt是否还存在
             if any(option['value'] == preference.preference_value for option in prompt_options):
-                default_value = preference.preference_value
-                logger.debug(f"Using user preference: {default_value}")
+                default_prompt_value = preference.preference_value
+                logger.debug(f"Using user preference: {default_prompt_value}")
     except (ImportError, AttributeError, Exception):
         # 如果 UserPreference 模型不存在或有其他错误，使用默认值
         logger.debug("UserPreference model not available, using default prompt")
     
+    # 构建 model version 选项
+    model_version_options = [{"label": "Use Default", "value": ""}]  # 默认选项
+    default_model_version = ""
+    
+    # 从当前ML backend获取版本信息
+    if project.ml_backend:
+        try:
+            # 获取可用的处理器版本
+            versions_response = project.ml_backend.get_versions()
+            if not versions_response.is_error:
+                available_versions = versions_response.response.get('versions', [])
+                for version_info in available_versions:
+                    processor_type = version_info.get('processor_type', 'Unknown')
+                    model_name = version_info.get('model_name', 'Unknown')
+                    description = version_info.get('description', f'{processor_type} {model_name}')
+                    version_string = version_info.get('version_string', f"{processor_type}|{model_name}")
+                    
+                    model_version_options.append({
+                        "label": description,
+                        "value": version_string
+                    })
+                
+                logger.debug(f"Found {len(available_versions)} model versions from ML backend")
+            else:
+                logger.debug(f"ML backend get_versions failed: {versions_response.error_message}")
+        except Exception as e:
+            logger.debug(f"Could not fetch ML backend versions: {e}")
+    
+    # 从项目历史预测中获取已使用的版本（限制数量）
+    try:
+        existing_versions = project.get_model_versions()
+        current_values = [opt['value'] for opt in model_version_options]
+        
+        logger.debug(f"Historical versions found: {existing_versions}")
+        logger.debug(f"Current option values: {current_values}")
+        
+        # 只添加不在当前版本列表中的历史版本，并限制数量
+        historical_count = 0
+        max_historical = 3  # 最多显示3个历史版本
+        
+        for version in existing_versions:
+            if (version and 
+                version not in current_values and 
+                historical_count < max_historical):
+                
+                # 创建用户友好的显示标签
+                display_label = version
+                logger.debug(f"Processing historical version: '{version}' (type: {type(version)})")
+                
+                if '|' in str(version):
+                    # 解析格式为 "processor_type|model_name" 的版本字符串
+                    try:
+                        processor_type, model_name = str(version).split('|', 1)
+                        display_label = f"{processor_type.title()} {model_name}"
+                        logger.debug(f"Parsed version: {processor_type} | {model_name} -> {display_label}")
+                    except ValueError:
+                        # 如果分割失败，使用原始字符串
+                        display_label = str(version)
+                        logger.debug(f"Failed to parse version, using raw: {display_label}")
+                else:
+                    display_label = str(version)
+                    logger.debug(f"No pipe delimiter, using raw: {display_label}")
+                
+                final_option = {
+                    "label": f"{display_label} (Historical)",
+                    "value": str(version)
+                }
+                model_version_options.append(final_option)
+                logger.debug(f"Added historical option: {final_option}")
+                historical_count += 1
+        
+        logger.debug(f"Added {historical_count} historical model versions (max: {max_historical})")
+    except Exception as e:
+        logger.debug(f"Could not fetch historical model versions: {e}")
+    
+    # 获取用户的model version偏好
+    try:
+        from users.models import UserPreference
+        preference = UserPreference.objects.filter(
+            user=user,
+            project=project,
+            preference_key='last_selected_model_version'
+        ).first()
+        if preference and preference.preference_value:
+            # 检查用户偏好的model version是否还存在
+            if any(option['value'] == preference.preference_value for option in model_version_options):
+                default_model_version = preference.preference_value
+                logger.debug(f"Using user model version preference: {default_model_version}")
+    except (ImportError, AttributeError, Exception):
+        logger.debug("UserPreference model not available for model version")
+    
     return [
         {
-            'columnCount': 1,
+            'columnCount': 2,  # 改为2列布局
             'fields': [
                 {
                     'type': 'select',
                     'name': 'prompt_name',
-                    'label': 'Choose Prompt (Optional)',
+                    'label': 'Prompt',
                     'options': prompt_options,
-                    'value': default_value,
-                    'placeholder': 'Select a prompt or leave empty'
+                    'value': default_prompt_value,
+                    'placeholder': 'Select prompt'
+                },
+                {
+                    'type': 'select',
+                    'name': 'model_version',
+                    'label': 'Model Version',
+                    'options': model_version_options,
+                    'value': default_model_version,
+                    'placeholder': 'Select model'
                 }
             ],
         }
@@ -146,11 +246,16 @@ def retrieve_tasks_predictions(project, queryset, **kwargs):
                 'error_message': f'ML backend "{ml_backend.title}" is not ready (state: {ml_backend.get_state_display()}). Please wait or check the backend status.'
             }
     
-    # 从请求中获取 prompt_name
-    logger.info(f"🎯 [PROMPT] Extracting prompt_name from request...")
+    # 从请求中获取 prompt_name 和 model_version
+    logger.info(f"🎯 [PARAMS] Extracting parameters from request...")
+    prompt_name = None
+    model_version = None
+    
     if request and hasattr(request, 'data'):
         prompt_name = request.data.get('prompt_name')
-        logger.info(f"🎯 [PROMPT] Found prompt_name in request.data: '{prompt_name}'")
+        model_version = request.data.get('model_version')
+        logger.info(f"🎯 [PARAMS] Found prompt_name in request.data: '{prompt_name}'")
+        logger.info(f"🎯 [PARAMS] Found model_version in request.data: '{model_version}'")
         
         # 安全地保存用户的 prompt 选择
         if prompt_name and request.user.is_authenticated:
@@ -168,20 +273,47 @@ def retrieve_tasks_predictions(project, queryset, **kwargs):
                     preference.save()
                 logger.info(f"🎯 [PROMPT] User preference saved successfully")
             except (ImportError, AttributeError, Exception) as e:
-                logger.debug(f'Failed to save user preference (this is safe to ignore): {e}')
-        else:
-            logger.info(f"🎯 [PROMPT] Not saving preference - prompt_name: '{prompt_name}', authenticated: {request.user.is_authenticated if request else False}")
-    else:
-        logger.info(f"🎯 [PROMPT] No request.data found or request is None")
-        logger.info(f"🎯 [PROMPT] Request exists: {request is not None}")
-        logger.info(f"🎯 [PROMPT] Request has data attr: {hasattr(request, 'data') if request else False}")
+                logger.debug(f'Failed to save user prompt preference (this is safe to ignore): {e}')
         
-    logger.info(f"🎯 [PROMPT] Final prompt_name value: '{prompt_name}'")
+        # 安全地保存用户的 model version 选择
+        if model_version and request.user.is_authenticated:
+            logger.info(f"🎯 [MODEL_VERSION] Saving user preference for model_version: '{model_version}'")
+            try:
+                from users.models import UserPreference
+                preference, created = UserPreference.objects.get_or_create(
+                    user=request.user,
+                    project=project,
+                    preference_key='last_selected_model_version',
+                    defaults={'preference_value': model_version}
+                )
+                if not created:
+                    preference.preference_value = model_version
+                    preference.save()
+                logger.info(f"🎯 [MODEL_VERSION] User preference saved successfully")
+            except (ImportError, AttributeError, Exception) as e:
+                logger.debug(f'Failed to save user model version preference (this is safe to ignore): {e}')
+        
+        if not prompt_name and not model_version:
+            logger.info(f"🎯 [PARAMS] No parameters found, authenticated: {request.user.is_authenticated if request else False}")
+    else:
+        logger.info(f"🎯 [PARAMS] No request.data found or request is None")
+        logger.info(f"🎯 [PARAMS] Request exists: {request is not None}")
+        logger.info(f"🎯 [PARAMS] Request has data attr: {hasattr(request, 'data') if request else False}")
+        
+    logger.info(f"🎯 [PARAMS] Final values - prompt_name: '{prompt_name}', model_version: '{model_version}'")
     
-    # 调用 evaluate_predictions 并传递 prompt_name
+    # 额外的调试输出，强制打印
+    print(f"\n🔥 ACTION DEBUG:")
+    print(f"🔥 prompt_name: '{prompt_name}'")
+    print(f"🔥 model_version: '{model_version}'")
+    print(f"🔥 About to call evaluate_predictions with these values")
+    print(f"🔥 END ACTION DEBUG\n")
+    
+    # 调用 evaluate_predictions 并传递 prompt_name 和 model_version
     logger.info("=" * 80)
     logger.info(f"🔥 [EVALUATE] About to call evaluate_predictions")
     logger.info(f"🔥 [EVALUATE] prompt_name: '{prompt_name}'")
+    logger.info(f"🔥 [EVALUATE] model_version: '{model_version}'")
     logger.info(f"🔥 [EVALUATE] tasks count: {queryset.count()}")
     logger.info(f"🔥 [EVALUATE] project: {project.title} (ID: {project.id})")
     logger.info("=" * 80)
@@ -190,7 +322,7 @@ def retrieve_tasks_predictions(project, queryset, **kwargs):
     if hasattr(project, '_last_ml_errors'):
         delattr(project, '_last_ml_errors')
     
-    result = evaluate_predictions(queryset, prompt_name=prompt_name, project=project)
+    result = evaluate_predictions(queryset, prompt_name=prompt_name, model_version=model_version, project=project)
     
     logger.info("=" * 80)
     logger.info(f"🔥 [EVALUATE] evaluate_predictions returned")
