@@ -1,37 +1,31 @@
 .duplicate-project-modal {
   .form-content {
-    display: flex;
-    flex-direction: column;
     min-height: 0;
   }
 
   .form-section {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
     margin-bottom: 32px;
 
     &_spacing {
       &_normal {
-        gap: 24px;
       }
+    }
+    
+    > * + * {
+      margin-top: 24px;
     }
   }
 
   .form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
     width: 100%;
 
     .label {
-      display: flex;
-      align-items: center;
       font-weight: 500;
       color: var(--color-neutral-content);
       font-size: 14px;
       line-height: 1.4;
-      margin-bottom: 4px;
+      margin-bottom: 12px;
+      display: block;
 
       .required {
         color: var(--color-negative-content);
@@ -42,67 +36,73 @@
     input, 
     .input {
       margin: 0;
+      margin-top: 8px;
     }
   }
 
-  // Workspace section specific styling - matching CreateProject
   .workspace-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
     width: 100%;
 
     .badge-wrapper {
-      display: flex;
-      align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: 12px;
 
       .title {
         font-weight: 500;
         color: var(--color-neutral-content);
         font-size: 14px;
         line-height: 1.4;
+        display: block;
       }
     }
 
     .workspace-selector {
       margin: 0;
+      margin-top: 8px;
     }
 
     .caption {
       font-size: 12px;
       color: var(--color-neutral-content-subtle);
       line-height: 1.4;
-      margin-top: 4px;
+      margin-top: 12px;
+      display: block;
     }
   }
 
   .form-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
+    text-align: right;
     padding-top: 16px;
     border-top: 1px solid var(--color-neutral-border);
     margin-top: auto;
 
     button {
       min-width: 100px;
+      margin-left: 12px;
+      
+      &:first-child {
+        margin-left: 0;
+      }
     }
   }
 }
 
-// Workspace selector specific styling
 .workspace-selector {
   width: 100%;
   
   .button {
     width: 100%;
-    justify-content: space-between;
     text-align: left;
+    position: relative;
+    
+    &::after {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
   }
 }
 
-// Ensure proper input styling
 .duplicate-project-modal {
   input {
     width: 100%;
@@ -113,6 +113,8 @@
     color: var(--color-neutral-content);
     font-size: 14px;
     transition: all 150ms ease-out;
+    display: block;
+    box-sizing: border-box;
 
     &:hover {
       border-color: var(--color-neutral-border-bold);

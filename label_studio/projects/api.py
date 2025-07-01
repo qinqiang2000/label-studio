@@ -752,7 +752,12 @@ class ProjectDuplicateAPI(generics.CreateAPIView):
                     result=prediction.result,
                     score=prediction.score,
                     model_version=prediction.model_version,
-                    model_name=prediction.model_name,
+                    prompt_name=prediction.prompt_name,
+                    model=prediction.model,
+                    model_run=prediction.model_run,
+                    cluster=prediction.cluster,
+                    neighbors=prediction.neighbors,
+                    mislabeling=prediction.mislabeling,
                     project=new_project,
                 )
                 new_prediction.save()

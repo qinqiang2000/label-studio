@@ -40,7 +40,7 @@ export const GeneralSettings = () => {
               <Block name="workspace-section">
                 <Elem name="badge-wrapper">
                   <Elem name="title">Workspace</Elem>
-                  {isFF(FF_LSDV_E_297) && <EnterpriseBadge className="ml-2" />}
+                  {/* {isFF(FF_LSDV_E_297) && <EnterpriseBadge className="ml-2" />} */}
                 </Elem>
                 <WorkspaceSelector 
                   name="workspace" 

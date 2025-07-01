@@ -4,7 +4,13 @@
       "Bash(python:*)",
       "Bash(rm:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm run build:*)",
+      "mcp__ide__executeCode",
+      "Bash(npm start)",
+      "mcp__ide__getDiagnostics",
+      "Bash(rg:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
