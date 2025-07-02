@@ -812,7 +812,6 @@ if ENABLE_CSP := get_bool_env('ENABLE_CSP', True):
         "'unsafe-inline'",
         "'unsafe-eval'",
         'blob:',
-        'browser.sentry-cdn.com',
         # 'https://*.googletagmanager.com',  # Disabled for China compatibility
     )
     CSP_IMG_SRC = (
