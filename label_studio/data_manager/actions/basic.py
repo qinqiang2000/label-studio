@@ -79,8 +79,11 @@ def retrieve_tasks_predictions_form(user, project):
                     description = version_info.get('description', f'{processor_type} {model_name}')
                     version_string = version_info.get('version_string', f"{processor_type}|{model_name}")
                     
+                    # Use model_name instead of full description to avoid long text
+                    display_label = model_name if model_name != 'Unknown' else f"{processor_type} {model_name}"
+                    
                     model_version_options.append({
-                        "label": description,
+                        "label": display_label,
                         "value": version_string
                     })
                 
@@ -115,7 +118,8 @@ def retrieve_tasks_predictions_form(user, project):
                     # 解析格式为 "processor_type|model_name" 的版本字符串
                     try:
                         processor_type, model_name = str(version).split('|', 1)
-                        display_label = f"{processor_type.title()} {model_name}"
+                        # Use just the model_name for historical versions too
+                        display_label = model_name
                         logger.debug(f"Parsed version: {processor_type} | {model_name} -> {display_label}")
                     except ValueError:
                         # 如果分割失败，使用原始字符串

@@ -107,10 +107,8 @@ class EvaluationConfigAPI {
     if (projectId) {
       const cacheKey = String(projectId);
       evaluationConfigCache.delete(cacheKey);
-      console.log('[Evaluation Config] Cache cleared for project', projectId);
     } else {
       evaluationConfigCache.clear();
-      console.log('[Evaluation Config] All cache cleared');
     }
   }
   
@@ -139,7 +137,6 @@ class EvaluationConfigAPI {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[Evaluation Config API] Error response:', errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
       
@@ -171,7 +168,6 @@ class EvaluationConfigAPI {
       return configData;
       
     } catch (error) {
-      console.error('[Evaluation Config API] Failed to fetch project evaluation config:', error);
       throw error;
     }
   }
@@ -224,7 +220,6 @@ class EvaluationConfigAPI {
       
       return configsByKey;
     } catch (error) {
-      console.error('[Evaluation Config API] Failed to fetch all configs:', error);
       return {};
     }
   }
@@ -233,7 +228,7 @@ class EvaluationConfigAPI {
     try {
       return await this.fetchProjectConfig(projectId, forceRefresh);
     } catch (error) {
-      console.warn('[Evaluation Config] Using fallback config for project', projectId, 'Error:', error.message);
+      console.warn('Using fallback config, error:', error.message);
       const fallbackConfig = this.getFallbackConfig();
       
       // Cache the fallback too to avoid repeated failed requests (shorter duration)
@@ -251,28 +246,22 @@ class EvaluationConfigAPI {
 
 // Function to get required fields for highlighting
 function getRequiredFields(item) {
-  console.log('[getRequiredFields] Called with item:', !!item, 'name:', item?.name);
-  
   const annotation = item?.annotation;
   if (!annotation) {
-    console.log('[getRequiredFields] No annotation, using fallback');
     return FALLBACK_REQUIRED_FIELDS;
   }
   
   const store = annotation.store;
   if (!store) {
-    console.log('[getRequiredFields] No store, using fallback');
     return FALLBACK_REQUIRED_FIELDS;
   }
   
   // Try multiple ways to get project ID
   let projectId = store.projectId || store.project?.id;
-  console.log('[getRequiredFields] Store projectId:', projectId);
   
   // Try to get from window object if not found
   if (!projectId && window.APP_SETTINGS?.projectId) {
     projectId = window.APP_SETTINGS.projectId;
-    console.log('[getRequiredFields] Window projectId:', projectId);
   }
   
   // Try to get from URL if still not found
@@ -280,18 +269,15 @@ function getRequiredFields(item) {
     const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
     if (urlMatch) {
       projectId = parseInt(urlMatch[1]);
-      console.log('[getRequiredFields] URL projectId:', projectId);
     }
   }
   
   // Try to get from history state
   if (!projectId && window.history?.state?.projectId) {
     projectId = window.history.state.projectId;
-    console.log('[getRequiredFields] History projectId:', projectId);
   }
   
   if (!projectId) {
-    console.log('[getRequiredFields] No project ID found, using fallback');
     return FALLBACK_REQUIRED_FIELDS;
   }
   
@@ -300,22 +286,17 @@ function getRequiredFields(item) {
   const cachedData = evaluationConfigCache.get(cacheKey);
   
   if (cachedData && cachedData.expiry > Date.now()) {
-    console.log(`[getRequiredFields] Using cached config for highlighting, project ${projectId}:`, cachedData.config.config_key, 'fields:', cachedData.config.required_fields);
     return cachedData.config.required_fields;
   }
   
-  console.log(`[getRequiredFields] No valid cache for project ${projectId}, triggering async load`);
-  
   // Async load config (won't block rendering, will update on next render)
   EvaluationConfigAPI.getConfigWithFallback(projectId).then((config) => {
-    console.log(`[getRequiredFields] Async loaded config for highlighting, project ${projectId}:`, config.config_key);
     // This will trigger a re-render with the correct fields
   }).catch((error) => {
-    console.error(`[getRequiredFields] Async load failed for project ${projectId}:`, error);
+    console.error('Failed to load evaluation config:', error);
   });
   
   const fallbackFields = cachedData?.config?.required_fields || FALLBACK_REQUIRED_FIELDS;
-  console.log(`[getRequiredFields] Returning fields for project ${projectId}:`, fallbackFields);
   return fallbackFields;
 }
 
@@ -349,14 +330,12 @@ function highlightWithDynamicRequiredFields(code, allConfigs = {}, fallbackField
     
     if (Array.isArray(parsed)) {
       // 为每个文档根据其docType应用相应的高亮
-      parsed.forEach((doc, index) => {
-        const docType = doc.docType;
-        const requiredFields = allConfigs[docType]?.required_fields || fallbackFields;
-        
-        console.log(`[Dynamic Highlight] Document ${index + 1} (${docType}): using fields`, requiredFields);
-        
-        // 为每个必填字段应用高亮
-        requiredFields.forEach((field) => {
+              parsed.forEach((doc, index) => {
+          const docType = doc.docType;
+          const requiredFields = allConfigs[docType]?.required_fields || fallbackFields;
+          
+          // 为每个必填字段应用高亮
+          requiredFields.forEach((field) => {
           // 创建更精确的正则表达式，匹配特定文档中的字段
           const fieldRegex = new RegExp(`<span class=\"token property\">(\\"${field}\\")<\/span>`, "g");
           html = html.replace(fieldRegex, `<span class=\"token property required-field required-field-${docType || 'default'}\">$1</span>`);
@@ -612,7 +591,6 @@ const Model = types
       },
 
       addText(text, pid) {
-        console.log('[TextArea addText]', self.name, text, 'regions.length(before):', self.regions.length);
         if (!self.validateText(text)) return;
 
         self.createRegion(text, pid, self.leadTime);
@@ -621,7 +599,6 @@ const Model = types
 
         // should go after `onChange` because it uses result and area
         self.updateLeadTime();
-        console.log('[TextArea addText]', self.name, text, 'regions.length(after):', self.regions.length);
       },
 
       /**
@@ -655,7 +632,6 @@ const Model = types
       },
 
       beforeSend() {
-        console.log('[TextArea beforeSend]', self.name, self._value);
         if (self._value && self._value.length) {
           self.addText(self._value);
           self._value = "";
@@ -788,7 +764,6 @@ const HtxTextArea = observer(({ item }) => {
         if (config) {
           setRequiredFields(config.required_fields);
           setEvaluationConfig(config);
-          console.log('[Evaluation Config] Loaded configuration:', config.config_key, 'Required fields:', config.required_fields);
         } else {
           setRequiredFields(FALLBACK_REQUIRED_FIELDS);
         }
@@ -799,7 +774,6 @@ const HtxTextArea = observer(({ item }) => {
           setAllConfigs({});
         }
       } catch (error) {
-        console.error('[Evaluation Config] Error loading configuration:', error);
         setRequiredFields(FALLBACK_REQUIRED_FIELDS);
       }
     };
@@ -847,12 +821,9 @@ const HtxTextArea = observer(({ item }) => {
 
       if (isPredictionSelected && currentPredictionId) {
         // 当前在查看prediction时，只使用当前选中的prediction数据
-        console.log('[TextArea AutoFill] Current prediction ID:', currentPredictionId);
         if (Array.isArray(preds)) {
           // 找到当前选中的prediction
           const currentPred = preds.find(pred => pred.id === currentPredictionId);
-          console.log('[TextArea AutoFill] Available predictions:', preds.map(p => ({ id: p.id, model_version: p.model_version })));
-          console.log('[TextArea AutoFill] Found current prediction:', !!currentPred, currentPred?.model_version);
           if (currentPred) {
             // 只处理当前选中的prediction
             if (currentPred.trackedState && currentPred.trackedState.areas) {
@@ -868,7 +839,6 @@ const HtxTextArea = observer(({ item }) => {
                       r.value && r.value.text && r.value.text.length > 0
                     ) {
                       const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                      console.log('[TextArea AutoFill] Found value from trackedState for prediction', currentPred.model_version, ':', value.substring(0, 100) + '...');
                       item.setValue(value);
                       validateJsonAndFields(value);
                       filled = true;
@@ -888,7 +858,6 @@ const HtxTextArea = observer(({ item }) => {
                   r.value && r.value.text && r.value.text.length > 0
                 ) {
                   const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
-                  console.log('[TextArea AutoFill] Found value from result for prediction', currentPred.model_version, ':', value.substring(0, 100) + '...');
                   item.setValue(value);
                   validateJsonAndFields(value);
                   filled = true;
@@ -900,12 +869,8 @@ const HtxTextArea = observer(({ item }) => {
         }
 
         // 如果当前prediction没有数据，不要fallback到annotations，保持一致性
-        if (!filled) {
-          console.log('[TextArea AutoFill] Current prediction has no data for this field, keeping empty to maintain consistency');
-        }
       } else {
         // 当前在查看annotation时，保持原有逻辑：优先使用annotations数据
-        console.log('[TextArea AutoFill] In annotation mode, using annotation data');
         // 1. 先用 annotations
         if (annotationStore?.annotations) {
           const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
@@ -1078,9 +1043,6 @@ const HtxTextArea = observer(({ item }) => {
                 if (cachedData && cachedData.expiry > Date.now()) {
                   currentRequiredFields = cachedData.config.required_fields;
                   currentEvaluationConfig = cachedData.config;
-                  console.log('[Validation] Using project config for validation:', cachedData.config.config_key);
-                  console.log('[Validation] Required fields for validation:', currentRequiredFields);
-                  console.log('[Validation] Available all configs:', Object.keys(currentAllConfigs));
                 }
               }
 
@@ -1101,13 +1063,10 @@ const HtxTextArea = observer(({ item }) => {
                   // 尝试根据当前配置类型或数据特征设置默认docType
                   if (x.tradeDate && x.amount && (x.paymentName || x.payeeName)) {
                     x.docType = 'bank_receipt';
-                    console.log(`[Validation] Auto-setting docType to 'bank_receipt' for document with tradeDate and amount`);
                   } else if (x.invoiceNumber && x.totalAmount && (x.billToName || x.buyerName)) {
                     x.docType = 'invoice';
-                    console.log(`[Validation] Auto-setting docType to 'invoice' for document with invoiceNumber and totalAmount`);
                   } else if (x.totalAmount && !x.invoiceNumber && !x.tradeDate) {
                     x.docType = 'receipt';
-                    console.log(`[Validation] Auto-setting docType to 'receipt' for document with totalAmount`);
                   }
                 }
                 
@@ -1115,15 +1074,12 @@ const HtxTextArea = observer(({ item }) => {
                 if (x.docType) {
                   const docTypeLower = x.docType.toLowerCase();
                   if (docTypeLower === 'other' || docTypeLower === 'unknown') {
-                    console.log(`[Validation] Skipping document with docType: ${x.docType} (excluded from ticket statistics)`);
                     isValidDocType = false; // 标记为无效，不参与票据统计
                   } else {
-                    console.log(`[Validation] Including document with docType: ${x.docType} in ticket statistics`);
                     isValidDocType = true;
                   }
                 } else {
                   // 如果仍然没有docType，标记为无效票据类型（不参与统计）
-                  console.log(`[Validation] Document missing docType, excluding from ticket statistics but will validate required fields`);
                   isValidDocType = false;
                 }
                 
@@ -1174,12 +1130,6 @@ const HtxTextArea = observer(({ item }) => {
                 const docConfig = currentAllConfigs[docType];
                 let docConfigForLabel = docConfig || currentEvaluationConfig;
                 
-                console.log(`[Validation] Document ${i + 1} (${docType}): required fields:`, fieldsToCheck);
-                console.log(`[Validation] Document has docType field:`, x.hasOwnProperty('docType'), 'value:', x.docType);
-                console.log(`[Validation] Original document has docType field:`, originalDoc.hasOwnProperty('docType'), 'value:', originalDoc.docType);
-                console.log(`[Validation] Current required fields:`, currentRequiredFields);
-                console.log(`[Validation] All configs available:`, Object.keys(currentAllConfigs));
-                
                 fieldsToCheck.forEach((field) => {
                   // 对于docType字段，检查原始数据是否包含
                   if (field === 'docType') {
@@ -1194,8 +1144,6 @@ const HtxTextArea = observer(({ item }) => {
                   }
                 });
                 
-                console.log(`[Validation] Document ${i + 1}: missing fields:`, missing);
-                
                 if (missing.length > 0) {
                   hasFieldErrors = true;
                   // 根据配置获取文档类型显示名
@@ -1208,7 +1156,6 @@ const HtxTextArea = observer(({ item }) => {
                   }
                   
                   const errorMsg = `${docTypeText}[${i + 1}]缺: ${missing.map((m) => `"${m}"`).join(", ")}`;
-                  console.log(`[Validation] Adding error message:`, errorMsg);
                   allErrorMessages.push(errorMsg);
                 }
               }
@@ -1235,21 +1182,15 @@ const HtxTextArea = observer(({ item }) => {
               setPageStats(statsArray.length > 0 ? statsArray.map((item) => item.text).join(", ") : "暂无票据");
               
               // 显示所有错误信息，但限制最多显示3个，超过则显示省略号
-              console.log(`[Validation] Total error messages:`, allErrorMessages.length, 'hasFieldErrors:', hasFieldErrors);
-              console.log(`[Validation] All error messages:`, allErrorMessages);
-              
               if (hasFieldErrors) {
                 if (allErrorMessages.length <= 3) {
                   const finalErrorMsg = allErrorMessages.join("\n");
-                  console.log(`[Validation] Setting jsonFieldError to:`, finalErrorMsg);
                   setJsonFieldError(finalErrorMsg);
                 } else {
                   const finalErrorMsg = `${allErrorMessages.slice(0, 3).join("\n")}\n...等共${allErrorMessages.length}票，缺核心字段`;
-                  console.log(`[Validation] Setting jsonFieldError to (truncated):`, finalErrorMsg);
                   setJsonFieldError(finalErrorMsg);
                 }
               } else {
-                console.log(`[Validation] No field errors, clearing jsonFieldError`);
                 setJsonFieldError("");
               }
             } else {
@@ -1343,14 +1284,12 @@ const HtxTextArea = observer(({ item }) => {
     }
     
     if (projectId) {
-      console.log('[Debug] 强制刷新配置，项目ID:', projectId);
       try {
         const config = await EvaluationConfigAPI.fetchProjectConfig(projectId, true);
         setRequiredFields(config.required_fields);
         setEvaluationConfig(config);
-        console.log('[Debug] 配置刷新成功:', config);
       } catch (error) {
-        console.error('[Debug] 配置刷新失败:', error);
+        console.error('配置刷新失败:', error);
       }
     }
   };

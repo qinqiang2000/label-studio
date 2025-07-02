@@ -24,13 +24,22 @@
   }
 
   &__content {
-    width: 400px;
-    min-width: 400px;
+    width: 500px;  // Increased from 400px to accommodate longer text
+    min-width: 500px;  // Increased from 400px
     min-height: 100px;
     margin: 0 auto;
     background-color: var(--color-neutral-background);
     border-radius: 5px;
     box-shadow: 0 10px 30px rgb(var(--black-raw) / 30%);
+
+    // Fix dropdown overflow issue - constrain select dropdowns within modal
+    .ant-select-dropdown {
+      max-width: 460px; // Updated to match new modal width
+    }
+
+    .ant-select-item-option-content {
+      max-width: 420px; // Updated to match new modal width
+    }
   }
 
   &__header {

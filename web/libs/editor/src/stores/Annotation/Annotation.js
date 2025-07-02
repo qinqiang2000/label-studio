@@ -111,6 +111,7 @@ const _Annotation = types
     createdBy: types.optional(types.string, "Admin"),
     user: types.optional(types.maybeNull(types.safeReference(UserExtended)), null),
     score: types.maybeNull(types.number),
+    promptName: types.maybeNull(types.string),
 
     parent_prediction: types.maybeNull(types.integer),
     parent_annotation: types.maybeNull(types.integer),

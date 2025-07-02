@@ -85,6 +85,7 @@ export const AnnotationButton = observer(
     const CommentIcon = renderCommentIcon(entity);
     // need to find a more reliable way to grab this value
     // const historyActionType = annotationStore.history.toJSON()?.[0]?.actionType;
+    
 
     useEffect(() => {
       setIsGroundTruth(entity.ground_truth);
@@ -244,20 +245,17 @@ export const AnnotationButton = observer(
               <Elem tag="span" name="name">
                 {hiddenUser ? hiddenUser.email : username}
               </Elem>
-              {!infoIsHidden && (
-                <Elem tag="span" name="entity-id">
-                  #{entity.pk ?? entity.id}
-                </Elem>
-              )}
             </Elem>
-            {!infoIsHidden && (
+            {!infoIsHidden && !isPrediction && (
               <Elem name="info">
                 <Elem name="date" component={TimeAgo} date={entity.createdDate} />
-                {isPrediction && isDefined(entity.score) && (
-                  <span title={`Prediction score = ${entity.score}`}>
-                    {" · "} {(entity.score * 100).toFixed(2)}%
-                  </span>
-                )}
+              </Elem>
+            )}
+            {!infoIsHidden && isPrediction && entity.promptName && (
+              <Elem name="info">
+                <Elem tag="span" name="prompt-name">
+                  {entity.promptName}
+                </Elem>
               </Elem>
             )}
           </Elem>
