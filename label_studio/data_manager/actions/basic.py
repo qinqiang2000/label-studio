@@ -93,53 +93,60 @@ def retrieve_tasks_predictions_form(user, project):
         except Exception as e:
             logger.debug(f"Could not fetch ML backend versions: {e}")
     
-    # 从项目历史预测中获取已使用的版本（限制数量）
-    try:
-        existing_versions = project.get_model_versions()
-        current_values = [opt['value'] for opt in model_version_options]
-        
-        logger.debug(f"Historical versions found: {existing_versions}")
-        logger.debug(f"Current option values: {current_values}")
-        
-        # 只添加不在当前版本列表中的历史版本，并限制数量
-        historical_count = 0
-        max_historical = 3  # 最多显示3个历史版本
-        
-        for version in existing_versions:
-            if (version and 
-                version not in current_values and 
-                historical_count < max_historical):
-                
-                # 创建用户友好的显示标签
-                display_label = version
-                logger.debug(f"Processing historical version: '{version}' (type: {type(version)})")
-                
-                if '|' in str(version):
-                    # 解析格式为 "processor_type|model_name" 的版本字符串
-                    try:
-                        processor_type, model_name = str(version).split('|', 1)
-                        # Use just the model_name for historical versions too
-                        display_label = model_name
-                        logger.debug(f"Parsed version: {processor_type} | {model_name} -> {display_label}")
-                    except ValueError:
-                        # 如果分割失败，使用原始字符串
+    # 检查是否启用历史版本功能（默认关闭）
+    import os
+    show_historical_versions = os.getenv('LABEL_STUDIO_SHOW_HISTORICAL_MODEL_VERSIONS', 'false').lower() == 'true'
+    
+    # 从项目历史预测中获取已使用的版本（可通过环境变量控制）
+    if show_historical_versions:
+        try:
+            existing_versions = project.get_model_versions()
+            current_values = [opt['value'] for opt in model_version_options]
+            
+            logger.debug(f"Historical versions found: {existing_versions}")
+            logger.debug(f"Current option values: {current_values}")
+            
+            # 只添加不在当前版本列表中的历史版本，并限制数量
+            historical_count = 0
+            max_historical = 3  # 最多显示3个历史版本
+            
+            for version in existing_versions:
+                if (version and 
+                    version not in current_values and 
+                    historical_count < max_historical):
+                    
+                    # 创建用户友好的显示标签
+                    display_label = version
+                    logger.debug(f"Processing historical version: '{version}' (type: {type(version)})")
+                    
+                    if '|' in str(version):
+                        # 解析格式为 "processor_type|model_name" 的版本字符串
+                        try:
+                            processor_type, model_name = str(version).split('|', 1)
+                            # Use just the model_name for historical versions too
+                            display_label = model_name
+                            logger.debug(f"Parsed version: {processor_type} | {model_name} -> {display_label}")
+                        except ValueError:
+                            # 如果分割失败，使用原始字符串
+                            display_label = str(version)
+                            logger.debug(f"Failed to parse version, using raw: {display_label}")
+                    else:
                         display_label = str(version)
-                        logger.debug(f"Failed to parse version, using raw: {display_label}")
-                else:
-                    display_label = str(version)
-                    logger.debug(f"No pipe delimiter, using raw: {display_label}")
-                
-                final_option = {
-                    "label": f"{display_label} (Historical)",
-                    "value": str(version)
-                }
-                model_version_options.append(final_option)
-                logger.debug(f"Added historical option: {final_option}")
-                historical_count += 1
-        
-        logger.debug(f"Added {historical_count} historical model versions (max: {max_historical})")
-    except Exception as e:
-        logger.debug(f"Could not fetch historical model versions: {e}")
+                        logger.debug(f"No pipe delimiter, using raw: {display_label}")
+                    
+                    final_option = {
+                        "label": f"{display_label} (Historical)",
+                        "value": str(version)
+                    }
+                    model_version_options.append(final_option)
+                    logger.debug(f"Added historical option: {final_option}")
+                    historical_count += 1
+            
+            logger.debug(f"Added {historical_count} historical model versions (max: {max_historical})")
+        except Exception as e:
+            logger.debug(f"Could not fetch historical model versions: {e}")
+    else:
+        logger.debug("Historical model versions disabled by environment variable - only showing current ML backend versions")
     
     # 获取用户的model version偏好
     try:
