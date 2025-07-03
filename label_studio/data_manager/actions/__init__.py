@@ -90,7 +90,7 @@ def register_actions_from_dir(base_module, action_dir):
                 continue
             module_actions = module.actions
         except ModuleNotFoundError as e:
-            logger.info(e)
+            logger.debug(f'Optional module {name} not found in {base_module}, skipping: {e}')
             continue
 
         for action in module_actions:
