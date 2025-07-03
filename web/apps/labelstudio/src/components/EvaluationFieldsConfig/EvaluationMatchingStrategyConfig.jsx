@@ -43,7 +43,7 @@ export const EvaluationMatchingStrategyConfig = ({
           // 兜底配置，防止API失败
           setPresetConfigurations({
             invoice: { primary_fields: ['invoiceNumber', 'invoiceDate', 'totalAmount'] },
-            bank_receipt: { primary_fields: ['recieptNum', 'amount'] },
+            bank_receipt: { primary_fields: ['tradeId', 'recieptNum', 'amount'] },
             receipt: { primary_fields: ['invoiceDate', 'totalAmount'] },
             custom: { primary_fields: [] }
           });

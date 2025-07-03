@@ -29,7 +29,7 @@ const FALLBACK_DOCUMENT_TYPE_CONFIGS = {
   },
   bank_receipt: {
     label: "Bank Receipt",
-    fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+    fields: ["tradeId", "recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
     description: "For evaluating bank receipts",
   },
 };

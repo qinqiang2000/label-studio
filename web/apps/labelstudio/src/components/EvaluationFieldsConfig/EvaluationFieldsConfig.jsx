@@ -50,7 +50,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
               },
               bank_receipt: {
                 label: "银行回单 (Bank Receipt)",
-                fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+                fields: ["tradeId", "recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
                 description: "适用于银行回单的评估"
               },
               custom: {
@@ -74,7 +74,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
             },
             bank_receipt: {
               label: "银行回单 (Bank Receipt)",
-              fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+              fields: ["tradeId", "recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
               description: "适用于银行回单的评估"
             },
             custom: {
@@ -95,7 +95,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
   },
   bank_receipt: {
     label: "银行回单 (Bank Receipt)",
-    fields: ["recieptNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+    fields: ["tradeId", "recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
     description: "适用于银行回单的评估"
   },
   custom: {

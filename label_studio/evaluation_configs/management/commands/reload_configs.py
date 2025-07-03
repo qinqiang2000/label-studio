@@ -44,7 +44,7 @@ class Command(BaseCommand):
             self.stdout.write("\n当前数据库中的配置:")
             configs = EvaluationFieldConfig.objects.all()
             for config in configs:
-                self.stdout.write(f"  - {config.document_type}: {len(config.required_fields)} 个必需字段")
+                self.stdout.write(f"  - {config.key} ({config.name}): {len(config.required_fields)} 个必需字段")
                 self.stdout.write(f"    必需字段: {config.required_fields}")
             
             self.stdout.write(

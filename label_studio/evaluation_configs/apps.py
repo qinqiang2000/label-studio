@@ -10,10 +10,26 @@ class EvaluationConfigsConfig(AppConfig):
     verbose_name = 'Evaluation Configurations'
     
     def ready(self):
-        """在Django应用启动时自动加载评估配置"""
-        try:
-            from .config_loader import auto_load_evaluation_configs
-            stats = auto_load_evaluation_configs()
-            logger.info(f"Auto-loaded evaluation configs: {stats}")
-        except Exception as e:
-            logger.error(f"Failed to auto-load evaluation configs: {e}") 
+        """
+        Django应用就绪时注册信号处理器
+        避免在应用初始化时直接访问数据库
+        """
+        # 只在非迁移命令时加载配置
+        import sys
+        if 'migrate' not in sys.argv and 'makemigrations' not in sys.argv:
+            try:
+                # 延迟导入，避免循环导入
+                from django.db import connection
+                from django.db.utils import OperationalError
+                
+                # 检查数据库是否可用
+                try:
+                    connection.ensure_connection()
+                    if connection.is_usable():
+                        from .config_loader import auto_load_evaluation_configs
+                        stats = auto_load_evaluation_configs()
+                        logger.info(f"Auto-loaded evaluation configs: {stats}")
+                except OperationalError:
+                    logger.warning("Database not ready, skipping config auto-load")
+            except Exception as e:
+                logger.error(f"Failed to auto-load evaluation configs: {e}") 
