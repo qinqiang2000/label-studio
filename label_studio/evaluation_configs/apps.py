@@ -11,25 +11,9 @@ class EvaluationConfigsConfig(AppConfig):
     
     def ready(self):
         """
-        Django应用就绪时注册信号处理器
-        避免在应用初始化时直接访问数据库
+        Django应用就绪时的初始化
+        导入信号处理器，在迁移完成后自动加载配置
         """
-        # 只在非迁移命令时加载配置
-        import sys
-        if 'migrate' not in sys.argv and 'makemigrations' not in sys.argv:
-            try:
-                # 延迟导入，避免循环导入
-                from django.db import connection
-                from django.db.utils import OperationalError
-                
-                # 检查数据库是否可用
-                try:
-                    connection.ensure_connection()
-                    if connection.is_usable():
-                        from .config_loader import auto_load_evaluation_configs
-                        stats = auto_load_evaluation_configs()
-                        logger.info(f"Auto-loaded evaluation configs: {stats}")
-                except OperationalError:
-                    logger.warning("Database not ready, skipping config auto-load")
-            except Exception as e:
-                logger.error(f"Failed to auto-load evaluation configs: {e}") 
+        # 导入信号处理器，这样它们会被注册
+        from . import signals
+        logger.info("EvaluationConfigs app is ready. Signals registered for post-migration config loading.") 
