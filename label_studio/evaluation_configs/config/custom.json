@@ -1,0 +1,74 @@
+{
+  "name": "Custom",
+  "key": "custom",
+  "description": "Custom document type with user-defined fields and matching strategy",
+  "required_fields": [
+    "docType"
+  ],
+  "optional_fields": [
+    "amount",
+    "totalAmount",
+    "invoiceDate",
+    "tradeDate",
+    "recieptNum",
+    "invoiceNumber",
+    "logNum",
+    "billToName",
+    "currency",
+    "序号"
+  ],
+  "field_display_properties": {
+    "labels": {
+      "docType": "Document Type",
+      "amount": "Amount",
+      "totalAmount": "Total Amount",
+      "invoiceDate": "Invoice Date",
+      "tradeDate": "Trade Date",
+      "recieptNum": "Receipt Number",
+      "invoiceNumber": "Invoice Number",
+      "logNum": "Log Number",
+      "billToName": "Bill To Name",
+      "currency": "Currency",
+      "序号": "Serial Number"
+    },
+    "types": {
+      "docType": "string",
+      "amount": "number",
+      "totalAmount": "number",
+      "invoiceDate": "date",
+      "tradeDate": "date",
+      "recieptNum": "string",
+      "invoiceNumber": "string",
+      "logNum": "string",
+      "billToName": "string",
+      "currency": "string",
+      "序号": "number"
+    }
+  },
+  "field_validation_rules": {
+    "docType": {
+      "required": true
+    },
+    "amount": {
+      "type": "number",
+      "min_value": 0
+    },
+    "totalAmount": {
+      "type": "number",
+      "min_value": 0
+    }
+  },
+  "evaluation_settings": {
+    "comparison_method": "field_by_field",
+    "tolerance": {
+      "amount": 0.01,
+      "totalAmount": 0.01
+    },
+    "matching_strategy": {
+      "type": "degraded_field_based",
+      "mode": "field_based",
+      "primary_fields": [],
+      "verbose": true
+    }
+  }
+}

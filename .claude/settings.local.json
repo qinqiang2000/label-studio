@@ -10,7 +10,8 @@
       "Bash(npm start)",
       "mcp__ide__getDiagnostics",
       "Bash(rg:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }

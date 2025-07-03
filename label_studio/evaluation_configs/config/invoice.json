@@ -1,0 +1,81 @@
+{
+  "name": "Invoice",
+  "key": "invoice",
+  "description": "",
+  "required_fields": [
+    "docType",
+    "invoiceDate",
+    "totalAmount",
+    "currency",
+    "billToName",
+    "totalTaxAmount"
+  ],
+  "optional_fields": [
+    "invoiceNumber",
+    "buyerName",
+    "sellerName",
+    "taxRate",
+    "subtotal",
+    "description"
+  ],
+  "field_display_properties": {
+    "labels": {
+      "docType": "Document Type",
+      "totalAmount": "Total Amount",
+      "invoiceDate": "Invoice Date",
+      "currency": "Currency",
+      "billToName": "Bill To Name",
+      "totalTaxAmount": "Total Tax Amount",
+      "invoiceNumber": "Invoice Number",
+      "buyerName": "Buyer Name",
+      "sellerName": "Seller Name",
+      "taxRate": "Tax Rate",
+      "subtotal": "Subtotal",
+      "description": "Description",
+      "序号": "Serial Number"
+    },
+    "types": {
+      "docType": "string",
+      "totalAmount": "number",
+      "invoiceDate": "date",
+      "currency": "string",
+      "billToName": "string",
+      "totalTaxAmount": "number",
+      "invoiceNumber": "string",
+      "buyerName": "string",
+      "sellerName": "string",
+      "taxRate": "number",
+      "subtotal": "number",
+      "description": "string",
+      "序号": "number"
+    }
+  },
+  "field_validation_rules": {
+    "docType": {
+      "required": true,
+      "allowed_values": ["invoice", "receipt", "other"]
+    },
+    "totalAmount": {
+      "required": true,
+      "type": "number",
+      "min_value": 0
+    },
+    "currency": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "evaluation_settings": {
+    "comparison_method": "field_by_field",
+    "tolerance": {
+      "totalAmount": 0.01,
+      "totalTaxAmount": 0.01
+    },
+    "matching_strategy": {
+      "type": "degraded_field_based",
+      "mode": "field_based",
+      "primary_fields": ["invoiceNumber", "invoiceDate", "totalAmount"],
+      "verbose": true
+    }
+  }
+}

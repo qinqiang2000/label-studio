@@ -1,0 +1,72 @@
+{
+  "name": "Receipt",
+  "key": "receipt",
+  "description": "",
+  "required_fields": [
+    "docType",
+    "totalAmount",
+    "invoiceDate",
+    "currency"
+  ],
+  "optional_fields": [
+    "receiptNumber",
+    "storeName",
+    "storeAddress",
+    "items",
+    "paymentMethod",
+    "序号"
+  ],
+  "field_display_properties": {
+    "labels": {
+      "docType": "Document Type",
+      "totalAmount": "Total Amount",
+      "invoiceDate": "Date",
+      "currency": "Currency",
+      "receiptNumber": "Receipt Number",
+      "storeName": "Store Name",
+      "storeAddress": "Store Address",
+      "items": "Items",
+      "paymentMethod": "Payment Method",
+      "序号": "Serial Number"
+    },
+    "types": {
+      "docType": "string",
+      "totalAmount": "number",
+      "invoiceDate": "date",
+      "currency": "string",
+      "receiptNumber": "string",
+      "storeName": "string",
+      "storeAddress": "string",
+      "items": "array",
+      "paymentMethod": "string",
+      "序号": "number"
+    }
+  },
+  "field_validation_rules": {
+    "docType": {
+      "required": true,
+      "allowed_values": ["receipt"]
+    },
+    "totalAmount": {
+      "required": true,
+      "type": "number",
+      "min_value": 0
+    },
+    "currency": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "evaluation_settings": {
+    "comparison_method": "field_by_field",
+    "tolerance": {
+      "totalAmount": 0.01
+    },
+    "matching_strategy": {
+      "type": "degraded_field_based",
+      "mode": "field_based",
+      "primary_fields": ["invoiceDate", "totalAmount"],
+      "verbose": true
+    }
+  }
+}

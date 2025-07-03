@@ -1,0 +1,100 @@
+{
+  "name": "Bank Receipt",
+  "key": "bank_receipt",
+  "description": "",
+  "required_fields": [
+    "tradeId",
+    "recieptNum",
+    "logNum",
+    "tradeDate",
+    "amount",
+    "paymentName",
+    "paymentBank",
+    "paymentAccount",
+    "payeeName",
+    "payeeBank",
+    "payeeAccount",
+    "currency"
+  ],
+  "optional_fields": [
+    "tradePurpose",
+    "feeAmount",
+    "balance",
+    "序号"
+  ],
+  "field_display_properties": {
+    "labels": {
+      "tradeId": "Trade ID",
+      "recieptNum": "Receipt Number",
+      "logNum": "Log Number",
+      "tradeDate": "Trade Date",
+      "amount": "Amount",
+      "paymentName": "Payment Name",
+      "paymentBank": "Payment Bank",
+      "paymentAccount": "Payment Account",
+      "payeeName": "Payee Name",
+      "payeeBank": "Payee Bank",
+      "payeeAccount": "Payee Account",
+      "currency": "Currency",
+      "tradePurpose": "Trade Purpose",
+      "feeAmount": "Fee Amount",
+      "balance": "Balance",
+      "序号": "Serial Number"
+    },
+    "types": {
+      "tradeId": "string",
+      "recieptNum": "string",
+      "logNum": "string",
+      "tradeDate": "date",
+      "amount": "number",
+      "paymentName": "string",
+      "paymentBank": "string",
+      "paymentAccount": "string",
+      "payeeName": "string",
+      "payeeBank": "string",
+      "payeeAccount": "string",
+      "currency": "string",
+      "tradePurpose": "string",
+      "feeAmount": "number",
+      "balance": "number",
+      "序号": "number"
+    }
+  },
+  "field_validation_rules": {
+    "tradeId": {
+      "required": true,
+      "type": "string"
+    },
+    "recieptNum": {
+      "required": true,
+      "type": "string"
+    },
+    "logNum": {
+      "required": true,
+      "type": "string"
+    },
+    "amount": {
+      "required": true,
+      "type": "number",
+      "min_value": 0
+    },
+    "currency": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "evaluation_settings": {
+    "comparison_method": "field_by_field",
+    "tolerance": {
+      "amount": 0.01,
+      "feeAmount": 0.01,
+      "balance": 0.01
+    },
+    "matching_strategy": {
+      "type": "degraded_field_based",
+      "mode": "field_based",
+      "primary_fields": ["tradeId", "recieptNum", "amount"],
+      "verbose": true
+    }
+  }
+}
