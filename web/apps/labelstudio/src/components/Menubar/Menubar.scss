@@ -47,8 +47,8 @@
     cursor: pointer;
     align-items: center;
     justify-content: space-between;
-    min-width: 240px;
-    max-width: 240px;
+    min-width: auto;
+    max-width: none;
     box-sizing: border-box;
     border-right: 1px solid var(--color-neutral-border);
     transition: all 150ms ease-out;
@@ -62,6 +62,30 @@
     color: var(--color-neutral-content);
     height: 22px;
     width: 142px;
+  }
+
+  &__logo-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: auto !important;
+    height: auto !important;
+    margin-right: 16px;
+  }
+
+  &__logo-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+
+  &__logo-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-neutral-content);
+    line-height: 22px;
+    white-space: nowrap;
   }
 
   &__user {

@@ -47,7 +47,7 @@ export const HeidiTip: FC<HeidiTipProps> = ({ tip, onDismiss, onLinkClick }) => 
           )}
         </Elem>
         <Elem name="text">
-          {tip.content}
+          {tip.description ?? tip.content}
           <HeidiLink link={tip.link} onClick={onLinkClick} />
         </Elem>
       </Elem>
