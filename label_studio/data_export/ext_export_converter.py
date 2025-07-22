@@ -39,6 +39,38 @@ def extract_valid_text(items_list):
                             continue  # 不是有效 JSON，继续下一个 result 元素
     return "[]"
 
+def get_dynamic_fields_from_data(data_list):
+    """
+    根据数据内容动态生成字段映射
+    :param data_list: 解析后的数据列表
+    :return: 字段列表
+    """
+    all_fields = ["project", "id", "filename", "page"]
+    
+    for item in data_list:
+        try:
+            # 提取annotations和predictions中的text
+            annotation_text = extract_valid_text(item.get("annotations", []))
+            prediction_text = extract_valid_text(item.get("predictions", []))
+            
+            for text in [annotation_text, prediction_text]:
+                if text and text != "[]":
+                    try:
+                        parsed_data = json.loads(text)
+                        if isinstance(parsed_data, list) and parsed_data:
+                            for data_item in parsed_data:
+                                if isinstance(data_item, dict):
+                                    # 只添加顶层字段
+                                    for key in data_item.keys():
+                                        if key not in all_fields:
+                                            all_fields.append(key)
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            continue
+    
+    return all_fields
+
 def extract_annotations_and_data(json_path: str) -> dict:
     """
     读取label_studio导出的json数据，提取每个标注的id、filename、annotations和predictions中的text
@@ -80,6 +112,13 @@ def export_to_excel(json_path: str, output_data: str):
     # 获取数据
     results = extract_annotations_and_data(json_path)
     
+    # 读取原始数据以动态生成字段
+    with open(json_path, "r", encoding="utf-8") as f:
+        raw_data = json.load(f)
+    
+    # 动态生成字段映射
+    dynamic_fields = get_dynamic_fields_from_data(raw_data)
+    
     # 创建工作簿
     wb = Workbook()
     
@@ -90,7 +129,7 @@ def export_to_excel(json_path: str, output_data: str):
     
     # 添加表头
     for ws in [ws_annotation, ws_prediction]:
-        for col_idx, field in enumerate(fields, 1):
+        for col_idx, field in enumerate(dynamic_fields, 1):
             ws.cell(row=1, column=col_idx, value=field)
     
     # 处理每个结果
@@ -130,7 +169,7 @@ def export_to_excel(json_path: str, output_data: str):
                             worksheet.cell(row=current_row, column=4, value=1)  # page列
                         
                         # 处理其他字段
-                        for col_idx, field in enumerate(fields[3:], 4):  # 从第4列开始（跳过project、id和filename）
+                        for col_idx, field in enumerate(dynamic_fields[3:], 4):  # 从第4列开始（跳过project、id和filename）
                             if field in item:
                                 value = item[field]
                                 cell = worksheet.cell(row=current_row, column=col_idx)

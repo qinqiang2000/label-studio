@@ -7,7 +7,7 @@ import json
 import tempfile
 import os
 from openpyxl import load_workbook
-from label_studio.data_export.ext_export_converter import extract_annotations_and_data, fields
+from label_studio.data_export.ext_export_converter import extract_annotations_and_data
 
 
 def create_label_studio_json_from_eval_data(eval_list, project_id=None):
@@ -88,9 +88,13 @@ def generate_annotations_predictions_sheets(eval_list, project_id=None):
         ws_annotation.title = "Annotations"
         ws_prediction = wb.create_sheet(title="Predictions")
         
+        # 读取数据生成动态字段
+        from label_studio.data_export.ext_export_converter import get_dynamic_fields_from_data
+        dynamic_fields = get_dynamic_fields_from_data(label_studio_data)
+        
         # 添加表头
         for ws in [ws_annotation, ws_prediction]:
-            for col_idx, field in enumerate(fields, 1):
+            for col_idx, field in enumerate(dynamic_fields, 1):
                 ws.cell(row=1, column=col_idx, value=field)
         
         # 处理数据
@@ -117,7 +121,7 @@ def generate_annotations_predictions_sheets(eval_list, project_id=None):
                             if "page" not in item:
                                 worksheet.cell(row=current_row, column=4, value=1)
                             
-                            for col_idx, field in enumerate(fields[3:], 4):
+                            for col_idx, field in enumerate(dynamic_fields[3:], 4):
                                 if field in item:
                                     value = item[field]
                                     cell = worksheet.cell(row=current_row, column=col_idx)
