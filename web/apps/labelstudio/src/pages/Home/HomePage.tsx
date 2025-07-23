@@ -144,7 +144,7 @@ export const HomePage: Page = () => {
             ) : null}
           </SimpleCard>
         </section>
-        <section className="flex flex-col gap-6">
+        {/* <section className="flex flex-col gap-6">
           <HeidiTips collection="projectSettings" />
           <SimpleCard title="Resources" description="Learn, explore and get help" data-testid="resources-card">
             <ul>
@@ -169,7 +169,7 @@ export const HomePage: Page = () => {
             <IconHumanSignal />
             <span className="text-neutral-content-subtle">Piaozone AI Studio</span>
           </div>
-        </section>
+        </section> */}
       </div>
       {creationDialogOpen && <CreateProject onClose={() => setCreationDialogOpen(false)} />}
       <InviteLink opened={invitationOpen} onClosed={() => setInvitationOpen(false)} />

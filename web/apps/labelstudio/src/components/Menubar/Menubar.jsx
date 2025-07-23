@@ -211,6 +211,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
 
                 <VersionNotifier showNewVersion />
 
+{/* Hidden menu items: API, Docs, GitHub, Slack Community
                 <Menu.Item
                   label="API"
                   href="https://api.labelstud.io/api-reference/introduction/getting-started"
@@ -232,6 +233,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                   target="_blank"
                   rel="noreferrer"
                 />
+                */}
 
                 <VersionNotifier showCurrentVersion />
 
