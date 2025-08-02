@@ -307,11 +307,10 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
               >
                 <Elem name="prompt-info">
                   <Elem name="prompt-title">{prompt.name}</Elem>
-                  <Elem name="prompt-preview">
-                    {prompt.content_preview}
+                  <Elem name="prompt-description">
                     {prompt.temperature !== null && prompt.temperature !== undefined && (
-                      <span style={{ color: '#666', marginLeft: '8px' }}>
-                        • Temperature: {prompt.temperature}
+                      <span style={{ color: '#666' }}>
+                        Temperature: {prompt.temperature}
                       </span>
                     )}
                   </Elem>
