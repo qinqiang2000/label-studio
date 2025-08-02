@@ -19,6 +19,7 @@ interface Workspace {
   is_archived: boolean;
   member_count: number;
   project_count: number;
+  prompt_count: number;
   created_by: {
     id: number;
     email: string;
@@ -38,6 +39,15 @@ interface Project {
   created_at: string;
 }
 
+interface Prompt {
+  id: number;
+  name: string;
+  content_preview: string;
+  temperature: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface WorkspaceCardProps {
   workspace: Workspace;
   onUpdate: () => void;
@@ -52,6 +62,9 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
   const [showProjects, setShowProjects] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
+  const [showPrompts, setShowPrompts] = useState(false);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [promptsLoading, setPromptsLoading] = useState(false);
 
   const handleEditWorkspace = useCallback(() => {
     const modalInstance = modal({
@@ -161,8 +174,32 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
     setShowProjects(!showProjects);
   }, [showProjects, projects.length, workspace.id, api]);
 
+  const handleTogglePrompts = useCallback(async () => {
+    if (!showPrompts && prompts.length === 0) {
+      // Fetch prompts if not already loaded
+      try {
+        setPromptsLoading(true);
+        const response = await api.callApi('workspacePrompts', {
+          params: { pk: workspace.id }
+        });
+        setPrompts((response as unknown as Prompt[]) || []);
+      } catch (error) {
+        console.error('Failed to fetch workspace prompts:', error);
+        alert('Failed to load prompts. Please try again.');
+        return;
+      } finally {
+        setPromptsLoading(false);
+      }
+    }
+    setShowPrompts(!showPrompts);
+  }, [showPrompts, prompts.length, workspace.id, api]);
+
   const handleViewProject = useCallback((projectId: number) => {
     window.location.href = `/projects/${projectId}`;
+  }, []);
+
+  const handleViewPrompt = useCallback((promptId: number) => {
+    window.location.href = `/prompts#${promptId}`;
   }, []);
 
   return (
@@ -201,18 +238,33 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
           <Elem name="stat-value">{workspace.project_count}</Elem>
           <Elem name="stat-label">Projects</Elem>
         </Elem>
+        <Elem name="stat">
+          <Elem name="stat-value">{workspace.prompt_count}</Elem>
+          <Elem name="stat-label">Prompts</Elem>
+        </Elem>
       </Elem>
 
       <Elem name="footer">
-        <Button
-          look="alt"
-          size="small"
-          onClick={handleToggleProjects}
-          disabled={projectsLoading}
-          icon={showProjects ? <IconChevronDown /> : <IconChevronRight />}
-        >
-          {projectsLoading ? 'Loading...' : showProjects ? 'Hide Projects' : 'Show Projects'}
-        </Button>
+        <Elem name="footer-buttons">
+          <Button
+            look="alt"
+            size="small"
+            onClick={handleToggleProjects}
+            disabled={projectsLoading}
+            icon={showProjects ? <IconChevronDown /> : <IconChevronRight />}
+          >
+            {projectsLoading ? 'Loading...' : showProjects ? 'Hide Projects' : 'Show Projects'}
+          </Button>
+          <Button
+            look="alt"
+            size="small"
+            onClick={handleTogglePrompts}
+            disabled={promptsLoading}
+            icon={showPrompts ? <IconChevronDown /> : <IconChevronRight />}
+          >
+            {promptsLoading ? 'Loading...' : showPrompts ? 'Hide Prompts' : 'Show Prompts'}
+          </Button>
+        </Elem>
         <Elem name="created-info">
           Created {timeAgo(workspace.created_at)} by {workspace.created_by.email}
         </Elem>
@@ -238,6 +290,37 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
                 </Elem>
                 <Elem name="project-created">
                   {timeAgo(project.created_at)}
+                </Elem>
+              </Elem>
+            ))
+          )}
+        </Elem>
+      )}
+
+      {showPrompts && (
+        <Elem name="prompts-list">
+          {prompts.length === 0 ? (
+            <Elem name="no-prompts">No prompts in this workspace yet</Elem>
+          ) : (
+            prompts.map((prompt) => (
+              <Elem 
+                key={prompt.id} 
+                name="prompt-item"
+                onClick={() => handleViewPrompt(prompt.id)}
+              >
+                <Elem name="prompt-info">
+                  <Elem name="prompt-title">{prompt.name}</Elem>
+                  <Elem name="prompt-preview">
+                    {prompt.content_preview}
+                    {prompt.temperature !== null && prompt.temperature !== undefined && (
+                      <span style={{ color: '#666', marginLeft: '8px' }}>
+                        • Temperature: {prompt.temperature}
+                      </span>
+                    )}
+                  </Elem>
+                </Elem>
+                <Elem name="prompt-created">
+                  {timeAgo(prompt.created_at)}
                 </Elem>
               </Elem>
             ))

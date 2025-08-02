@@ -14,6 +14,7 @@ class WorkspaceMemberSerializer(serializers.ModelSerializer):
 class WorkspaceSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
     project_count = serializers.SerializerMethodField()
+    prompt_count = serializers.SerializerMethodField()
     created_by = BaseUserSerializer(read_only=True)
     members = WorkspaceMemberSerializer(source='workspace_members', many=True, read_only=True)
     
@@ -22,7 +23,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'color', 'organization', 
             'created_by', 'is_archived', 'created_at', 'updated_at',
-            'member_count', 'project_count', 'members'
+            'member_count', 'project_count', 'prompt_count', 'members'
         ]
         read_only_fields = ['organization', 'created_by', 'created_at', 'updated_at']
     
@@ -31,6 +32,9 @@ class WorkspaceSerializer(serializers.ModelSerializer):
     
     def get_project_count(self, obj):
         return obj.projects.count()
+    
+    def get_prompt_count(self, obj):
+        return obj.prompts.count()
 
 
 class WorkspaceCreateSerializer(serializers.ModelSerializer):

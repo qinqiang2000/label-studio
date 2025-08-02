@@ -16,6 +16,7 @@ interface Workspace {
   is_archived: boolean;
   member_count: number;
   project_count: number;
+  prompt_count: number;
   created_by: {
     id: number;
     email: string;

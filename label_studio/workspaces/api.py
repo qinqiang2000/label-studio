@@ -17,6 +17,7 @@ from .serializers import (
 )
 from users.serializers import BaseUserSerializer
 from projects.serializers import ProjectSerializer
+from prompts.serializers import PromptSerializer
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -110,6 +111,26 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         projects = workspace.projects.all()
         serializer = ProjectSerializer(projects, many=True, context={'request': request})
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def prompts(self, request, pk=None):
+        """Get prompts in this workspace"""
+        workspace = self.get_object()
+        prompts = workspace.prompts.all()
+        # Create a lightweight response with essential info only
+        prompts_data = []
+        for prompt in prompts:
+            # Truncate content for preview (first 100 characters)
+            content_preview = prompt.content[:100] + "..." if len(prompt.content) > 100 else prompt.content
+            prompts_data.append({
+                'id': prompt.id,
+                'name': prompt.name,
+                'content_preview': content_preview,
+                'temperature': prompt.temperature,
+                'created_at': prompt.created_at,
+                'updated_at': prompt.updated_at,
+            })
+        return Response(prompts_data)
     
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
