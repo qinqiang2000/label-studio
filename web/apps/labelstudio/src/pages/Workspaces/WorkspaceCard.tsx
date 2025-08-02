@@ -265,9 +265,6 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
             {promptsLoading ? 'Loading...' : showPrompts ? 'Hide Prompts' : 'Show Prompts'}
           </Button>
         </Elem>
-        <Elem name="created-info">
-          Created {timeAgo(workspace.created_at)} by {workspace.created_by.email}
-        </Elem>
       </Elem>
 
       {showProjects && (
@@ -329,4 +326,4 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
       )}
     </Block>
   );
-}; 
+};
