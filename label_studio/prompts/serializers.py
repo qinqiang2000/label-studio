@@ -1,14 +1,31 @@
 from rest_framework import serializers
 from .models import Prompt
+from workspaces.models import Workspace
 import json
+
+
+class WorkspaceSerializer(serializers.ModelSerializer):
+    """Nested serializer for workspace information"""
+    
+    class Meta:
+        model = Workspace
+        fields = ['id', 'name', 'description', 'color']
 
 
 class PromptSerializer(serializers.ModelSerializer):
     """Serializer for Prompt model"""
+    workspace = WorkspaceSerializer(read_only=True)
+    workspace_id = serializers.PrimaryKeyRelatedField(
+        queryset=Workspace.objects.all(),
+        source='workspace',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = Prompt
-        fields = ['id', 'name', 'content', 'temperature', 'response_schema', 'created_at', 'updated_at', 'created_by', 'workspace']
+        fields = ['id', 'name', 'content', 'temperature', 'response_schema', 'created_at', 'updated_at', 'created_by', 'workspace', 'workspace_id']
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
         
     def create(self, validated_data):
@@ -48,7 +65,7 @@ class PromptSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Response schema must be valid JSON")
         return value
     
-    def validate_workspace(self, value):
+    def validate_workspace_id(self, value):
         """Validate that user has access to the specified workspace"""
         if value is not None:
             user = self.context['request'].user

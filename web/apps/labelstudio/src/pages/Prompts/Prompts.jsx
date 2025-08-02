@@ -455,8 +455,6 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
     if (!validateForm()) {
       return;
     }
-
-    console.log("=== FORM SUBMIT DEBUG ===");
     
     // Prepare form data
     const submitData = {
@@ -482,11 +480,9 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
 
     // Add workspace if provided
     if (formData.workspace !== "") {
-      submitData.workspace = formData.workspace;
+      submitData.workspace_id = formData.workspace;
     }
-
-    console.log("Form data being submitted:", submitData);
-    console.log("onSave function:", onSave);
+    
     onSave(submitData);
   };
 
@@ -628,6 +624,25 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
     return `${year}-${month}-${day} ${hour}:${minute}`;
   };
 
+  const getWorkspaceDisplay = (workspace) => {
+    if (!workspace) {
+      return 'Organization-wide (visible to all users)';
+    }
+    
+    // Handle different workspace data formats
+    if (typeof workspace === 'object') {
+      if (workspace.name) {
+        return workspace.name;
+      } else if (workspace.id) {
+        return `Workspace #${workspace.id}`;
+      }
+    } else if (typeof workspace === 'string' || typeof workspace === 'number') {
+      return `Workspace #${workspace}`;
+    }
+    
+    return 'Unknown workspace';
+  };
+
   const handleCardClick = (e) => {
     // 如果点击的是按钮，不触发卡片点击事件
     if (e.target.closest('button')) {
@@ -683,7 +698,7 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
         {/* Display workspace info */}
         <div className={Block.elem("card-meta")} style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #eee' }}>
           <div style={{ fontSize: '12px', marginBottom: '4px', color: '#666' }}>
-            <strong>Workspace:</strong> {prompt.workspace ? `${prompt.workspace.name || 'Unknown'}` : 'Organization-wide (visible to all users)'}
+            <strong>Workspace:</strong> {getWorkspaceDisplay(prompt.workspace)}
           </div>
         </div>
       </div>
@@ -735,28 +750,19 @@ export const PromptsPage = () => {
   };
 
   const openModal = (promptToEdit = null) => {
-    console.log("=== MODAL DEBUG START ===");
-    console.log("promptToEdit:", promptToEdit);
-    console.log("Setting editingPrompt to:", promptToEdit);
-    
-    // 重要：使用useEffect或者setTimeout来确保状态更新后再创建模态框
+        // 重要：使用useEffect或者setTimeout来确保状态更新后再创建模态框
     setTimeout(() => {
-      console.log("Creating modal after state update");
-      
       let modalInstance; // 声明在外层作用域
       
       const closeModalHandler = () => {
-        console.log("closeModalHandler called");
         if (modalInstance && typeof modalInstance.close === 'function') {
           try {
-            console.log("Closing modal instance with close() method");
             modalInstance.close();
           } catch (error) {
             console.warn('Error closing modal:', error);
           }
         } else if (modalInstance && typeof modalInstance.hide === 'function') {
           try {
-            console.log("Hiding modal instance with hide() method");
             modalInstance.hide();
           } catch (error) {
             console.warn('Error hiding modal:', error);
@@ -764,7 +770,6 @@ export const PromptsPage = () => {
         } else {
           console.warn('Modal instance has no close or hide method:', modalInstance);
         }
-        console.log("Clearing current modal and editing prompt");
         setCurrentModal(null);
         setEditingPrompt(null);
       };
@@ -816,20 +821,12 @@ export const PromptsPage = () => {
     setEditingPrompt(null);
   };
 
-  const handleSavePrompt = async (formData, closeHandler, promptToEdit = null) => {
-    console.log("=== SAVE DEBUG START ===");
-    console.log("formData:", formData);
-    console.log("promptToEdit param:", promptToEdit);
-    console.log("editingPrompt state:", editingPrompt);
-    console.log("closeHandler type:", typeof closeHandler);
-    
+  const handleSavePrompt = async (formData, closeHandler, promptToEdit = null) => {    
     // 使用传入的promptToEdit参数而不是状态，因为状态可能还没更新
     const isEditing = promptToEdit !== null;
     
     try {
       setSaving(true);
-      console.log("Setting saving to true");
-      
       if (isEditing) {
         console.log("UPDATING existing prompt with ID:", promptToEdit.id);
         // Update existing prompt
@@ -837,29 +834,24 @@ export const PromptsPage = () => {
           params: { id: promptToEdit.id },
           body: formData,
         });
-        console.log("Prompt updated successfully:", response);
       } else {
         console.log("CREATING new prompt");
         // Create new prompt
         const response = await api.callApi("createPrompt", {
           body: formData,
         });
-        console.log("Prompt created successfully:", response);
       }
       
       console.log("About to close modal");
       // 先关闭模态框，再重新加载数据
       if (closeHandler && typeof closeHandler === 'function') {
-        console.log("Calling closeHandler");
         closeHandler();
       } else {
         console.log("closeHandler is not a function or is null");
       }
       
-      console.log("About to reload prompts");
       // 重新加载prompts
       await loadPrompts();
-      console.log("Prompts reloaded");
       
     } catch (error) {
       console.error("Failed to save prompt:", error);
@@ -882,9 +874,7 @@ export const PromptsPage = () => {
       
       alert(errorMessage);
     } finally {
-      console.log("Setting saving to false");
       setSaving(false);
-      console.log("=== SAVE DEBUG END ===");
     }
   };
 
