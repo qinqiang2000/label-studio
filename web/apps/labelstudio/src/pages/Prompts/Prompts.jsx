@@ -402,12 +402,9 @@ const CollapsibleJsonEditor = ({ value, onChange, placeholder, disabled, error }
                 fontSize: '12px',
                 color: '#1e40af'
               }}>
-                {/* <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                  JSON Schema 帮助
-                </div>*/
                 <div>
                   定义AI模型返回结果的结构格式。支持标准的JSON Schema语法。
-                </div> }
+                </div> 
               </div>
             )}
           </div>
