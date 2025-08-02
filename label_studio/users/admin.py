@@ -8,7 +8,7 @@ from ml.models import MLBackend, MLBackendTrainJob
 from organizations.models import Organization, OrganizationMember
 from projects.models import Project
 from tasks.models import Annotation, Prediction, Task
-from users.models import User
+from users.models import User, Role, Permission, RolePermission
 
 
 class UserAdminShort(UserAdmin):
@@ -21,12 +21,13 @@ class UserAdminShort(UserAdmin):
         self.list_display = (
             'email',
             'username',
+            'role',
             'active_organization',
             'organization',
             'is_staff',
             'is_superuser',
         )
-        self.list_filter = ('is_staff', 'is_superuser', 'is_active')
+        self.list_filter = ('is_staff', 'is_superuser', 'is_active', 'role')
         self.search_fields = (
             'username',
             'first_name',
@@ -47,6 +48,7 @@ class UserAdminShort(UserAdmin):
                         'is_active',
                         'is_staff',
                         'is_superuser',
+                        'role',
                     )
                 },
             ),
@@ -73,7 +75,40 @@ class OrganizationMemberAdmin(admin.ModelAdmin):
         self.ordering = ('id',)
 
 
+class RoleAdmin(admin.ModelAdmin):
+    def __init__(self, *args, **kwargs):
+        super(RoleAdmin, self).__init__(*args, **kwargs)
+
+        self.list_display = ('id', 'name', 'display_name', 'description', 'is_active', 'created_at')
+        self.list_filter = ('is_active',)
+        self.search_fields = ('name', 'display_name')
+        self.ordering = ('name',)
+
+
+class PermissionAdmin(admin.ModelAdmin):
+    def __init__(self, *args, **kwargs):
+        super(PermissionAdmin, self).__init__(*args, **kwargs)
+
+        self.list_display = ('id', 'name', 'display_name', 'category', 'is_active', 'created_at')
+        self.list_filter = ('category', 'is_active')
+        self.search_fields = ('name', 'display_name')
+        self.ordering = ('category', 'name')
+
+
+class RolePermissionAdmin(admin.ModelAdmin):
+    def __init__(self, *args, **kwargs):
+        super(RolePermissionAdmin, self).__init__(*args, **kwargs)
+
+        self.list_display = ('id', 'role', 'permission', 'granted', 'created_at')
+        self.list_filter = ('granted', 'role', 'permission__category')
+        self.search_fields = ('role__name', 'permission__name')
+        self.ordering = ('role', 'permission')
+
+
 admin.site.register(User, UserAdminShort)
+admin.site.register(Role, RoleAdmin)
+admin.site.register(Permission, PermissionAdmin)
+admin.site.register(RolePermission, RolePermissionAdmin)
 admin.site.register(Project)
 admin.site.register(MLBackend)
 admin.site.register(MLBackendTrainJob)

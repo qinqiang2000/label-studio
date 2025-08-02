@@ -15,6 +15,8 @@ class BaseUserSerializer(FlexFieldsModelSerializer):
     initials = serializers.SerializerMethodField(default='?', read_only=True)
     avatar = serializers.SerializerMethodField(read_only=True)
     active_organization_meta = serializers.SerializerMethodField(read_only=True)
+    role_info = serializers.SerializerMethodField(read_only=True)
+    permissions = serializers.SerializerMethodField(read_only=True)
 
     def get_avatar(self, instance):
         return instance.avatar_url
@@ -34,6 +36,27 @@ class BaseUserSerializer(FlexFieldsModelSerializer):
             email = organization.created_by.email
 
         return {'title': title, 'email': email}
+
+    def get_role_info(self, instance):
+        """获取用户角色信息"""
+        role_name = instance.effective_role
+        if instance.role:
+            return {
+                'name': role_name,
+                'display_name': instance.role.display_name,
+                'description': instance.role.description
+            }
+        else:
+            # 兼容性处理
+            return {
+                'name': role_name,
+                'display_name': 'Superuser' if role_name == 'superuser' else 'Annotator',
+                'description': ''
+            }
+
+    def get_permissions(self, instance):
+        """获取用户权限列表"""
+        return list(instance.get_permissions())
 
     def _is_deleted(self, instance):
         if 'deleted_organization_members' in self.context:
@@ -102,6 +125,8 @@ class BaseUserSerializer(FlexFieldsModelSerializer):
             'allow_newsletters',
             'date_joined',
             'is_superuser',
+            'role_info',
+            'permissions',
         )
 
 

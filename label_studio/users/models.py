@@ -26,6 +26,75 @@ for r in range(YEAR_START, (datetime.datetime.now().year + 1)):
 year = models.IntegerField(_('year'), choices=YEAR_CHOICES, default=datetime.datetime.now().year)
 
 
+class Role(models.Model):
+    """动态角色模型，支持通过数据库配置角色"""
+    name = models.CharField(_('role name'), max_length=50, unique=True)
+    display_name = models.CharField(_('display name'), max_length=100)
+    description = models.TextField(_('description'), blank=True)
+    is_active = models.BooleanField(_('is active'), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'htx_role'
+        verbose_name = _('role')
+        verbose_name_plural = _('roles')
+
+    def __str__(self):
+        return self.display_name
+
+
+class Permission(models.Model):
+    """权限模型，定义系统中的各种权限"""
+    name = models.CharField(_('permission name'), max_length=100, unique=True)
+    display_name = models.CharField(_('display name'), max_length=150)
+    description = models.TextField(_('description'), blank=True)
+    category = models.CharField(_('category'), max_length=50, default='general')
+    is_active = models.BooleanField(_('is active'), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'htx_permission'
+        verbose_name = _('permission')
+        verbose_name_plural = _('permissions')
+        indexes = [
+            models.Index(fields=['category']),
+            models.Index(fields=['name']),
+        ]
+
+    def __str__(self):
+        return self.display_name
+
+
+class RolePermission(models.Model):
+    """角色权限关联模型"""
+    role = models.ForeignKey(
+        Role, 
+        on_delete=models.CASCADE, 
+        related_name='permissions'
+    )
+    permission = models.ForeignKey(
+        Permission, 
+        on_delete=models.CASCADE, 
+        related_name='roles'
+    )
+    granted = models.BooleanField(_('granted'), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='granted_permissions'
+    )
+
+    class Meta:
+        db_table = 'htx_role_permission'
+        unique_together = ['role', 'permission']
+        verbose_name = _('role permission')
+        verbose_name_plural = _('role permissions')
+
+
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
@@ -111,6 +180,15 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
 
     allow_newsletters = models.BooleanField(
         _('allow newsletters'), null=True, default=None, help_text=_('Allow sending newsletters to user')
+    )
+
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('role'),
+        help_text=_('User role that determines permissions')
     )
 
     objects = UserManager()
@@ -201,6 +279,80 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
         elif self.first_name and self.last_name:
             initials = self.first_name[0:1] + self.last_name[0:1]
         return initials
+
+    def get_role_name(self):
+        """获取用户角色名称"""
+        if self.is_superuser:
+            return 'superuser'
+        return self.role.name if self.role else 'annotator'
+    
+    def has_role(self, role_name):
+        """检查用户是否具有指定角色"""
+        if self.is_superuser and role_name == 'superuser':
+            return True
+        return self.role and self.role.name == role_name
+    
+    def is_role_annotator(self):
+        """检查是否为标注员角色"""
+        return self.has_role('annotator')
+    
+    @property
+    def effective_role(self):
+        """获取用户的有效角色（考虑is_superuser字段的兼容性）"""
+        if self.is_superuser:
+            return 'superuser'
+        return self.role.name if self.role else 'annotator'
+    
+    def has_permission(self, permission_name):
+        """检查用户是否具有指定权限"""
+        # 超级管理员拥有所有权限
+        if self.is_superuser:
+            return True
+        
+        # 如果没有角色，使用默认的annotator角色权限
+        if not self.role:
+            try:
+                default_role = Role.objects.get(name='annotator')
+                return RolePermission.objects.filter(
+                    role=default_role,
+                    permission__name=permission_name,
+                    permission__is_active=True,
+                    granted=True
+                ).exists()
+            except Role.DoesNotExist:
+                return False
+        
+        # 检查角色是否具有该权限
+        return RolePermission.objects.filter(
+            role=self.role,
+            permission__name=permission_name,
+            permission__is_active=True,
+            granted=True
+        ).exists()
+    
+    def get_permissions(self):
+        """获取用户的所有权限列表"""
+        if self.is_superuser:
+            # 超级管理员拥有所有权限
+            return Permission.objects.filter(is_active=True).values_list('name', flat=True)
+        
+        if not self.role:
+            # 如果用户没有明确的角色，为其提供默认的annotator权限
+            try:
+                default_role = Role.objects.get(name='annotator')
+                return Permission.objects.filter(
+                    roles__role=default_role,
+                    roles__granted=True,
+                    is_active=True
+                ).values_list('name', flat=True)
+            except Role.DoesNotExist:
+                return []
+        
+        return Permission.objects.filter(
+            roles__role=self.role,
+            roles__granted=True,
+            is_active=True
+        ).values_list('name', flat=True)
 
 
 @receiver(post_save, sender=User)

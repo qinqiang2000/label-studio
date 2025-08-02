@@ -33,6 +33,7 @@ import { FF_HOMEPAGE } from "../../utils/feature-flags";
 import { pages } from "@humansignal/app-common";
 import { isFF } from "../../utils/feature-flags";
 import { ff } from "@humansignal/core";
+import { usePermissions } from "../../hooks/usePermissions";
 
 export const MenubarContext = createContext();
 
@@ -59,6 +60,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
   const useMenuRef = useRef();
   const { user, fetch, isInProgress } = useCurrentUser();
   const location = useFixedLocation();
+  const permissions = usePermissions();
 
   const config = useConfig();
   const [sidebarOpened, setSidebarOpened] = useState(defaultOpened ?? false);
@@ -201,11 +203,21 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
               style={{ width: 240 }}
             >
               <Menu>
-                {isFF(FF_HOMEPAGE) && <Menu.Item label="Home" to="/" icon={<IconHome />} data-external exact />}
-                <Menu.Item label="Projects" to="/projects" icon={<IconFolder />} data-external exact />
-                <Menu.Item label="Workspaces" to="/workspaces" icon={<IconGrid />} data-external exact />
-                <Menu.Item label="Prompts" to="/prompts" icon={<IconSparks />} data-external exact />
-                <Menu.Item label="Organization" to="/organization" icon={<IconPersonInCircle />} data-external exact />
+                {isFF(FF_HOMEPAGE) && permissions.menu.canViewHome() && (
+                  <Menu.Item label="Home" to="/" icon={<IconHome />} data-external exact />
+                )}
+                {permissions.menu.canViewProjects() && (
+                  <Menu.Item label="Projects" to="/projects" icon={<IconFolder />} data-external exact />
+                )}
+                {permissions.menu.canViewWorkspaces() && (
+                  <Menu.Item label="Workspaces" to="/workspaces" icon={<IconGrid />} data-external exact />
+                )}
+                {permissions.menu.canViewPrompts() && (
+                  <Menu.Item label="Prompts" to="/prompts" icon={<IconSparks />} data-external exact />
+                )}
+                {permissions.menu.canViewOrganization() && (
+                  <Menu.Item label="Organization" to="/organization" icon={<IconPersonInCircle />} data-external exact />
+                )}
 
                 <Menu.Spacer />
 
