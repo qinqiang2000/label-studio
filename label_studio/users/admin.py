@@ -93,16 +93,30 @@ class PermissionAdmin(admin.ModelAdmin):
         self.list_filter = ('category', 'is_active')
         self.search_fields = ('name', 'display_name')
         self.ordering = ('category', 'name')
+        
+    def get_form(self, request, obj=None, **kwargs):
+        """自定义表单，显示更友好的帮助信息"""
+        form = super().get_form(request, obj, **kwargs)
+        if 'name' in form.base_fields:
+            form.base_fields['name'].help_text = '权限的英文标识符，如: view_home, create_project'
+        if 'display_name' in form.base_fields:
+            form.base_fields['display_name'].help_text = '权限的中文显示名称，如: Home菜单查看'
+        return form
 
 
 class RolePermissionAdmin(admin.ModelAdmin):
     def __init__(self, *args, **kwargs):
         super(RolePermissionAdmin, self).__init__(*args, **kwargs)
 
-        self.list_display = ('id', 'role', 'permission', 'granted', 'created_at')
+        self.list_display = ('id', 'role', 'permission_detail', 'granted', 'created_at')
         self.list_filter = ('granted', 'role', 'permission__category')
-        self.search_fields = ('role__name', 'permission__name')
+        self.search_fields = ('role__name', 'permission__name', 'permission__display_name')
         self.ordering = ('role', 'permission')
+    
+    def permission_detail(self, obj):
+        """显示权限的详细信息：英文名 + 中文名"""
+        return f"{obj.permission.name} ({obj.permission.display_name})"
+    permission_detail.short_description = '权限详情'
 
 
 admin.site.register(User, UserAdminShort)

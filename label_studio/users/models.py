@@ -63,7 +63,7 @@ class Permission(models.Model):
         ]
 
     def __str__(self):
-        return self.display_name
+        return f"{self.name} ({self.display_name})"
 
 
 class RolePermission(models.Model):
