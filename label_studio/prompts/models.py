@@ -26,6 +26,14 @@ class Prompt(models.Model):
         related_name='prompts',
         help_text="User who created this prompt"
     )
+    workspace = models.ForeignKey(
+        'workspaces.Workspace',
+        on_delete=models.SET_NULL,
+        related_name='prompts',
+        null=True,
+        blank=True,
+        help_text='Workspace this prompt belongs to'
+    )
     
     class Meta:
         ordering = ['-updated_at']

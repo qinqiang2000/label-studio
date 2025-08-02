@@ -5,6 +5,7 @@ import { modal } from "../../components/Modal/Modal";
 import { cn } from "../../utils/bem";
 import { useAPI } from "../../providers/ApiProvider";
 import { useCurrentUser } from "../../providers/CurrentUser";
+import WorkspaceSelector from "../CreateProject/WorkspaceSelector";
 import "./Prompts.scss";
 
 const Block = cn("prompts-page");
@@ -401,14 +402,12 @@ const CollapsibleJsonEditor = ({ value, onChange, placeholder, disabled, error }
                 fontSize: '12px',
                 color: '#1e40af'
               }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                {/* <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
                   JSON Schema 帮助
-                </div>
+                </div>*/
                 <div>
                   定义AI模型返回结果的结构格式。支持标准的JSON Schema语法。
-                  <br />
-                  点击左侧的 + / − 按钮可以折叠或展开JSON对象和数组。
-                </div>
+                </div> }
               </div>
             )}
           </div>
@@ -424,6 +423,7 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
     content: prompt?.content || "",
     temperature: prompt?.temperature || "",
     response_schema: prompt?.response_schema ? JSON.stringify(prompt.response_schema, null, 2) : "",
+    workspace: prompt?.workspace || "",
   });
 
   const [errors, setErrors] = useState({});
@@ -481,6 +481,11 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
         console.error("JSON parse error:", e);
         return;
       }
+    }
+
+    // Add workspace if provided
+    if (formData.workspace !== "") {
+      submitData.workspace = formData.workspace;
     }
 
     console.log("Form data being submitted:", submitData);
@@ -562,6 +567,22 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
             {errors.temperature}
           </div>
         )}
+      </div>
+
+      <div className={Block.elem("form-field")}>
+        <label htmlFor="workspace">
+          Workspace 
+          <small style={{ color: '#666', fontWeight: 'normal' }}>
+            {' '}(Optional: Select a workspace or leave empty for organization-wide visibility)
+          </small>
+        </label>
+        <WorkspaceSelector
+          value={formData.workspace}
+          onChange={(value) => setFormData(prev => ({ ...prev, workspace: value }))}
+          disabled={isLoading}
+          placeholder="Select a workspace (optional)"
+          getPopupContainer={() => document.body}
+        />
       </div>
 
       <div className={Block.elem("form-field")}>
@@ -661,6 +682,13 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
             )}
           </div>
         ) : null}
+        
+        {/* Display workspace info */}
+        <div className={Block.elem("card-meta")} style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #eee' }}>
+          <div style={{ fontSize: '12px', marginBottom: '4px', color: '#666' }}>
+            <strong>Workspace:</strong> {prompt.workspace ? `${prompt.workspace.name || 'Unknown'}` : 'Organization-wide (visible to all users)'}
+          </div>
+        </div>
       </div>
       
       <div className={Block.elem("card-footer")}>
@@ -753,12 +781,14 @@ export const PromptsPage = () => {
           maxHeight: '1000px'
         },
         body: () => (
-          <PromptForm
-            prompt={promptToEdit}
-            onSave={(formData) => handleSavePrompt(formData, closeModalHandler, promptToEdit)}
-            onCancel={closeModalHandler}
-            isLoading={saving}
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <PromptForm
+              prompt={promptToEdit}
+              onSave={(formData) => handleSavePrompt(formData, closeModalHandler, promptToEdit)}
+              onCancel={closeModalHandler}
+              isLoading={saving}
+            />
+          </div>
         ),
         onHide: () => {
           setCurrentModal(null);

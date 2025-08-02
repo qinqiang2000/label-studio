@@ -67,7 +67,7 @@ const WorkspaceSelector = forwardRef(
               options={options}
               value={value}
               onChange={onChange}
-              getPopupContainer={(trigger) => trigger.parentNode}
+              getPopupContainer={props.getPopupContainer || ((trigger) => trigger.parentNode)}
               {...props}
             />
           )}
@@ -84,7 +84,7 @@ const WorkspaceSelector = forwardRef(
         options={options}
         value={value}
         onChange={onChange}
-        getPopupContainer={(trigger) => trigger.parentNode}
+        getPopupContainer={props.getPopupContainer || ((trigger) => trigger.parentNode)}
         {...props}
       />
     );

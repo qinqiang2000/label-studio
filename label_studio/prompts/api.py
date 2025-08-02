@@ -2,6 +2,7 @@ from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from .models import Prompt
 from .serializers import PromptSerializer
 
@@ -13,9 +14,17 @@ class PromptListAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        # Return all prompts - they should be available to all users
-        # since they are meant to be shared resources
-        return Prompt.objects.all()
+        """Filter prompts based on workspace membership"""
+        prompts = Prompt.objects.filter(created_by__active_organization=self.request.user.active_organization)
+        
+        # Filter prompts based on workspace membership (unless user is superuser)
+        if not self.request.user.is_superuser:
+            prompts = prompts.filter(
+                Q(workspace__isnull=True) |  # Prompts without workspace
+                Q(workspace__members=self.request.user)  # Prompts in workspaces where user is a member
+            )
+        
+        return prompts
 
 
 class PromptDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -25,5 +34,14 @@ class PromptDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        # Return all prompts for consistency with list view
-        return Prompt.objects.all() 
+        """Filter prompts based on workspace membership"""
+        prompts = Prompt.objects.filter(created_by__active_organization=self.request.user.active_organization)
+        
+        # Filter prompts based on workspace membership (unless user is superuser)
+        if not self.request.user.is_superuser:
+            prompts = prompts.filter(
+                Q(workspace__isnull=True) |  # Prompts without workspace
+                Q(workspace__members=self.request.user)  # Prompts in workspaces where user is a member
+            )
+        
+        return prompts 

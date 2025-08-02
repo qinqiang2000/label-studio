@@ -8,7 +8,7 @@ class PromptSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Prompt
-        fields = ['id', 'name', 'content', 'temperature', 'response_schema', 'created_at', 'updated_at', 'created_by']
+        fields = ['id', 'name', 'content', 'temperature', 'response_schema', 'created_at', 'updated_at', 'created_by', 'workspace']
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
         
     def create(self, validated_data):
@@ -46,4 +46,19 @@ class PromptSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError("Response schema must be valid JSON")
             except json.JSONDecodeError:
                 raise serializers.ValidationError("Response schema must be valid JSON")
+        return value
+    
+    def validate_workspace(self, value):
+        """Validate that user has access to the specified workspace"""
+        if value is not None:
+            user = self.context['request'].user
+            # Superusers can set any workspace
+            if user.is_superuser:
+                return value
+            # Regular users can only set workspaces they are members of
+            if not value.has_member(user):
+                raise serializers.ValidationError("You don't have permission to use this workspace.")
+            # Ensure workspace belongs to user's organization
+            if value.organization != user.active_organization:
+                raise serializers.ValidationError("Workspace must belong to your organization.")
         return value 
