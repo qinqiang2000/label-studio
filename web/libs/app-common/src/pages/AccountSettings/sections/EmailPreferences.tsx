@@ -39,7 +39,7 @@ export const EmailPreferences = () => {
         <Spinner />
       ) : (
         <Checkbox checked={isAllowNewsLetter} onChange={toggleHandler}>
-          Subscribe to HumanSignal news and tips from Heidi
+          Subscribe to Piaozone studio news and tips
         </Checkbox>
       )}
     </div>
