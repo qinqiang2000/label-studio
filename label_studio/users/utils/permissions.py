@@ -30,6 +30,9 @@ MENU_PERMISSIONS = {
     
     # 账户设置权限
     'ACCOUNT_SETTINGS': 'view_account_settings',
+    
+    # 权限管理权限
+    'PERMISSION_MANAGEMENT': 'view_permission_management',
 }
 
 # 操作权限常量
@@ -56,97 +59,148 @@ ACTION_PERMISSIONS = {
     'MANAGE_WORKSPACES': 'manage_workspaces',
 }
 
-# 预定义角色的默认权限配置
-DEFAULT_ROLE_PERMISSIONS = {
-    'superuser': {
-        # 超级管理员拥有所有权限
-        'permissions': [
-            # 所有菜单权限
-            'view_home',
-            'view_projects',
-            'view_workspaces',
-            'view_prompts',
-            'view_organization',
-            'view_project_general_settings',
-            'view_project_labeling_settings',
-            'view_project_annotation_settings',
-            'view_project_machine_learning',
-            'view_project_predictions',
-            'view_project_cloud_storage',
-            'view_project_webhooks',
-            'view_project_danger_zone',
-            'view_account_settings',
-            
-            # 所有操作权限
-            'create_project',
-            'edit_project',
-            'delete_project',
-            'export_project_data',
-            'create_annotation',
-            'edit_annotation',
-            'delete_annotation',
-            'review_annotation',
-            'manage_users',
-            'manage_roles',
-            'manage_permissions',
-            'manage_organization',
-            'manage_workspaces',
-        ],
-        'description': '超级管理员，拥有系统所有权限',
-    },
+# 权限组定义 - 用于批量管理相关权限
+PERMISSION_GROUPS = {
+    'basic_user': [
+        'view_home',
+        'view_projects', 
+        'view_workspaces',
+        'view_account_settings',
+    ],
     
+    'annotation_operations': [
+        'create_annotation',
+        'edit_annotation', 
+        'delete_annotation',
+    ],
+    
+    'project_basic_settings': [
+        'view_project_general_settings',
+        'view_project_labeling_settings',
+        'view_project_annotation_settings',
+    ],
+    
+    'project_management': [
+        'create_project',
+        'edit_project',
+        'delete_project',
+        'export_project_data',
+        'import_project_data',
+    ],
+    
+    'project_advanced_settings': [
+        'view_project_machine_learning',
+        'view_project_predictions', 
+        'view_project_cloud_storage',
+        'view_project_webhooks',
+        'view_project_danger_zone',
+    ],
+    
+    'workspace_management': [
+        'manage_workspaces',
+        'create_workspace',
+        'edit_workspace',
+        'delete_workspace',
+        'manage_workspace_members',
+    ],
+    
+    'organization_management': [
+        'view_organization',
+        'manage_organization',
+        'manage_users',
+        'manage_roles',
+        'view_prompts',
+        'view_permission_management',
+    ],
+    
+    'page_operations': [
+        'show_create_project_button',
+        'show_import_project_button', 
+        'show_export_project_button',
+        'show_delete_project_button',
+        'show_create_workspace_button',
+        'show_edit_workspace_button',
+        'show_delete_workspace_button',
+        'show_invite_users_button',
+        'show_manage_user_roles',
+        'show_permission_management_button',
+    ],
+    
+    'form_field_permissions': [
+        'edit_project_danger_zone_fields',
+        'edit_project_ml_settings',
+        'edit_project_webhook_settings',
+        'edit_user_role_assignment',
+        'edit_organization_settings',
+    ]
+}
+
+# 角色权限配置 - 使用权限组简化配置
+ROLE_PERMISSION_CONFIG = {
     'annotator': {
-        # 标注员的基础权限 - 排除管理类功能
-        'permissions': [
-            # 基础菜单权限
-            'view_home',
-            'view_projects',
-            'view_workspaces',
-            
-            # 项目设置中的部分权限（排除管理类功能）
-            'view_project_general_settings',
-            'view_project_labeling_settings',
-            'view_project_annotation_settings',
-            # 注意：排除了机器学习、云存储、Webhooks、危险操作等管理功能
-            
-            # 基础操作权限
-            'create_annotation',
-            'edit_annotation',
-            'delete_annotation',
-            
-            # 账户设置
-            'view_account_settings',
-        ],
-        'description': '标注员，拥有基础的标注和项目访问权限，不能访问Organization等管理功能',
+        'groups': ['basic_user', 'annotation_operations', 'project_basic_settings'],
+        'additional_permissions': [],
+        'description': '标注员，拥有基础的标注和项目访问权限',
     },
     
     'workspace_admin': {
-        # 工作空间管理员权限（为未来扩展预留）
-        'permissions': [
-            # 继承标注员权限
-            'view_home',
-            'view_projects',
-            'view_workspaces',
-            'view_project_general_settings',
-            'view_project_labeling_settings',
-            'view_project_annotation_settings',
-            'create_annotation',
-            'edit_annotation',
-            'delete_annotation',
-            'view_account_settings',
-            
-            # 额外的工作空间管理权限
-            'manage_workspaces',
-            'create_project',
-            'edit_project',
-            'export_project_data',
-            
-            # 项目设置的更多权限
-            'view_project_predictions',
-            'view_project_webhooks',
+        'inherit_from': 'annotator',  # 继承annotator的所有权限
+        'groups': [
+            'project_management', 
+            'workspace_management', 
+            'project_advanced_settings',
+            'page_operations'
         ],
+        'additional_permissions': [],
         'description': '工作空间管理员，可以管理所属工作空间的项目和成员',
     },
+    
+    'superuser': {
+        'groups': 'all',  # 拥有所有权限
+        'description': '超级管理员，拥有系统所有权限',
+    }
+}
+
+# 工具函数：获取角色的所有权限
+def get_role_permissions_by_config(role_name):
+    """基于配置获取指定角色的所有权限列表"""
+    role_config = ROLE_PERMISSION_CONFIG.get(role_name)
+    if not role_config:
+        return []
+    
+    permissions = []
+    
+    # 处理权限继承
+    if 'inherit_from' in role_config:
+        permissions.extend(get_role_permissions_by_config(role_config['inherit_from']))
+    
+    # 处理权限组
+    if role_config.get('groups') == 'all':
+        # 拥有所有权限
+        all_permissions = []
+        for group_permissions in PERMISSION_GROUPS.values():
+            all_permissions.extend(group_permissions)
+        permissions.extend(all_permissions)
+    elif isinstance(role_config.get('groups'), list):
+        # 基于权限组获取权限
+        for group_name in role_config['groups']:
+            group_permissions = PERMISSION_GROUPS.get(group_name, [])
+            permissions.extend(group_permissions)
+    
+    # 添加额外的单个权限
+    if role_config.get('additional_permissions'):
+        permissions.extend(role_config['additional_permissions'])
+    
+    # 去重并返回
+    return list(set(permissions))
+
+# 基于新配置生成默认权限配置
+DEFAULT_ROLE_PERMISSIONS = {
+    role_name: {
+        'permissions': get_role_permissions_by_config(role_name),
+        'description': config['description'],
+    }
+    for role_name, config in ROLE_PERMISSION_CONFIG.items()
 }
 
 

@@ -1,0 +1,756 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}权限管理中心{% endblock %}
+
+{% block extrahead %}
+<style>
+    .permission-management {
+        padding: 20px;
+    }
+    .permission-section {
+        margin-bottom: 30px;
+        border: 1px solid #ddd;
+        padding: 20px;
+        border-radius: 5px;
+    }
+    .permission-section h3 {
+        margin-top: 0;
+        color: #0073aa;
+    }
+    .role-permissions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .role-card {
+        border: 1px solid #ccc;
+        padding: 15px;
+        border-radius: 5px;
+        min-width: 250px;
+        background-color: #f9f9f9;
+    }
+    .role-card h4 {
+        margin-top: 0;
+        color: #333;
+    }
+    .permission-list {
+        max-height: 70vh;
+        overflow-y: auto;
+        border: 1px solid #eee;
+        padding: 10px;
+        background-color: white;
+        margin-top: 10px;
+    }
+    .permission-search {
+        margin-bottom: 10px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        font-size: 14px;
+    }
+    .permission-search:focus {
+        outline: none;
+        border-color: #0073aa;
+        box-shadow: 0 0 0 1px #0073aa;
+    }
+    .permission-stats {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 10px;
+        padding: 5px 0;
+        border-bottom: 1px solid #eee;
+    }
+    .permission-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .permission-item:last-child {
+        border-bottom: none;
+    }
+    .quick-actions {
+        margin-top: 15px;
+    }
+    .quick-actions button {
+        margin-right: 10px;
+        margin-bottom: 5px;
+        padding: 5px 10px;
+        background-color: #0073aa;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+    .quick-actions button:hover {
+        background-color: #005177;
+    }
+    .permission-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 3px 5px;
+        margin: 2px 0;
+        border-radius: 3px;
+        background-color: #f8f9fa;
+    }
+    .permission-toggle:hover {
+        background-color: #e9ecef;
+    }
+    .toggle-switch {
+        position: relative;
+        width: 40px;
+        height: 20px;
+        background-color: #ccc;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+    .toggle-switch.active {
+        background-color: #0073aa;
+    }
+    .toggle-switch::before {
+        content: '';
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background-color: white;
+        top: 2px;
+        left: 2px;
+        transition: 0.3s;
+    }
+    .toggle-switch.active::before {
+        transform: translateX(20px);
+    }
+    .category-header {
+        background-color: #e9ecef;
+        padding: 8px 10px;
+        margin: 5px 0;
+        border-radius: 3px;
+        font-weight: bold;
+        color: #495057;
+    }
+    .loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    .success-message, .error-message {
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+        display: none;
+    }
+    .success-message {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    .error-message {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    .stats-section {
+        background-color: #f0f8ff;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+    }
+    .stat-item {
+        text-align: center;
+        padding: 10px;
+        background-color: white;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+    }
+    .stat-number {
+        font-size: 24px;
+        font-weight: bold;
+        color: #0073aa;
+    }
+    .package-status-container {
+        margin: 10px 0;
+        padding: 10px;
+        background-color: white;
+        border: 1px solid #eee;
+        border-radius: 5px;
+    }
+    .package-status-button {
+        display: inline-block;
+        margin: 5px;
+        padding: 8px 12px;
+        border: none;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        text-align: center;
+        transition: all 0.3s ease;
+        min-width: 120px;
+    }
+    .package-status-complete {
+        background-color: #28a745;
+        color: white;
+        box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+    }
+    .package-status-complete:hover {
+        background-color: #dc3545;
+        transform: translateY(-1px);
+    }
+    .package-status-incomplete {
+        background-color: #6c757d;
+        color: white;
+        border: 2px dashed #adb5bd;
+    }
+    .package-status-incomplete:hover {
+        background-color: #28a745;
+        border-style: solid;
+        transform: translateY(-1px);
+    }
+    .package-status-partial {
+        background-color: #ffc107;
+        color: #000;
+        border: 2px solid #e0a800;
+    }
+    .package-status-partial:hover {
+        background-color: #28a745;
+        color: white;
+        transform: translateY(-1px);
+    }
+    .package-icon {
+        margin-right: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="permission-management">
+    {% csrf_token %}
+    <h1>权限管理中心</h1>
+    <p>在这里您可以方便地管理所有角色和权限，无需修改代码或重启服务。</p>
+    
+    <!-- 消息提示 -->
+    <div id="success-message" class="success-message"></div>
+    <div id="error-message" class="error-message"></div>
+    
+    <!-- 统计信息 -->
+    <div class="stats-section">
+        <h3>系统统计</h3>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-number">{{ total_roles }}</div>
+                <div>总角色数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ total_permissions }}</div>
+                <div>总权限数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ total_users }}</div>
+                <div>总用户数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ active_role_permissions }}</div>
+                <div>已授予权限数</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 快捷操作 -->
+    <div class="permission-section">
+        <h3>快捷操作</h3>
+        <div class="quick-actions">
+            <button onclick="location.href='{% url 'admin:users_role_changelist' %}'">管理角色</button>
+            <button onclick="location.href='{% url 'admin:users_permission_changelist' %}'">管理权限</button>
+            <button onclick="location.href='{% url 'admin:users_rolepermission_changelist' %}'">管理角色权限关系</button>
+            <button onclick="location.href='{% url 'admin:users_user_changelist' %}'">管理用户</button>
+        </div>
+    </div>
+    
+    <!-- 角色权限矩阵 -->
+    <div class="permission-section">
+        <h3>角色权限概览</h3>
+        <div class="role-permissions">
+            {% for role in roles %}
+            <div class="role-card">
+                <h4>{{ role.display_name }} ({{ role.name }})</h4>
+                <div><strong>用户数:</strong> <span id="user-count-{{ role.id }}">{{ role.user_count }}</span></div>
+                <div><strong>权限数:</strong> <span id="permission-count-{{ role.id }}">{{ role.permission_count }}</span></div>
+                
+                <div class="permission-list" id="permission-list-{{ role.id }}">
+                    <div style="text-align: center; color: #666; padding: 10px;">
+                        <button onclick="loadRolePermissions({{ role.id }})" class="load-permissions-btn">查看详细权限</button>
+                    </div>
+                </div>
+                
+                <div class="permission-packages">
+                    <h5 style="margin: 0 0 10px 0; color: #0073aa;">简化权限包（推荐）</h5>
+                    <div class="package-status-container" id="package-status-{{ role.id }}">
+                        <div style="text-align: center; color: #666; padding: 10px;">
+                            <button onclick="loadPermissionPackageStatus({{ role.id }})" class="load-packages-btn">查看权限包状态</button>
+                        </div>
+                    </div>
+                    
+                    <h5 style="margin: 15px 0 10px 0; color: #666;">传统权限包（兼容模式）</h5>
+                    <div class="quick-actions">
+                        <button onclick="addPermissionPackage({{ role.id }}, 'project_creation')" style="background-color: #6c757d;">项目创建（传统）</button>
+                        <button onclick="addPermissionPackage({{ role.id }}, 'project_deletion')" style="background-color: #6c757d;">项目删除（传统）</button>
+                        <button onclick="addPermissionPackage({{ role.id }}, 'workspace_management')" style="background-color: #6c757d;">工作空间（传统）</button>
+                        <button onclick="addPermissionPackage({{ role.id }}, 'annotation')" style="background-color: #6c757d;">标注（传统）</button>
+                        <button onclick="addPermissionPackage({{ role.id }}, 'admin_full')" style="background-color: #dc3545;">完整管理权限</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- 权限类别统计 -->
+    <div class="permission-section">
+        <h3>权限类别分布</h3>
+        <div class="stats-grid">
+            {% for category, count in permission_categories.items %}
+            <div class="stat-item">
+                <div class="stat-number">{{ count }}</div>
+                <div>{{ category|default:"未分类" }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+// 获取CSRF Token
+function getCSRFToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value || 
+           document.querySelector('meta[name="csrf-token"]').getAttribute('content') ||
+           '{{ csrf_token }}';
+}
+
+// 显示消息
+function showMessage(message, isError = false) {
+    const successDiv = document.getElementById('success-message');
+    const errorDiv = document.getElementById('error-message');
+    
+    if (isError) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        successDiv.style.display = 'none';
+        setTimeout(() => errorDiv.style.display = 'none', 5000);
+    } else {
+        successDiv.textContent = message;
+        successDiv.style.display = 'block';
+        errorDiv.style.display = 'none';
+        setTimeout(() => successDiv.style.display = 'none', 5000);
+    }
+}
+
+// 加载角色详细权限
+async function loadRolePermissions(roleId) {
+    const container = document.getElementById(`permission-list-${roleId}`);
+    container.innerHTML = '<div style="text-align: center; color: #666;">加载中...</div>';
+    
+    try {
+        const response = await fetch(`/api/admin/role-permissions/?role_id=${roleId}`, {
+            headers: {
+                'X-CSRFToken': getCSRFToken(),
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('加载权限失败');
+        }
+        
+        const data = await response.json();
+        displayRolePermissions(roleId, data);
+        
+    } catch (error) {
+        container.innerHTML = '<div style="color: #dc3545; text-align: center;">加载失败</div>';
+        showMessage('加载权限失败: ' + error.message, true);
+    }
+}
+
+// 显示角色权限
+function displayRolePermissions(roleId, data) {
+    const container = document.getElementById(`permission-list-${roleId}`);
+    
+    // 添加搜索框和统计信息
+    let html = `
+        <input type="text" class="permission-search" placeholder="搜索权限..." 
+               onkeyup="filterPermissions(${roleId}, this.value)">
+        <div class="permission-stats">
+            已授予: <strong>${data.total_granted}</strong> / ${data.total_permissions}
+        </div>
+        <div class="permissions-container" id="permissions-container-${roleId}">
+    `;
+    
+    for (const [category, permissions] of Object.entries(data.permissions_by_category)) {
+        html += `<div class="category-section" data-category="${category}">`;
+        html += `<div class="category-header">${category} (${permissions.filter(p => p.granted).length}/${permissions.length})</div>`;
+        
+        for (const permission of permissions) {
+            const toggleClass = permission.granted ? 'toggle-switch active' : 'toggle-switch';
+            html += `
+                <div class="permission-toggle" data-permission="${permission.name}" data-display="${permission.display_name}">
+                    <span title="${permission.name}">${permission.display_name}</span>
+                    <div class="${toggleClass}" 
+                         onclick="togglePermission(${roleId}, '${permission.name}', ${!permission.granted}, this)">
+                    </div>
+                </div>
+            `;
+        }
+        html += `</div>`;
+    }
+    
+    html += `</div>`;
+    
+    if (Object.keys(data.permissions_by_category).length === 0) {
+        html = '<div style="color: #999; font-style: italic; text-align: center;">暂无权限</div>';
+    }
+    
+    container.innerHTML = html;
+}
+
+// 权限搜索功能
+function filterPermissions(roleId, searchText) {
+    const container = document.getElementById(`permissions-container-${roleId}`);
+    const categories = container.querySelectorAll('.category-section');
+    
+    categories.forEach(category => {
+        let hasVisiblePermissions = false;
+        const permissions = category.querySelectorAll('.permission-toggle');
+        
+        permissions.forEach(permission => {
+            const permissionName = permission.getAttribute('data-permission');
+            const displayName = permission.getAttribute('data-display');
+            const matches = !searchText || 
+                           permissionName.toLowerCase().includes(searchText.toLowerCase()) ||
+                           displayName.toLowerCase().includes(searchText.toLowerCase());
+            
+            permission.style.display = matches ? 'flex' : 'none';
+            if (matches) hasVisiblePermissions = true;
+        });
+        
+        // 隐藏没有可见权限的分类
+        category.style.display = hasVisiblePermissions ? 'block' : 'none';
+    });
+}
+
+// 切换单个权限
+async function togglePermission(roleId, permissionName, granted, element) {
+    const toggleElement = element || event.target;
+    const card = toggleElement.closest('.role-card');
+    card.classList.add('loading');
+    
+    try {
+        const response = await fetch('/api/admin/toggle-permission/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                role_id: roleId,
+                permission_name: permissionName,
+                granted: granted
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // 更新UI - 根据新的granted状态设置active类
+            if (granted) {
+                toggleElement.classList.add('active');
+            } else {
+                toggleElement.classList.remove('active');
+            }
+            
+            // 更新权限计数
+            const countElement = document.getElementById(`permission-count-${roleId}`);
+            if (countElement) {
+                const currentCount = parseInt(countElement.textContent);
+                countElement.textContent = granted ? currentCount + 1 : currentCount - 1;
+            }
+            
+            // 更新详细权限统计
+            const statsElement = toggleElement.closest('.permission-list').querySelector('.permission-stats');
+            if (statsElement) {
+                const currentStats = statsElement.textContent.match(/已授予: (\d+) \/ (\d+)/);
+                if (currentStats) {
+                    const newGranted = granted ? parseInt(currentStats[1]) + 1 : parseInt(currentStats[1]) - 1;
+                    const total = parseInt(currentStats[2]);
+                    statsElement.innerHTML = `已授予: <strong>${newGranted}</strong> / ${total}`;
+                }
+            }
+            
+            showMessage(result.message);
+        } else {
+            throw new Error(result.error);
+        }
+        
+    } catch (error) {
+        showMessage('操作失败: ' + error.message, true);
+        // 恢复开关状态 - 保持原状态不变
+    } finally {
+        card.classList.remove('loading');
+    }
+}
+
+// 添加权限包
+async function addPermissionPackage(roleId, packageType) {
+    const packageNames = {
+        // 简化权限包
+        'project_create_full': '创建项目（完整权限）',
+        'project_delete_full': '删除项目（完整权限）',
+        'project_export_full': '导出项目（完整权限）',
+        'project_import_full': '导入项目（完整权限）',
+        'workspace_create_full': '创建工作空间（完整权限）',
+        'workspace_manage_full': '管理工作空间（完整权限）',
+        'annotation_full': '标注操作（完整权限）',
+        'user_manage_full': '用户管理（完整权限）',
+        'organization_manage_full': '组织管理（完整权限）',
+        'project_settings_basic': '项目基础设置权限',
+        'project_settings_advanced': '项目高级设置权限',
+        
+        // 传统权限包（向后兼容）
+        'project_creation': '项目创建权限（传统）',
+        'project_deletion': '项目删除权限（传统）',
+        'workspace_management': '工作空间管理权限（传统）', 
+        'annotation': '标注权限（传统）',
+        'admin_full': '完整管理权限'
+    };
+    
+    const packageName = packageNames[packageType];
+    
+    // 为高风险权限添加确认对话框
+    if (packageType === 'admin_full' && !confirm(`确定要为该角色添加${packageName}吗？这将授予该角色所有系统权限。`)) {
+        return;
+    }
+    
+    if ((packageType === 'project_deletion' || packageType === 'project_delete_full') && !confirm(`确定要为该角色添加${packageName}吗？这将允许该角色删除项目。`)) {
+        return;
+    }
+    
+    if ((packageType === 'user_manage_full' || packageType === 'organization_manage_full') && !confirm(`确定要为该角色添加${packageName}吗？这是高级管理权限。`)) {
+        return;
+    }
+    
+    const card = document.querySelector(`[onclick*="${roleId}"]`).closest('.role-card');
+    card.classList.add('loading');
+    
+    try {
+        const response = await fetch('/api/admin/bulk-add-permissions/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                role_id: roleId,
+                permission_package: packageType
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showMessage(result.message);
+            
+            // 刷新该角色的权限显示
+            const permissionList = document.getElementById(`permission-list-${roleId}`);
+            if (permissionList.querySelector('.permission-toggle')) {
+                loadRolePermissions(roleId);
+            }
+            
+            // 更新统计
+            location.reload();
+        } else {
+            throw new Error(result.error);
+        }
+        
+    } catch (error) {
+        showMessage('添加权限包失败: ' + error.message, true);
+    } finally {
+        card.classList.remove('loading');
+    }
+}
+
+// 打开角色编辑页面
+function editRole(roleId) {
+    window.open('/admin/users/role/' + roleId + '/change/', '_blank');
+}
+
+// 加载权限包状态
+async function loadPermissionPackageStatus(roleId) {
+    const container = document.getElementById(`package-status-${roleId}`);
+    container.innerHTML = '<div style="text-align: center; color: #666;">加载中...</div>';
+    
+    try {
+        const response = await fetch(`/api/admin/role-permissions/?role_id=${roleId}`, {
+            headers: {
+                'X-CSRFToken': getCSRFToken(),
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('加载权限包状态失败');
+        }
+        
+        const data = await response.json();
+        displayPermissionPackageStatus(roleId, data.permission_package_status);
+        
+    } catch (error) {
+        container.innerHTML = '<div style="color: #dc3545; text-align: center;">加载失败</div>';
+        showMessage('加载权限包状态失败: ' + error.message, true);
+    }
+}
+
+// 显示权限包状态
+function displayPermissionPackageStatus(roleId, packageStatus) {
+    const container = document.getElementById(`package-status-${roleId}`);
+    
+    const simplifiedPackages = [
+        { key: 'project_create_full', name: '🚀 创建项目', desc: '项目创建完整权限' },
+        { key: 'project_delete_full', name: '🗑️ 删除项目', desc: '项目删除完整权限' },
+        { key: 'project_export_full', name: '📤 导出项目', desc: '项目导出完整权限' },
+        { key: 'project_import_full', name: '📥 导入项目', desc: '项目导入完整权限' },
+        { key: 'annotation_full', name: '✏️ 标注操作', desc: '标注完整权限' },
+        { key: 'workspace_create_full', name: '🏢 创建工作空间', desc: '工作空间创建完整权限' },
+        { key: 'workspace_manage_full', name: '⚙️ 管理工作空间', desc: '工作空间管理完整权限' },
+        { key: 'user_manage_full', name: '👥 用户管理', desc: '用户管理完整权限' },
+        { key: 'organization_manage_full', name: '🏛️ 组织管理', desc: '组织管理完整权限' }
+    ];
+    
+    let html = '';
+    
+    for (const pkg of simplifiedPackages) {
+        const status = packageStatus[pkg.key];
+        if (!status) continue;
+        
+        let buttonClass = '';
+        let statusText = '';
+        let icon = '';
+        
+        if (status.is_complete) {
+            buttonClass = 'package-status-complete';
+            statusText = `✅ ${pkg.name}`;
+            icon = '✅';
+        } else if (status.is_partial) {
+            buttonClass = 'package-status-partial';
+            statusText = `⚠️ ${pkg.name} (${status.granted_count}/${status.total_count})`;
+            icon = '⚠️';
+        } else {
+            buttonClass = 'package-status-incomplete';
+            statusText = `❌ ${pkg.name}`;
+            icon = '❌';
+        }
+        
+        html += `
+            <button class="package-status-button ${buttonClass}" 
+                    title="${pkg.desc} - 点击${status.is_complete ? '移除' : '添加'}"
+                    onclick="togglePermissionPackage('${roleId}', '${pkg.key}', ${status.is_complete})">
+                ${statusText}
+            </button>
+        `;
+    }
+    
+    if (html === '') {
+        html = '<div style="color: #999; text-align: center; font-style: italic;">暂无权限包信息</div>';
+    }
+    
+    container.innerHTML = html;
+}
+
+// 切换权限包状态（添加或移除）
+async function togglePermissionPackage(roleId, packageKey, isCurrentlyComplete) {
+    const packageNames = {
+        'project_create_full': '创建项目（完整权限）',
+        'project_delete_full': '删除项目（完整权限）',
+        'project_export_full': '导出项目（完整权限）',
+        'project_import_full': '导入项目（完整权限）',
+        'workspace_create_full': '创建工作空间（完整权限）',
+        'workspace_manage_full': '管理工作空间（完整权限）',
+        'annotation_full': '标注操作（完整权限）',
+        'user_manage_full': '用户管理（完整权限）',
+        'organization_manage_full': '组织管理（完整权限）'
+    };
+    
+    const packageName = packageNames[packageKey] || packageKey;
+    const action = isCurrentlyComplete ? '移除' : '添加';
+    const apiEndpoint = isCurrentlyComplete ? '/api/admin/bulk-remove-permissions/' : '/api/admin/bulk-add-permissions/';
+    
+    // 高风险权限确认
+    if (!isCurrentlyComplete) {
+        if ((packageKey === 'project_delete_full') && !confirm(`确定要${action}${packageName}吗？这将允许该角色删除项目。`)) {
+            return;
+        }
+        if ((packageKey === 'user_manage_full' || packageKey === 'organization_manage_full') && !confirm(`确定要${action}${packageName}吗？这是高级管理权限。`)) {
+            return;
+        }
+    } else {
+        if (!confirm(`确定要${action}${packageName}吗？`)) {
+            return;
+        }
+    }
+    
+    const card = document.querySelector(`#package-status-${roleId}`).closest('.role-card');
+    card.classList.add('loading');
+    
+    try {
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                role_id: roleId,
+                permission_package: packageKey
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showMessage(result.message);
+            
+            // 重新加载权限包状态
+            loadPermissionPackageStatus(roleId);
+            
+            // 更新权限计数
+            const countElement = document.getElementById(`permission-count-${roleId}`);
+            if (countElement) {
+                const currentCount = parseInt(countElement.textContent);
+                const changeCount = isCurrentlyComplete ? -result.removed_count : result.added_count;
+                countElement.textContent = currentCount + (changeCount || 0);
+            }
+            
+        } else {
+            throw new Error(result.error);
+        }
+        
+    } catch (error) {
+        showMessage(`${action}权限包失败: ` + error.message, true);
+    } finally {
+        card.classList.remove('loading');
+    }
+}
+
+// 打开角色列表页面
+function cloneRole(roleId) {
+    if (confirm('确定要打开角色管理页面进行权限克隆操作吗？')) {
+        window.open('/admin/users/role/', '_blank');
+    }
+}
+</script>
+{% endblock %}

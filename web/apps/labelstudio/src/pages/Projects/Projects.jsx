@@ -10,6 +10,8 @@ import { Block, Elem } from "../../utils/bem";
 import { CreateProject } from "../CreateProject/CreateProject";
 import { DataManagerPage } from "../DataManager/DataManager";
 import { SettingsPage } from "../Settings";
+import { useButtonPermissions } from "../../hooks/useButtonPermissions";
+import { SmartButton } from "../../components/SmartPermission/SmartButton";
 import "./Projects.scss";
 import { EmptyProjectsList, ProjectsList } from "./ProjectsList";
 import { useAbortController } from "@humansignal/core";
@@ -178,8 +180,14 @@ ProjectsPage.routes = ({ store }) => [
 ProjectsPage.context = ({ openModal, showButton }) => {
   if (!showButton) return null;
   return (
-    <Button onClick={openModal} look="primary" size="compact">
+    <SmartButton 
+      permission="show_create_project_button"
+      onClick={openModal} 
+      look="primary" 
+      size="compact"
+      fallback="hide"
+    >
       Create
-    </Button>
+    </SmartButton>
   );
 };

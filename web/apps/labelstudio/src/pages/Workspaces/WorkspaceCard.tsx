@@ -8,6 +8,7 @@ import { Dropdown } from '../../components/Dropdown/Dropdown';
 import { Menu } from '../../components/Menu/Menu';
 import { EditWorkspaceModal } from './EditWorkspaceModal';
 import { ManageMembersModal } from './ManageMembersModal';
+import { useButtonPermissions } from '../../hooks/useButtonPermissions';
 import { timeAgo } from '../../utils/helpers';
 import './WorkspaceCard.scss';
 
@@ -58,7 +59,7 @@ interface WorkspaceCardProps {
 
 export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdate, currentUser }) => {
   const api = useAPI();
-  const isAdmin = currentUser?.is_superuser || false;
+  const buttonPermissions = useButtonPermissions();
   const [showProjects, setShowProjects] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -210,17 +211,27 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
           <Elem name="title">{workspace.name}</Elem>
           <Elem name="description">{workspace.description || 'No description'}</Elem>
         </Elem>
-        {isAdmin && (
+        {(buttonPermissions.editWorkspace || buttonPermissions.deleteWorkspace) && (
           <Elem name="actions">
             <Dropdown.Trigger content={
               <Menu>
-                <Menu.Item onClick={handleEditWorkspace}>Edit</Menu.Item>
-                <Menu.Item onClick={handleManageMembers}>Manage Members</Menu.Item>
-                <Menu.Divider />
-                <Menu.Item onClick={handleArchiveWorkspace}>
-                  {workspace.is_archived ? 'Unarchive' : 'Archive'}
-                </Menu.Item>
-                <Menu.Item onClick={handleDeleteWorkspace}>Delete</Menu.Item>
+                {buttonPermissions.editWorkspace && (
+                  <Menu.Item onClick={handleEditWorkspace}>Edit</Menu.Item>
+                )}
+                {buttonPermissions.canManageWorkspaces && (
+                  <Menu.Item onClick={handleManageMembers}>Manage Members</Menu.Item>
+                )}
+                {(buttonPermissions.editWorkspace || buttonPermissions.deleteWorkspace) && (
+                  <Menu.Divider />
+                )}
+                {buttonPermissions.editWorkspace && (
+                  <Menu.Item onClick={handleArchiveWorkspace}>
+                    {workspace.is_archived ? 'Unarchive' : 'Archive'}
+                  </Menu.Item>
+                )}
+                {buttonPermissions.deleteWorkspace && (
+                  <Menu.Item onClick={handleDeleteWorkspace}>Delete</Menu.Item>
+                )}
               </Menu>
             }>
               <Button type="link" icon={<IconEllipsisVertical />} size="small" />

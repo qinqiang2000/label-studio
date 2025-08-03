@@ -9,14 +9,17 @@ from core.utils.common import load_func
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.auth.decorators import login_required
+from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render, reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.db.models import Count
 from organizations.forms import OrganizationSignupForm
 from organizations.models import Organization
 from rest_framework.authtoken.models import Token
 from users import forms
 from users.functions import login, proceed_registration
+from users.models import User, Role, Permission, RolePermission
 
 logger = logging.getLogger()
 
@@ -162,3 +165,51 @@ def user_account(request):
         'users/user_account.html',
         {'settings': settings, 'user': user, 'user_profile_form': form, 'token': token},
     )
+
+
+@staff_member_required
+def permission_management_view(request):
+    """权限管理中心视图"""
+    
+    # 获取统计数据
+    total_roles = Role.objects.count()
+    total_permissions = Permission.objects.count()
+    total_users = User.objects.count()
+    active_role_permissions = RolePermission.objects.filter(granted=True).count()
+    
+    # 获取角色及其权限
+    roles = []
+    for role in Role.objects.all():
+        role_permissions = RolePermission.objects.filter(
+            role=role, granted=True
+        ).select_related('permission')
+        
+        roles.append({
+            'id': role.id,
+            'name': role.name,
+            'display_name': role.display_name,
+            'user_count': role.user_set.count(),
+            'permission_count': role_permissions.count(),
+            'permissions': [rp.permission for rp in role_permissions]
+        })
+    
+    # 权限类别统计
+    permission_categories = Permission.objects.values('category').annotate(
+        count=Count('id')
+    ).order_by('category')
+    
+    categories_dict = {}
+    for item in permission_categories:
+        category = item['category'] or '未分类'
+        categories_dict[category] = item['count']
+    
+    context = {
+        'total_roles': total_roles,
+        'total_permissions': total_permissions,
+        'total_users': total_users,
+        'active_role_permissions': active_role_permissions,
+        'roles': roles,
+        'permission_categories': categories_dict,
+    }
+    
+    return render(request, 'admin/permission_management.html', context)

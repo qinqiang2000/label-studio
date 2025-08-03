@@ -3,6 +3,7 @@
 import logging
 
 import drf_yasg.openapi as openapi
+from django.utils import timezone
 from core.permissions import ViewClassPermission, all_permissions
 from django.utils.decorators import method_decorator
 from drf_yasg.utils import no_body, swagger_auto_schema
@@ -15,7 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.functions import check_avatar
-from users.models import User
+from users.models import User, Role, Permission, RolePermission
 from users.serializers import UserSerializer, UserSerializerUpdate
 
 logger = logging.getLogger(__name__)
@@ -294,3 +295,466 @@ class UserWhoAmIAPI(generics.RetrieveAPIView):
 
     def get(self, request, *args, **kwargs):
         return super(UserWhoAmIAPI, self).get(request, *args, **kwargs)
+
+
+@method_decorator(
+    name='get',
+    decorator=swagger_auto_schema(
+        tags=['Users'],
+        operation_summary='Get current user permissions',
+        operation_description='Get real-time permissions for the current user.',
+        request_body=no_body,
+        responses={
+            200: openapi.Response(
+                description='User permissions response',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'permissions': openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(type=openapi.TYPE_STRING),
+                            description='List of permission names'
+                        ),
+                        'role_info': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            description='Role information'
+                        )
+                    }
+                ),
+            )
+        },
+    ),
+)
+class UserPermissionsAPI(APIView):
+    """实时获取用户权限的API"""
+    parser_classes = (JSONParser,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        
+        # 获取用户权限
+        permissions = list(user.get_permissions())
+        
+        # 获取角色信息
+        role_info = {
+            'name': user.effective_role,
+            'display_name': user.role.display_name if user.role else 'Superuser' if user.is_superuser else 'Annotator',
+            'description': user.role.description if user.role else ''
+        }
+        
+        return Response({
+            'permissions': permissions,
+            'role_info': role_info,
+            'timestamp': timezone.now().isoformat()
+        }, status=200)
+
+
+@method_decorator(
+    name='post',
+    decorator=swagger_auto_schema(
+        tags=['Admin'],
+        operation_summary='Toggle role permission',
+        operation_description='Toggle a specific permission for a role.',
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'role_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Role ID'),
+                'permission_name': openapi.Schema(type=openapi.TYPE_STRING, description='Permission name'),
+                'granted': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Grant or revoke permission')
+            },
+            required=['role_id', 'permission_name', 'granted']
+        ),
+    ),
+)
+class ToggleRolePermissionAPI(APIView):
+    """切换角色权限的API"""
+    parser_classes = (JSONParser,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return Response({'error': '需要管理员权限'}, status=403)
+        
+        role_id = request.data.get('role_id')
+        permission_name = request.data.get('permission_name')
+        granted = request.data.get('granted')
+        
+        try:
+            role = Role.objects.get(id=role_id)
+            permission = Permission.objects.get(name=permission_name)
+            
+            role_perm, created = RolePermission.objects.get_or_create(
+                role=role,
+                permission=permission,
+                defaults={'granted': granted, 'created_by': request.user}
+            )
+            
+            if not created:
+                role_perm.granted = granted
+                role_perm.save()
+            
+            return Response({
+                'success': True,
+                'message': f'权限 {permission.display_name} {"授予" if granted else "撤销"}成功',
+                'role': role.display_name,
+                'permission': permission.display_name,
+                'granted': granted
+            }, status=200)
+            
+        except Role.DoesNotExist:
+            return Response({'error': '角色不存在'}, status=404)
+        except Permission.DoesNotExist:
+            return Response({'error': '权限不存在'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+@method_decorator(
+    name='post',
+    decorator=swagger_auto_schema(
+        tags=['Admin'],
+        operation_summary='Bulk add permissions to role',
+        operation_description='Add multiple permissions to a role at once.',
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'role_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Role ID'),
+                'permission_package': openapi.Schema(
+                    type=openapi.TYPE_STRING, 
+                    enum=['project_creation', 'workspace_management', 'annotation', 'admin_full'],
+                    description='Permission package to add'
+                )
+            },
+            required=['role_id', 'permission_package']
+        ),
+    ),
+)
+class BulkAddPermissionsAPI(APIView):
+    """批量添加权限包的API"""
+    parser_classes = (JSONParser,)
+    permission_classes = (IsAuthenticated,)
+    
+    # 简化权限包 - 对应前端的SIMPLIFIED_PERMISSIONS
+    SIMPLIFIED_PERMISSION_PACKAGES = {
+        'project_create_full': [
+            'view_projects',
+            'create_project', 
+            'show_create_project_button'
+        ],
+        'project_delete_full': [
+            'view_project_danger_zone',
+            'edit_project_danger_zone_fields', 
+            'delete_project'
+        ],
+        'project_export_full': [
+            'export_project_data',
+            'show_export_project_button'
+        ],
+        'project_import_full': [
+            'import_project_data',
+            'show_import_project_button'
+        ],
+        'workspace_create_full': [
+            'view_workspaces',
+            'create_workspace',
+            'show_create_workspace_button'
+        ],
+        'workspace_manage_full': [
+            'manage_workspaces',
+            'edit_workspace',
+            'delete_workspace',
+            'manage_workspace_members',
+            'show_edit_workspace_button',
+            'show_delete_workspace_button'
+        ],
+        'annotation_full': [
+            'create_annotation',
+            'edit_annotation',
+            'delete_annotation',
+            'review_annotation'
+        ],
+        'user_manage_full': [
+            'manage_users',
+            'manage_roles',
+            'edit_user_role_assignment',
+            'show_invite_users_button',
+            'show_manage_user_roles'
+        ],
+        'organization_manage_full': [
+            'view_organization',
+            'manage_organization',
+            'manage_permissions',
+            'edit_organization_settings'
+        ],
+        'project_settings_basic': [
+            'view_project_general_settings',
+            'view_project_labeling_settings',
+            'view_project_annotation_settings'
+        ],
+        'project_settings_advanced': [
+            'view_project_machine_learning',
+            'view_project_predictions',
+            'view_project_cloud_storage',
+            'view_project_webhooks',
+            'edit_project_ml_settings',
+            'edit_project_webhook_settings'
+        ]
+    }
+    
+    # 保留原有权限包用于向后兼容（标记为传统模式）
+    LEGACY_PERMISSION_PACKAGES = {
+        'project_creation': [
+            'create_project',
+            'show_create_project_button'
+        ],
+        'project_deletion': [
+            'view_project_danger_zone',
+            'edit_project_danger_zone_fields',
+            'delete_project'
+        ],
+        'workspace_management': [
+            'create_workspace',
+            'edit_workspace',
+            'delete_workspace',
+            'show_create_workspace_button',
+            'show_edit_workspace_button',
+            'show_delete_workspace_button'
+        ],
+        'annotation': [
+            'view_annotations',
+            'create_annotation',
+            'edit_annotation',
+            'delete_annotation',
+            'submit_annotation',
+            'skip_annotation'
+        ]
+    }
+
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return Response({'error': '需要管理员权限'}, status=403)
+        
+        role_id = request.data.get('role_id')
+        permission_package = request.data.get('permission_package')
+        
+        try:
+            role = Role.objects.get(id=role_id)
+            
+            if permission_package == 'admin_full':
+                # 获取所有活跃权限
+                permissions = Permission.objects.filter(is_active=True).values_list('name', flat=True)
+            else:
+                # 优先查找简化权限包，然后查找传统权限包
+                permissions = (
+                    self.SIMPLIFIED_PERMISSION_PACKAGES.get(permission_package) or 
+                    self.LEGACY_PERMISSION_PACKAGES.get(permission_package, [])
+                )
+            
+            if not permissions:
+                return Response({'error': '无效的权限包'}, status=400)
+            
+            added_count = 0
+            for perm_name in permissions:
+                try:
+                    permission = Permission.objects.get(name=perm_name)
+                    role_perm, created = RolePermission.objects.get_or_create(
+                        role=role,
+                        permission=permission,
+                        defaults={'granted': True, 'created_by': request.user}
+                    )
+                    if created or not role_perm.granted:
+                        role_perm.granted = True
+                        role_perm.save()
+                        added_count += 1
+                except Permission.DoesNotExist:
+                    continue
+            
+            return Response({
+                'success': True,
+                'message': f'成功为角色 {role.display_name} 添加 {added_count} 个权限',
+                'role': role.display_name,
+                'package': permission_package,
+                'added_count': added_count
+            }, status=200)
+            
+        except Role.DoesNotExist:
+            return Response({'error': '角色不存在'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+@method_decorator(
+    name='get',
+    decorator=swagger_auto_schema(
+        tags=['Admin'],
+        operation_summary='Get role permissions',
+        operation_description='Get all permissions for a specific role.',
+        manual_parameters=[
+            openapi.Parameter('role_id', openapi.IN_QUERY, type=openapi.TYPE_INTEGER, description='Role ID'),
+        ],
+    ),
+)
+class RolePermissionsAPI(APIView):
+    """获取角色权限的API"""
+    parser_classes = (JSONParser,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return Response({'error': '需要管理员权限'}, status=403)
+        
+        role_id = request.query_params.get('role_id')
+        
+        try:
+            role = Role.objects.get(id=role_id)
+            
+            # 获取所有活跃权限
+            all_permissions = Permission.objects.filter(is_active=True).order_by('category', 'name')
+            
+            # 获取角色已授予的权限
+            granted_permissions = set(
+                RolePermission.objects.filter(
+                    role=role, granted=True
+                ).values_list('permission__name', flat=True)
+            )
+            
+            permissions_by_category = {}
+            for permission in all_permissions:
+                category = permission.category or '未分类'
+                if category not in permissions_by_category:
+                    permissions_by_category[category] = []
+                
+                permissions_by_category[category].append({
+                    'name': permission.name,
+                    'display_name': permission.display_name,
+                    'granted': permission.name in granted_permissions,
+                    'category': permission.category
+                })
+            
+            return Response({
+                'role': {
+                    'id': role.id,
+                    'name': role.name,
+                    'display_name': role.display_name
+                },
+                'permissions_by_category': permissions_by_category,
+                'total_granted': len(granted_permissions),
+                'total_permissions': all_permissions.count(),
+                'permission_package_status': self._calculate_permission_package_status(granted_permissions),
+            }, status=200)
+        except Role.DoesNotExist:
+            return Response({'error': '角色不存在'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+    
+    def _calculate_permission_package_status(self, granted_permissions):
+        """计算权限包的状态"""
+        package_status = {}
+        
+        # 检查简化权限包状态
+        for package_name, required_permissions in BulkAddPermissionsAPI.SIMPLIFIED_PERMISSION_PACKAGES.items():
+            granted_count = sum(1 for perm in required_permissions if perm in granted_permissions)
+            total_count = len(required_permissions)
+            
+            package_status[package_name] = {
+                'granted_count': granted_count,
+                'total_count': total_count,
+                'is_complete': granted_count == total_count,
+                'is_partial': 0 < granted_count < total_count,
+                'is_empty': granted_count == 0,
+                'missing_permissions': [perm for perm in required_permissions if perm not in granted_permissions],
+                'type': 'simplified'
+            }
+        
+        # 检查传统权限包状态  
+        for package_name, required_permissions in BulkAddPermissionsAPI.LEGACY_PERMISSION_PACKAGES.items():
+            granted_count = sum(1 for perm in required_permissions if perm in granted_permissions)
+            total_count = len(required_permissions)
+            
+            package_status[package_name] = {
+                'granted_count': granted_count,
+                'total_count': total_count,
+                'is_complete': granted_count == total_count,
+                'is_partial': 0 < granted_count < total_count,
+                'is_empty': granted_count == 0,
+                'missing_permissions': [perm for perm in required_permissions if perm not in granted_permissions],
+                'type': 'legacy'
+            }
+            
+        return package_status
+
+
+@method_decorator(
+    name='post',
+    decorator=swagger_auto_schema(
+        tags=['Admin'],
+        operation_summary='Bulk remove permissions from role',
+        operation_description='Remove multiple permissions from a role at once.',
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'role_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Role ID'),
+                'permission_package': openapi.Schema(
+                    type=openapi.TYPE_STRING, 
+                    description='Permission package to remove'
+                )
+            },
+            required=['role_id', 'permission_package']
+        ),
+        responses={200: 'Success', 400: 'Bad Request', 403: 'Forbidden'}
+    )
+)
+class BulkRemovePermissionsAPI(APIView):
+    """批量移除权限包的API"""
+    parser_classes = (JSONParser,)
+    permission_classes = (IsAuthenticated,)
+    
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return Response({'error': '需要管理员权限'}, status=403)
+        
+        role_id = request.data.get('role_id')
+        permission_package = request.data.get('permission_package')
+        
+        try:
+            role = Role.objects.get(id=role_id)
+            
+            # 优先查找简化权限包，然后查找传统权限包
+            permissions = (
+                BulkAddPermissionsAPI.SIMPLIFIED_PERMISSION_PACKAGES.get(permission_package) or 
+                BulkAddPermissionsAPI.LEGACY_PERMISSION_PACKAGES.get(permission_package, [])
+            )
+            
+            if not permissions:
+                return Response({'error': '无效的权限包'}, status=400)
+            
+            removed_count = 0
+            for perm_name in permissions:
+                try:
+                    permission = Permission.objects.get(name=perm_name)
+                    role_perm = RolePermission.objects.filter(
+                        role=role,
+                        permission=permission
+                    ).first()
+                    
+                    if role_perm:
+                        role_perm.granted = False
+                        role_perm.save()
+                        removed_count += 1
+                    
+                except Permission.DoesNotExist:
+                    continue
+            
+            return Response({
+                'success': True,
+                'message': f'成功移除权限包 {permission_package}，共移除 {removed_count} 个权限',
+                'role': role.display_name,
+                'package': permission_package,
+                'removed_count': removed_count
+            }, status=200)
+            
+        except Role.DoesNotExist:
+            return Response({'error': '角色不存在'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)

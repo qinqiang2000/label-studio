@@ -1,128 +1,50 @@
 /**
  * 权限常量定义
- * 定义系统中所有可用的权限
+ * 基于配置文件自动生成所有权限常量
  */
 
-// 菜单权限常量
-export const MENU_PERMISSIONS = {
-  // 主菜单权限
-  HOME: 'view_home',
-  PROJECTS: 'view_projects',
-  WORKSPACES: 'view_workspaces',
-  PROMPTS: 'view_prompts',
-  ORGANIZATION: 'view_organization',
+import { 
+  PERMISSION_DEFINITIONS, 
+  getPermissionsByCategory,
+  ROLE_PERMISSION_CONFIG,
+  getRolePermissions 
+} from '../config/permissions.js';
 
-  // 项目设置菜单权限
-  PROJECT_GENERAL_SETTINGS: 'view_project_general_settings',
-  PROJECT_LABELING_SETTINGS: 'view_project_labeling_settings',
-  PROJECT_ANNOTATION_SETTINGS: 'view_project_annotation_settings',
-  PROJECT_MACHINE_LEARNING: 'view_project_machine_learning',
-  PROJECT_PREDICTIONS: 'view_project_predictions',
-  PROJECT_CLOUD_STORAGE: 'view_project_cloud_storage',
-  PROJECT_WEBHOOKS: 'view_project_webhooks',
-  PROJECT_DANGER_ZONE: 'view_project_danger_zone',
+// 自动生成菜单权限常量
+export const MENU_PERMISSIONS = getPermissionsByCategory('menu');
 
-  // 账户设置权限
-  ACCOUNT_SETTINGS: 'view_account_settings',
-};
+// 自动生成操作权限常量  
+export const ACTION_PERMISSIONS = getPermissionsByCategory('action');
 
-// 操作权限常量
-export const ACTION_PERMISSIONS = {
-  // 项目操作权限
-  CREATE_PROJECT: 'create_project',
-  EDIT_PROJECT: 'edit_project',
-  DELETE_PROJECT: 'delete_project',
-  EXPORT_PROJECT_DATA: 'export_project_data',
+// 自动生成管理权限常量
+export const ADMIN_PERMISSIONS = getPermissionsByCategory('admin');
 
-  // 标注操作权限
-  CREATE_ANNOTATION: 'create_annotation',
-  EDIT_ANNOTATION: 'edit_annotation',
-  DELETE_ANNOTATION: 'delete_annotation',
-  REVIEW_ANNOTATION: 'review_annotation',
+// 自动生成页面操作权限常量
+export const PAGE_OPERATION_PERMISSIONS = getPermissionsByCategory('page_operation');
 
-  // 用户管理权限
-  MANAGE_USERS: 'manage_users',
-  MANAGE_ROLES: 'manage_roles',
-  MANAGE_PERMISSIONS: 'manage_permissions',
+// 自动生成表单字段权限常量
+export const FIELD_PERMISSION_PERMISSIONS = getPermissionsByCategory('field_permission');
 
-  // 组织管理权限
-  MANAGE_ORGANIZATION: 'manage_organization',
-  MANAGE_WORKSPACES: 'manage_workspaces',
-};
-
-// 权限分类
+// 权限分类常量
 export const PERMISSION_CATEGORIES = {
   MENU: 'menu',
   ACTION: 'action',
-  DATA: 'data',
   ADMIN: 'admin',
+  PAGE_OPERATION: 'page_operation',
+  FIELD_PERMISSION: 'field_permission',
 };
 
-// 预定义角色的默认权限配置
-export const DEFAULT_ROLE_PERMISSIONS = {
-  superuser: {
-    // 超级管理员拥有所有权限
-    permissions: [
-      ...Object.values(MENU_PERMISSIONS),
-      ...Object.values(ACTION_PERMISSIONS),
-    ],
-    description: '超级管理员，拥有系统所有权限',
-  },
-  
-  annotator: {
-    // 标注员的基础权限
-    permissions: [
-      // 基础菜单权限
-      MENU_PERMISSIONS.HOME,
-      MENU_PERMISSIONS.PROJECTS,
-      MENU_PERMISSIONS.WORKSPACES,
-      
-      // 项目设置中的部分权限（排除管理类功能）
-      MENU_PERMISSIONS.PROJECT_GENERAL_SETTINGS,
-      MENU_PERMISSIONS.PROJECT_LABELING_SETTINGS,
-      MENU_PERMISSIONS.PROJECT_ANNOTATION_SETTINGS,
-      
-      // 基础操作权限
-      ACTION_PERMISSIONS.CREATE_ANNOTATION,
-      ACTION_PERMISSIONS.EDIT_ANNOTATION,
-      ACTION_PERMISSIONS.DELETE_ANNOTATION,
-      
-      // 账户设置
-      MENU_PERMISSIONS.ACCOUNT_SETTINGS,
-    ],
-    description: '标注员，拥有基础的标注和项目访问权限',
-  },
-  
-  workspace_admin: {
-    // 工作空间管理员权限（为未来扩展预留）
-    permissions: [
-      // 基础菜单权限（继承自标注员）
-      MENU_PERMISSIONS.HOME,
-      MENU_PERMISSIONS.PROJECTS,
-      MENU_PERMISSIONS.WORKSPACES,
-      MENU_PERMISSIONS.PROJECT_GENERAL_SETTINGS,
-      MENU_PERMISSIONS.PROJECT_LABELING_SETTINGS,
-      MENU_PERMISSIONS.PROJECT_ANNOTATION_SETTINGS,
-      MENU_PERMISSIONS.ACCOUNT_SETTINGS,
-      
-      // 基础操作权限（继承自标注员）
-      ACTION_PERMISSIONS.CREATE_ANNOTATION,
-      ACTION_PERMISSIONS.EDIT_ANNOTATION,
-      ACTION_PERMISSIONS.DELETE_ANNOTATION,
-      
-      // 额外的工作空间管理权限
-      ACTION_PERMISSIONS.MANAGE_WORKSPACES,
-      ACTION_PERMISSIONS.CREATE_PROJECT,
-      ACTION_PERMISSIONS.EDIT_PROJECT,
-      ACTION_PERMISSIONS.EXPORT_PROJECT_DATA,
-      
-      // 项目设置的更多权限
-      MENU_PERMISSIONS.PROJECT_PREDICTIONS,
-      MENU_PERMISSIONS.PROJECT_WEBHOOKS,
-    ],
-    description: '工作空间管理员，可以管理所属工作空间的项目和成员',
-  },
-};
+// 基于配置文件自动生成角色权限配置
+export const DEFAULT_ROLE_PERMISSIONS = Object.fromEntries(
+  Object.entries(ROLE_PERMISSION_CONFIG).map(([roleName, config]) => [
+    roleName,
+    {
+      permissions: getRolePermissions(roleName),
+      description: config.description,
+      displayName: config.displayName,
+    }
+  ])
+);
 
 // 权限检查辅助函数
 export const createPermissionChecker = (userPermissions = []) => {
@@ -148,19 +70,60 @@ export const createPermissionChecker = (userPermissions = []) => {
     hasActionPermission: (actionKey) => 
       permissionSet.has(ACTION_PERMISSIONS[actionKey]),
     
+    // 检查管理权限
+    hasAdminPermission: (adminKey) => 
+      permissionSet.has(ADMIN_PERMISSIONS[adminKey]),
+    
+    // 检查页面操作权限
+    hasPageOperationPermission: (operationKey) => 
+      permissionSet.has(PAGE_OPERATION_PERMISSIONS[operationKey]),
+    
+    // 检查表单字段权限
+    hasFieldPermission: (fieldKey) => 
+      permissionSet.has(FIELD_PERMISSION_PERMISSIONS[fieldKey]),
+    
     // 获取用户所有权限
     getPermissions: () => Array.from(permissionSet),
+    
+    // 获取用户权限总数
+    getPermissionCount: () => permissionSet.size,
+    
+    // 检查用户是否有指定分类的任意权限
+    hasAnyPermissionInCategory: (category) => {
+      const categoryPermissions = getPermissionsByCategory(category);
+      return Object.values(categoryPermissions).some(permission => 
+        permissionSet.has(permission)
+      );
+    },
   };
 };
 
 // 权限配置验证函数
 export const validatePermissions = (permissions) => {
-  const allValidPermissions = [
-    ...Object.values(MENU_PERMISSIONS),
-    ...Object.values(ACTION_PERMISSIONS),
-  ];
+  const allValidPermissions = Object.keys(PERMISSION_DEFINITIONS);
   
   return permissions.filter(permission => 
     allValidPermissions.includes(permission)
   );
+};
+
+// 获取所有有效权限列表
+export const getAllValidPermissions = () => {
+  return Object.keys(PERMISSION_DEFINITIONS);
+};
+
+// 根据权限名获取权限详细信息
+export const getPermissionInfo = (permissionName) => {
+  return PERMISSION_DEFINITIONS[permissionName] || null;
+};
+
+// 获取所有权限分类及其权限列表
+export const getAllPermissionsByCategory = () => {
+  return {
+    menu: Object.values(MENU_PERMISSIONS),
+    action: Object.values(ACTION_PERMISSIONS), 
+    admin: Object.values(ADMIN_PERMISSIONS),
+    page_operation: Object.values(PAGE_OPERATION_PERMISSIONS),
+    field_permission: Object.values(FIELD_PERMISSION_PERMISSIONS),
+  };
 };

@@ -7,6 +7,8 @@ import { Userpic } from "@humansignal/ui";
 import { Button, Dropdown, Menu, Pagination } from "../../components";
 import { Block, Elem } from "../../utils/bem";
 import { absoluteURL } from "../../utils/helpers";
+import { useButtonPermissions } from "../../hooks/useButtonPermissions";
+import { SmartButton } from "../../components/SmartPermission/SmartButton";
 import { DuplicateProjectModal } from "./DuplicateProjectModal";
 
 const DEFAULT_CARD_COLORS = ["#FFFFFF", "#FDFDFC"];
@@ -70,14 +72,20 @@ export const EmptyProjectsList = ({ openModal }) => {
         Heidi doesn't see any projects here!
       </Elem>
       <p>Create one and start labeling your data.</p>
-      <Elem name="action" tag={Button} onClick={openModal} look="primary">
+      <SmartButton 
+        permission="show_create_project_button"
+        onClick={openModal} 
+        look="primary"
+        fallback="hide"
+      >
         Create Project
-      </Elem>
+      </SmartButton>
     </Block>
   );
 };
 
 const ProjectCard = ({ project, onShowDuplicateModal }) => {
+  const buttonPermissions = useButtonPermissions();
   const color = useMemo(() => {
     return DEFAULT_CARD_COLORS.includes(project.color) ? null : project.color;
   }, [project]);
@@ -116,11 +124,13 @@ const ProjectCard = ({ project, onShowDuplicateModal }) => {
                   <Menu contextual>
                     <Menu.Item href={`/projects/${project.id}/settings`}>Settings</Menu.Item>
                     <Menu.Item href={`/projects/${project.id}/data?labeling=1`}>Label</Menu.Item>
-                    <Menu.Item onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onShowDuplicateModal();
-                    }}>Duplicate</Menu.Item>
+                    {buttonPermissions.canCreateProject && (
+                      <Menu.Item onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onShowDuplicateModal();
+                      }}>Duplicate</Menu.Item>
+                    )}
                   </Menu>
                 }
               >

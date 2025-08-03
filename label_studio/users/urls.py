@@ -24,8 +24,16 @@ urlpatterns = [
     path('api/current-user/reset-token/', api.UserResetTokenAPI.as_view(), name='current-user-reset-token'),
     path('api/current-user/token', api.UserGetTokenAPI.as_view(), name='current-user-token'),
     path('api/current-user/whoami', api.UserWhoAmIAPI.as_view(), name='current-user-whoami'),
+    path('api/current-user/permissions', api.UserPermissionsAPI.as_view(), name='current-user-permissions'),
     # Product tours
     path('api/current-user/product-tour', product_tours_api.ProductTourAPI.as_view(), name='product-tour'),
+    # Permission management
+    path('admin/permission-management/', views.permission_management_view, name='permission-management'),
+    # Permission management APIs
+    path('api/admin/toggle-permission/', api.ToggleRolePermissionAPI.as_view(), name='toggle-role-permission'),
+    path('api/admin/bulk-add-permissions/', api.BulkAddPermissionsAPI.as_view(), name='bulk-add-permissions'),
+    path('api/admin/bulk-remove-permissions/', api.BulkRemovePermissionsAPI.as_view(), name='bulk-remove-permissions'),
+    path('api/admin/role-permissions/', api.RolePermissionsAPI.as_view(), name='role-permissions'),
 ]
 
 # When CLOUD_FILE_STORAGE_ENABLED is set, avatars are uploaded to cloud storage with a different URL pattern.

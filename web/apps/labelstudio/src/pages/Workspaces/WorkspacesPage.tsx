@@ -6,6 +6,8 @@ import { modal } from '../../components/Modal/Modal';
 import { CreateWorkspaceModal } from './CreateWorkspaceModal';
 import { WorkspaceCard } from './WorkspaceCard';
 import { WorkspaceArchived } from './WorkspaceArchived';
+import { useButtonPermissions } from '../../hooks/useButtonPermissions';
+import { SmartButton } from '../../components/SmartPermission/SmartButton';
 import './WorkspacesPage.scss';
 
 interface Workspace {
@@ -41,6 +43,7 @@ export const WorkspacesPage: React.FC = () => {
   const [showArchived, setShowArchived] = useState(false);
   
   const api = useAPI();
+  const buttonPermissions = useButtonPermissions();
 
   const fetchCurrentUser = useCallback(async () => {
     try {
@@ -103,8 +106,8 @@ export const WorkspacesPage: React.FC = () => {
     );
   }
 
-  // Only show Create Workspace button to admins
-  const showCreateButton = currentUser?.is_superuser || false;
+  // Check permissions for workspace operations
+  const canCreateWorkspace = buttonPermissions.createWorkspace;
 
   return (
     <Block name="workspaces-page">
@@ -115,16 +118,16 @@ export const WorkspacesPage: React.FC = () => {
             Organize and manage your projects by grouping them into workspaces
           </Elem>
         </Elem>
-        {showCreateButton && (
-          <Elem name="actions">
-            <Button
-              onClick={handleCreateWorkspace}
-              look="primary"
-            >
-              Create Workspace
-            </Button>
-          </Elem>
-        )}
+        <Elem name="actions">
+          <SmartButton
+            permission="show_create_workspace_button"
+            onClick={handleCreateWorkspace}
+            look="primary"
+            fallback="hide"
+          >
+            Create Workspace
+          </SmartButton>
+        </Elem>
       </Elem>
 
       <Elem name="content">
@@ -133,20 +136,20 @@ export const WorkspacesPage: React.FC = () => {
             <Elem name="empty-icon">🏢</Elem>
             <Elem name="empty-title">No workspaces yet</Elem>
             <Elem name="empty-description">
-              {showCreateButton 
+              {canCreateWorkspace 
                 ? "Create your first workspace to organize your projects"
                 : "No workspaces available. Contact an administrator to create workspaces."
               }
             </Elem>
-            {showCreateButton && (
-              <Button
-                onClick={handleCreateWorkspace}
-                look="primary"
-                size="large"
-              >
-                Create Workspace
-              </Button>
-            )}
+            <SmartButton
+              permission="show_create_workspace_button"
+              onClick={handleCreateWorkspace}
+              look="primary"
+              size="large"
+              fallback="hide"
+            >
+              Create Workspace
+            </SmartButton>
           </Elem>
         ) : (
           <>

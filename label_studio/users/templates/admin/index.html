@@ -1,0 +1,211 @@
+{% load i18n static admin_urls %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:"en-us" }}" dir="{{ LANGUAGE_BIDI|yesno:"rtl,ltr" }}" data-theme="auto">
+<head>
+<title>{% block title %}{{ title }} | {{ site_title|default:_('Django Admin') }}{% endblock %}</title>
+<link rel="stylesheet" href="{% block stylesheet %}{% static "admin/css/base.css" %}{% endblock %}">
+{% if not is_popup and is_nav_sidebar_enabled %}
+  <link rel="stylesheet" href="{% static "admin/css/nav_sidebar.css" %}">
+{% endif %}
+<link rel="stylesheet" href="{% static "admin/css/dashboard.css" %}">
+{% block dark-mode-vars %}
+  <link rel="stylesheet" href="{% static "admin/css/dark_mode.css" %}">
+{% endblock %}
+{% block responsive %}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static "admin/css/responsive.css" %}">
+{% endblock %}
+{% block blockbots %}<meta name="robots" content="NONE,NOARCHIVE">{% endblock %}
+</head>
+
+<body class="{% if is_popup %}popup {% endif %}{% block bodyclass %}{% endblock %}" data-admin-utc-offset="{% now "Z" %}">
+<a href="#content-start" class="skip-to-content-link">{% trans 'Skip to main content' %}</a>
+<!-- Container -->
+<div id="container">
+
+    {% if not is_popup %}
+    <!-- Header -->
+    {% block header %}
+      <header id="header">
+        <div id="branding">
+        {% block branding %}{% endblock %}
+        </div>
+        {% block usertools %}
+        {% if has_permission %}
+        <div id="user-tools">
+            {% block welcome-msg %}
+                {% trans 'Welcome,' %}
+                <strong>{% firstof user.get_short_name user.get_username %}</strong>.
+            {% endblock %}
+            {% block userlinks %}
+                {% if site_url %}
+                    <a href="{{ site_url }}">{% trans 'View site' %}</a> /
+                {% endif %}
+                {% if user.is_active and user.is_staff %}
+                    {% url 'django-admindocs-docroot' as docsroot %}
+                    {% if docsroot %}
+                        <a href="{{ docsroot }}">{% trans 'Documentation' %}</a> /
+                    {% endif %}
+                {% endif %}
+                {% if user.has_usable_password %}
+                <a href="{% url 'admin:password_change' %}">{% trans 'Change password' %}</a> /
+                {% endif %}
+                <form id="logout-form" method="post" action="{% url 'admin:logout' %}">
+                    {% csrf_token %}
+                    <button type="submit">{% trans 'Log out' %}</button>
+                </form>
+                {% include "admin/color_theme_toggle.html" %}
+            {% endblock %}
+        </div>
+        {% endif %}
+        {% endblock %}
+      </header>
+    {% endblock %}
+    <!-- END Header -->
+    {% block nav-global %}{% endblock %}
+    {% endif %}
+
+    <div class="main" id="main">
+      {% if not is_popup and is_nav_sidebar_enabled %}
+        {% block nav-sidebar %}
+          {% include "admin/nav_sidebar.html" %}
+        {% endblock %}
+      {% endif %}
+      <main id="content-start" class="content" tabindex="-1">
+        {% block messages %}
+          {% if messages %}
+            <ul class="messagelist">{% for message in messages %}
+              <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+            {% endfor %}</ul>
+          {% endif %}
+        {% endblock messages %}
+
+        <!-- Content -->
+        <div id="content" class="{% block coltype %}colM{% endblock %}">
+          {% block pretitle %}{% endblock %}
+          {% block content_title %}{% if title %}<h1>{{ title }}</h1>{% endif %}{% endblock %}
+          {% block content_subtitle %}{% if subtitle %}<h2>{{ subtitle }}</h2>{% endif %}{% endblock %}
+          {% block content %}
+          
+          <!-- 权限管理中心模块 -->
+          <div class="module" id="permission-management-module">
+              <table summary="权限管理中心">
+                  <caption>
+                      <a href="/admin/permission-management/" class="section" title="权限管理中心">
+                          🔐 权限管理中心
+                      </a>
+                  </caption>
+                  <tr class="model-permission">
+                      <th scope="row">
+                          <a href="/admin/permission-management/">权限管理中心</a>
+                      </th>
+                      <td>
+                          <a href="/admin/permission-management/" class="addlink">
+                              访问权限管理中心
+                          </a>
+                      </td>
+                  </tr>
+              </table>
+          </div>
+
+          <div id="content-main">
+            {% if app_list %}
+              {% for app in app_list %}
+                <div class="app-{{ app.app_label }} module">
+                  <table>
+                    <caption>
+                      <a href="{{ app.app_url }}" class="section" title="{% blocktrans with name=app.name %}Models in the {{ name }} application{% endblocktrans %}">{{ app.name }}</a>
+                    </caption>
+                    {% for model in app.models %}
+                      <tr class="model-{{ model.object_name|lower }}">
+                        {% if model.admin_url %}
+                          <th scope="row"><a href="{{ model.admin_url }}" id="{{ app.app_label }}-{{ model.object_name|lower }}">{{ model.name }}</a></th>
+                        {% else %}
+                          <th scope="row" id="{{ app.app_label }}-{{ model.object_name|lower }}">{{ model.name }}</th>
+                        {% endif %}
+
+                        {% if model.add_url %}
+                          <td><a href="{{ model.add_url }}" class="addlink" aria-describedby="{{ app.app_label }}-{{ model.object_name|lower }}">{% trans 'Add' %}</a></td>
+                        {% else %}
+                          <td>&nbsp;</td>
+                        {% endif %}
+
+                        {% if model.admin_url %}
+                          {% if model.view_only %}
+                            <td><a href="{{ model.admin_url }}" class="viewlink" aria-describedby="{{ app.app_label }}-{{ model.object_name|lower }}">{% trans 'View' %}</a></td>
+                          {% else %}
+                            <td><a href="{{ model.admin_url }}" class="changelink" aria-describedby="{{ app.app_label }}-{{ model.object_name|lower }}">{% trans 'Change' %}</a></td>
+                          {% endif %}
+                        {% else %}
+                          <td>&nbsp;</td>
+                        {% endif %}
+                      </tr>
+                    {% endfor %}
+                  </table>
+                </div>
+              {% endfor %}
+            {% else %}
+              <p>{% trans "You don't have permission to view or edit anything." %}</p>
+            {% endif %}
+          </div>
+
+          <style>
+          #permission-management-module {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              border-radius: 8px;
+              margin-bottom: 20px;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+
+          #permission-management-module caption a {
+              color: white !important;
+              font-size: 16px;
+              font-weight: bold;
+              text-decoration: none;
+              padding: 15px 20px;
+              display: block;
+          }
+
+          #permission-management-module caption a:hover {
+              color: #f0f0f0 !important;
+          }
+
+          #permission-management-module table {
+              background: rgba(255, 255, 255, 0.1);
+              backdrop-filter: blur(10px);
+              border: none;
+          }
+
+          #permission-management-module th,
+          #permission-management-module td {
+              color: white;
+              border: none;
+          }
+
+          #permission-management-module th a,
+          #permission-management-module td a {
+              color: white !important;
+              text-decoration: none;
+          }
+
+          #permission-management-module th a:hover,
+          #permission-management-module td a:hover {
+              color: #f0f0f0 !important;
+              text-decoration: underline;
+          }
+
+          #permission-management-module .addlink::before {
+              content: "🔐 ";
+              margin-right: 5px;
+          }
+          </style>
+          
+          {% endblock %}
+        </div>
+        {% block sidebar %}{% endblock %}
+      </main>
+    </div>
+</div>
+<!-- END Container -->
+</body>
+</html>

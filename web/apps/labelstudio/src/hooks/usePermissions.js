@@ -1,6 +1,14 @@
 import { useMemo } from 'react';
 import { useCurrentUser } from '../providers/CurrentUser';
-import { createPermissionChecker, MENU_PERMISSIONS, ACTION_PERMISSIONS } from '../utils/permissions';
+import { 
+  createPermissionChecker,
+  MENU_PERMISSIONS,
+  ACTION_PERMISSIONS,
+  ADMIN_PERMISSIONS,
+  PAGE_OPERATION_PERMISSIONS,
+  FIELD_PERMISSION_PERMISSIONS
+} from '../utils/permissions';
+import { PERMISSION_DEFINITIONS } from '../config/permissions';
 
 /**
  * 权限管理 Hook
@@ -28,52 +36,70 @@ export const usePermissions = () => {
     };
   }, [user?.is_superuser, user?.role_info]);
   
-  // 菜单权限检查
-  const menuPermissions = useMemo(() => ({
-    // 主菜单权限
-    canViewHome: () => permissionChecker.hasPermission(MENU_PERMISSIONS.HOME),
-    canViewProjects: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECTS),
-    canViewWorkspaces: () => permissionChecker.hasPermission(MENU_PERMISSIONS.WORKSPACES),
-    canViewPrompts: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROMPTS),
-    canViewOrganization: () => permissionChecker.hasPermission(MENU_PERMISSIONS.ORGANIZATION),
+  // 基于配置文件自动生成菜单权限检查方法
+  const menuPermissions = useMemo(() => {
+    const methods = {};
     
-    // 项目设置菜单权限
-    canViewProjectGeneralSettings: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECT_GENERAL_SETTINGS),
-    canViewProjectLabelingSettings: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECT_LABELING_SETTINGS),
-    canViewProjectAnnotationSettings: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECT_ANNOTATION_SETTINGS),
-    canViewProjectMachineLearning: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECT_MACHINE_LEARNING),
-    canViewProjectPredictions: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECT_PREDICTIONS),
-    canViewProjectCloudStorage: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECT_CLOUD_STORAGE),
-    canViewProjectWebhooks: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECT_WEBHOOKS),
-    canViewProjectDangerZone: () => permissionChecker.hasPermission(MENU_PERMISSIONS.PROJECT_DANGER_ZONE),
+    Object.entries(PERMISSION_DEFINITIONS)
+      .filter(([_, config]) => config.category === 'menu')
+      .forEach(([permission, config]) => {
+        methods[config.hookMethod] = () => permissionChecker.hasPermission(permission);
+      });
     
-    // 账户设置权限
-    canViewAccountSettings: () => permissionChecker.hasPermission(MENU_PERMISSIONS.ACCOUNT_SETTINGS),
-  }), [permissionChecker]);
+    return methods;
+  }, [permissionChecker]);
   
-  // 操作权限检查
-  const actionPermissions = useMemo(() => ({
-    // 项目操作权限
-    canCreateProject: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.CREATE_PROJECT),
-    canEditProject: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.EDIT_PROJECT),
-    canDeleteProject: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.DELETE_PROJECT),
-    canExportProjectData: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.EXPORT_PROJECT_DATA),
+  // 基于配置文件自动生成操作权限检查方法
+  const actionPermissions = useMemo(() => {
+    const methods = {};
     
-    // 标注操作权限
-    canCreateAnnotation: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.CREATE_ANNOTATION),
-    canEditAnnotation: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.EDIT_ANNOTATION),
-    canDeleteAnnotation: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.DELETE_ANNOTATION),
-    canReviewAnnotation: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.REVIEW_ANNOTATION),
+    Object.entries(PERMISSION_DEFINITIONS)
+      .filter(([_, config]) => config.category === 'action')
+      .forEach(([permission, config]) => {
+        methods[config.hookMethod] = () => permissionChecker.hasPermission(permission);
+      });
     
-    // 用户管理权限
-    canManageUsers: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.MANAGE_USERS),
-    canManageRoles: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.MANAGE_ROLES),
-    canManagePermissions: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.MANAGE_PERMISSIONS),
+    return methods;
+  }, [permissionChecker]);
+  
+  // 基于配置文件自动生成管理权限检查方法
+  const adminPermissions = useMemo(() => {
+    const methods = {};
     
-    // 组织管理权限
-    canManageOrganization: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.MANAGE_ORGANIZATION),
-    canManageWorkspaces: () => permissionChecker.hasPermission(ACTION_PERMISSIONS.MANAGE_WORKSPACES),
-  }), [permissionChecker]);
+    Object.entries(PERMISSION_DEFINITIONS)
+      .filter(([_, config]) => config.category === 'admin')
+      .forEach(([permission, config]) => {
+        methods[config.hookMethod] = () => permissionChecker.hasPermission(permission);
+      });
+    
+    return methods;
+  }, [permissionChecker]);
+  
+  // 基于配置文件自动生成页面操作权限检查方法
+  const pageOperationPermissions = useMemo(() => {
+    const methods = {};
+    
+    Object.entries(PERMISSION_DEFINITIONS)
+      .filter(([_, config]) => config.category === 'page_operation')
+      .forEach(([permission, config]) => {
+        methods[config.hookMethod] = () => permissionChecker.hasPermission(permission);
+      });
+    
+    return methods;
+  }, [permissionChecker]);
+  
+  // 基于配置文件自动生成表单字段权限检查方法
+  const fieldPermissions = useMemo(() => {
+    const methods = {};
+    
+    Object.entries(PERMISSION_DEFINITIONS)
+      .filter(([_, config]) => config.category === 'field_permission')
+      .forEach(([permission, config]) => {
+        methods[config.hookMethod] = () => permissionChecker.hasPermission(permission);
+      });
+    
+    return methods;
+  }, [permissionChecker]);
   
   return {
     // 基础权限检查器
@@ -88,6 +114,15 @@ export const usePermissions = () => {
     // 操作权限检查器
     action: actionPermissions,
     
+    // 管理权限检查器
+    admin: adminPermissions,
+    
+    // 页面操作权限检查器
+    page: pageOperationPermissions,
+    
+    // 表单字段权限检查器
+    field: fieldPermissions,
+    
     // 便捷方法
     isLoading: !user,
     hasUser: !!user,
@@ -97,6 +132,7 @@ export const usePermissions = () => {
       user: user,
       permissions: user?.permissions || [],
       role: user?.role_info || null,
+      permissionCount: user?.permissions?.length || 0,
     },
   };
 };

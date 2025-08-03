@@ -8,6 +8,7 @@ export const API_CONFIG = {
     deleteUserAvatar: "DELETE:/users/:pk/avatar",
     me: "/current-user/whoami",
     currentUser: "/current-user/whoami",
+    currentUserPermissions: "/current-user/permissions",
 
     // Organization
     memberships: "/organizations/:pk/memberships",
