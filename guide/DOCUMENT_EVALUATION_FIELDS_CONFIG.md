@@ -1,163 +1,349 @@
-# 单据评估字段动态配置功能
+# 评估字段配置管理指引
 
 ## 功能概述
 
-本功能实现了从前端到后端的统一单据评估字段配置系统，支持不同单据类型（发票、银行回单等）的动态字段配置，极大提升了评估功能的灵活性和可维护性。
-
-## 主要改进
-
-1. **字段配置从硬编码改为动态配置**：不再写死评估字段，支持根据单据类型动态配置
-2. **支持多种单据类型**：预定义了发票、银行回单等常见单据类型的字段配置
-3. **用户界面友好**：提供直观的前端配置界面，支持自定义字段
-4. **改动最少原则**：在现有架构基础上扩展，最小化代码改动
+本文档详细说明如何管理Label Studio中文档评估功能的字段配置，包括添加、修改、删除字段以及部署注意事项。
 
 ## 技术架构
 
-### 1. 数据存储层
+### 1. 配置存储结构
 
-#### 项目模型扩展
-- 在 `Project` 模型中添加 `evaluation_field_config` 字段
-- 类型：`JSONField`，存储评估字段配置信息
-- 配置格式：
+评估字段配置采用双层结构：
+
+#### JSON配置文件 (主要配置源)
+- 路径：`label_studio/evaluation_configs/config/`
+- 文件：`invoice.json`, `bank_receipt.json`, `receipt.json`, `custom.json`
+- 用途：定义各文档类型的字段、验证规则、显示属性等
+
+#### 数据库配置 (运行时配置)
+- 模型：`EvaluationFieldConfig`
+- 用途：存储从JSON文件加载的配置，供API和前端使用
+- 表：`evaluation_field_configs`
+
+#### 前端硬编码配置 (兜底配置)
+- 文件：`web/apps/labelstudio/src/components/EvaluationFieldsConfig/EvaluationFieldsConfig.jsx`
+- 用途：当后端API失败时的兜底配置
+
+### 2. 配置加载流程
+
+```
+JSON配置文件 → 管理命令加载 → 数据库 → API → 前端显示
+     ↓
+  兜底配置 ← ← ← ← ← API失败时 ← ← ← ← ← 前端
+```
+
+## 字段管理操作指引
+
+### 增加新字段
+
+#### 步骤1：修改JSON配置文件
+```bash
+# 编辑对应文档类型的配置文件
+vim label_studio/evaluation_configs/config/invoice.json
+```
+
+在配置文件中添加字段：
+
 ```json
 {
-  "document_type": "invoice|bank_receipt|custom",
-  "default_fields": ["field1", "field2", ...],
-  "last_updated": "2025-06-20T09:00:00Z"
+  "required_fields": [
+    "docType",
+    "invoiceDate", 
+    "totalAmount",
+    "currency",
+    "billToName",
+    "billFromName",  // 新增字段
+    "totalTaxAmount"
+  ],
+  "field_display_properties": {
+    "labels": {
+      "billFromName": "Bill From Name"  // 新增显示标签
+    },
+    "types": {
+      "billFromName": "string"  // 新增字段类型
+    }
+  }
 }
 ```
 
-### 2. 后端业务逻辑
+#### 步骤2：更新前端兜底配置
+```bash
+# 编辑前端配置文件
+vim web/apps/labelstudio/src/components/EvaluationFieldsConfig/EvaluationFieldsConfig.jsx
+```
 
-#### 预定义字段配置
-```python
-DEFAULT_FIELD_CONFIGS = {
-    'invoice': ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
-    'bank_receipt': ["recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
-    'custom': []  # 用户自定义
+在3个位置添加新字段：
+```javascript
+// 第48行附近
+fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
+
+// 第72行附近  
+fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
+
+// 第93行附近
+fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
+```
+
+#### 步骤3：重新加载配置到数据库
+```bash
+poetry run python label_studio/manage.py reload_configs --force
+```
+
+#### 步骤4：验证配置生效
+```bash
+# 验证API返回新字段
+curl -s -H "Authorization: Token YOUR_TOKEN" \
+  "http://127.0.0.1:8080/api/frontend/evaluation-configs/presets/" | \
+  python -c "
+import json, sys
+data = json.load(sys.stdin)
+invoice = data.get('invoice', {})
+print('新字段在配置中:', 'billFromName' in invoice.get('fields', []))
+"
+```
+
+### 修改现有字段
+
+#### 移动字段位置（必需↔可选）
+```json
+// 从required_fields移动到optional_fields
+{
+  "required_fields": ["docType", "totalAmount"],  // 移除字段
+  "optional_fields": ["billFromName"]             // 添加字段
 }
 ```
 
-#### 核心函数
+#### 修改字段属性
+```json
+{
+  "field_display_properties": {
+    "labels": {
+      "billFromName": "开票方名称"  // 修改显示标签
+    },
+    "types": {
+      "billFromName": "text"      // 修改字段类型
+    }
+  }
+}
+```
 
-1. **`get_evaluation_fields_for_project(project)`**
-   - 获取项目的评估字段配置
-   - 支持多级回退：用户配置 → 项目默认 → 系统默认
+### 删除字段
 
-2. **`get_evaluation_fields_by_doc_type(project, doc_type)`**
-   - 根据单据类型获取评估字段
-   - 支持动态字段配置
+1. 从JSON配置的所有相关数组中移除字段
+2. 删除display_properties中的相关配置
+3. 更新前端兜底配置
+4. 重新加载配置
 
-3. **`create_evaluation_form(user, project)`**
-   - 生成评估动作的表单配置
-   - 支持单据类型选择和自定义字段输入
+### 新增文档类型
 
-### 3. 前端用户界面
+#### 步骤1：创建新配置文件
+```bash
+# 创建新文档类型配置
+cat > label_studio/evaluation_configs/config/contract.json << 'EOF'
+{
+  "name": "Contract",
+  "key": "contract", 
+  "description": "合同文档评估配置",
+  "required_fields": [
+    "docType",
+    "contractNumber",
+    "contractDate",
+    "partyA",
+    "partyB"
+  ],
+  "optional_fields": [
+    "contractAmount",
+    "signDate"
+  ],
+  "field_display_properties": {
+    "labels": {
+      "docType": "Document Type",
+      "contractNumber": "Contract Number", 
+      "contractDate": "Contract Date",
+      "partyA": "Party A",
+      "partyB": "Party B",
+      "contractAmount": "Contract Amount",
+      "signDate": "Sign Date"
+    },
+    "types": {
+      "docType": "string",
+      "contractNumber": "string",
+      "contractDate": "date", 
+      "partyA": "string",
+      "partyB": "string",
+      "contractAmount": "number",
+      "signDate": "date"
+    }
+  },
+  "evaluation_settings": {
+    "comparison_method": "field_by_field",
+    "matching_strategy": {
+      "type": "field_based",
+      "primary_fields": ["contractNumber", "contractDate"]
+    }
+  }
+}
+EOF
+```
 
-#### 项目设置页面
-- 在 `GeneralSettings` 中集成 `EvaluationFieldsConfig` 组件
-- 用户可以配置不同单据类型的评估字段
+#### 步骤2：更新前端配置
+在`EvaluationFieldsConfig.jsx`中添加新文档类型的兜底配置。
 
-#### 评估动作表单
-- 在执行评估时，用户可以选择单据类型
-- 支持临时自定义字段配置
-- 表单数据会保存到项目配置中
+#### 步骤3：加载配置
+```bash
+poetry run python label_studio/manage.py reload_configs --force
+```
 
-## 使用方式
+## 部署指引
 
-### 1. 项目设置配置
+### 部署到新环境
 
-1. 进入项目设置页面
-2. 找到"评估字段配置"section
-3. 选择单据类型：
-   - **发票 (Invoice)**: 适用于发票和收据
-   - **银行回单 (Bank Receipt)**: 适用于银行回单
-   - **自定义 (Custom)**: 用户自定义字段
-4. 保存配置
+#### 1. 常规部署流程
+```bash
+# 1. 部署代码文件
+git pull origin main
 
-### 2. 执行评估
+# 2. 安装依赖
+poetry install
 
-1. 在数据管理器中选择任务
-2. 点击"Evaluate Document Extraction"
-3. 在弹出的对话框中：
-   - 选择单据类型
-   - 如选择自定义，输入字段列表（逗号分隔）
-4. 确认执行评估
+# 3. 重新加载评估配置 (关键步骤)
+poetry run python label_studio/manage.py reload_configs --force
 
-## 支持的单据类型
+# 4. 重启服务
+systemctl restart label-studio
+```
+
+#### 2. 环境差异处理
+
+**首次部署到新环境:**
+```bash
+# 清除所有现有配置，重新加载
+poetry run python label_studio/manage.py reload_configs --clear --force
+```
+
+**增量更新现有环境:**
+```bash  
+# 只更新变更的配置
+poetry run python label_studio/manage.py reload_configs --force
+```
+
+#### 3. 验证部署成功
+```bash
+# 检查配置加载状态
+poetry run python label_studio/manage.py reload_configs
+
+# 验证API响应
+curl -H "Authorization: Token YOUR_TOKEN" \
+  "http://YOUR_DOMAIN/api/frontend/evaluation-configs/presets/"
+```
+
+### 配置文件修改清单
+
+任何字段配置修改都需要变更以下文件：
+
+1. **JSON配置文件**: `label_studio/evaluation_configs/config/*.json`
+2. **前端兜底配置**: `web/apps/labelstudio/src/components/EvaluationFieldsConfig/EvaluationFieldsConfig.jsx`
+3. **数据库配置**: 通过`reload_configs`命令更新
+
+## 常见问题排查
+
+### Q1: 前端显示的字段没有更新
+**原因**: 可能API获取配置失败，使用了兜底配置
+**解决**:
+1. 检查后端API是否正常：`curl API_ENDPOINT`  
+2. 检查数据库配置是否更新：`poetry run python label_studio/manage.py reload_configs`
+3. 更新前端兜底配置
+
+### Q2: 重新加载配置失败
+**原因**: JSON配置文件格式错误
+**解决**:
+1. 检查JSON语法：`python -m json.tool config_file.json`
+2. 检查必需字段是否缺失
+3. 查看错误日志：`poetry run python label_studio/manage.py reload_configs --force`
+
+### Q3: 评估功能不识别新字段
+**原因**: 评估逻辑需要数据中存在该字段
+**解决**:
+1. 确保标注和预测数据包含新字段
+2. 检查字段名称拼写是否正确
+3. 验证字段类型匹配
+
+### Q4: 部署后配置丢失
+**原因**: 忘记执行`reload_configs`命令
+**解决**:
+1. 立即执行：`poetry run python label_studio/manage.py reload_configs --force`
+2. 将此命令加入部署脚本
+
+## 配置文件格式参考
+
+### 完整的JSON配置文件格式
+```json
+{
+  "name": "Document Type Name",
+  "key": "document_type_key", 
+  "description": "文档类型描述",
+  "required_fields": [
+    "field1",
+    "field2"
+  ],
+  "optional_fields": [
+    "field3", 
+    "field4"
+  ],
+  "field_display_properties": {
+    "labels": {
+      "field1": "Field 1 Display Name",
+      "field2": "Field 2 Display Name"
+    },
+    "types": {
+      "field1": "string|number|date|boolean",
+      "field2": "string"
+    }
+  },
+  "field_validation_rules": {
+    "field1": {
+      "required": true,
+      "type": "string",
+      "allowed_values": ["value1", "value2"]
+    }
+  },
+  "evaluation_settings": {
+    "comparison_method": "field_by_field",
+    "tolerance": {
+      "numeric_field": 0.01
+    },
+    "matching_strategy": {
+      "type": "field_based",
+      "primary_fields": ["key_field1", "key_field2"],
+      "mode": "field_based",
+      "verbose": true
+    }
+  }
+}
+```
+
+## 最佳实践
+
+1. **字段命名**: 使用驼峰命名法，保持一致性
+2. **配置备份**: 修改前备份原配置文件
+3. **渐进部署**: 先在测试环境验证，再部署生产
+4. **版本控制**: 所有配置文件纳入Git管理
+5. **文档更新**: 配置变更后及时更新文档
+
+## 支持的文档类型
 
 ### 发票 (Invoice)
-**适用场景**: 发票、收据等财务单据
-**评估字段**: 
-- `totalAmount`: 总金额
-- `invoiceDate`: 发票日期
-- `docType`: 单据类型
-- `currency`: 币种
-- `billToName`: 收票方名称
-- `totalTaxAmount`: 总税额
+**字段**: `docType`, `invoiceDate`, `totalAmount`, `currency`, `billToName`, `billFromName`, `totalTaxAmount`, `invoiceNumber`, `buyerName`, `sellerName`, `taxRate`, `subtotal`, `description`
 
-### 银行回单 (Bank Receipt)
-**适用场景**: 银行转账回单、支付凭证等
-**评估字段**:
-- `recieptNum`: 回单号
-- `logNum`: 流水号
-- `tradeDate`: 交易日期
-- `amount`: 金额
-- `paymentName`: 付款方名称
-- `paymentBank`: 付款银行
-- `paymentAccount`: 付款账号
-- `payeeName`: 收款方名称
-- `payeeBank`: 收款银行
-- `payeeAccount`: 收款账号
-- `currency`: 币种
+### 银行回单 (Bank Receipt)  
+**字段**: `tradeId`, `recieptNum`, `logNum`, `tradeDate`, `amount`, `paymentName`, `paymentBank`, `paymentAccount`, `payeeName`, `payeeBank`, `payeeAccount`, `currency`, `tradePurpose`, `feeAmount`, `balance`, `序号`
+
+### 收据 (Receipt)
+**字段**: `docType`, `totalAmount`, `invoiceDate`, `currency`, `receiptNumber`, `storeName`, `storeAddress`, `items`, `paymentMethod`, `序号`
 
 ### 自定义 (Custom)
-**适用场景**: 其他类型单据或特殊需求
-**配置方式**: 用户输入字段列表，用逗号分隔
+**用途**: 用户自定义字段配置，适用于特殊文档类型
 
-## 代码变更
+---
 
-### 后端变更
-
-1. **models.py**: 添加 `evaluation_field_config` 字段
-2. **serializers.py**: 序列化器中包含新字段
-3. **invoice_evaluation.py**: 
-   - 添加字段配置函数
-   - 修改评估入口函数支持动态字段
-   - 添加表单生成函数
-
-### 前端变更
-
-1. **EvaluationFieldsConfig.jsx**: 新增评估字段配置组件
-2. **EvaluationFieldsConfig.scss**: 组件样式
-3. **GeneralSettings.jsx**: 集成配置组件
-
-### 数据库变更
-
-1. **Migration**: `0031_add_evaluation_field_config.py`
-
-## 扩展性
-
-该方案具有良好的扩展性：
-
-1. **新增单据类型**: 只需在 `DEFAULT_FIELD_CONFIGS` 中添加配置
-2. **字段级配置**: 可扩展支持字段级别的权重、验证规则等
-3. **多语言支持**: 可扩展支持多语言字段名称
-4. **API接口**: 可提供API接口供外部系统配置
-
-## 兼容性
-
-- **向后兼容**: 现有项目会使用默认的发票字段配置
-- **平滑升级**: 数据库迁移自动添加新字段，不影响现有数据
-- **功能渐进**: 用户可以选择继续使用默认配置或逐步自定义
-
-## 测试建议
-
-1. **单元测试**: 测试字段配置获取函数
-2. **集成测试**: 测试完整的评估流程
-3. **UI测试**: 测试前端配置界面
-4. **兼容性测试**: 测试现有项目的兼容性
-
-## 总结
-
-这个方案通过最少的代码改动，实现了评估字段的动态配置功能，支持多种单据类型，提供了友好的用户界面，同时保持了良好的向后兼容性和扩展性。用户可以根据实际业务需求，灵活配置不同单据类型的评估字段，大大提升了系统的实用性和适应性。 
+*最后更新: 2025-01-03*

@@ -45,7 +45,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
             setDocumentTypeConfigs({
               invoice: {
                 label: "发票 (Invoice)",
-                fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+                fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
                 description: "适用于发票和收据的评估"
               },
               bank_receipt: {
@@ -69,7 +69,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
           setDocumentTypeConfigs({
             invoice: {
               label: "发票 (Invoice)",
-              fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+              fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
               description: "适用于发票和收据的评估"
             },
             bank_receipt: {
@@ -90,7 +90,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
         setDocumentTypeConfigs({
   invoice: {
     label: "发票 (Invoice)",
-    fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "totalTaxAmount"],
+    fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
     description: "适用于发票和收据的评估"
   },
   bank_receipt: {

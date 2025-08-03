@@ -120,6 +120,49 @@ PermissionDevTools.toggleMode(); // strict ↔ loose
 console.log('用户角色:', useRoleAccess().getCurrentRole());
 ```
 
+## 🚀 生产环境部署指引
+
+### 必要操作步骤
+
+1. **运行数据库迁移**
+   ```bash
+   # 确保所有迁移已应用
+   poetry run python manage.py migrate
+   ```
+
+2. **初始化权限系统数据**
+   ```bash
+   # 初始化权限和角色数据（首次部署）
+   poetry run python manage.py init_role_permissions
+   
+   # 如需重置权限数据（慎用）
+   poetry run python manage.py init_role_permissions --reset
+   ```
+
+3. **创建超级用户（如需要）**
+   ```bash
+   poetry run python manage.py createsuperuser
+   ```
+
+### 验证部署
+
+1. **检查权限管理界面**
+   - 访问 `/admin/permission-management/`
+   - 确认角色和权限正常显示
+
+2. **验证API端点**
+   - 权限管理API: `/api/admin/role-permissions/`
+   - 权限批量操作API: `/api/admin/bulk-add-permissions/`, `/api/admin/bulk-remove-permissions/`
+
+3. **测试用户权限**
+   - 使用不同角色用户登录测试功能访问
+
+### 安全注意事项
+
+- 权限管理界面仅限管理员访问
+- API端点已集成Django认证和权限验证
+- 生产环境应使用HTTPS访问权限管理功能
+
 ## ⚠️ 常见错误
 
 ### ❌ 避免过度权限控制

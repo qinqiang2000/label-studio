@@ -8,6 +8,7 @@
     "totalAmount",
     "currency",
     "billToName",
+    "billFromName",
     "totalTaxAmount"
   ],
   "optional_fields": [
@@ -25,6 +26,7 @@
       "invoiceDate": "Invoice Date",
       "currency": "Currency",
       "billToName": "Bill To Name",
+      "billFromName": "Bill From Name",
       "totalTaxAmount": "Total Tax Amount",
       "invoiceNumber": "Invoice Number",
       "buyerName": "Buyer Name",
@@ -40,6 +42,7 @@
       "invoiceDate": "date",
       "currency": "string",
       "billToName": "string",
+      "billFromName": "string",
       "totalTaxAmount": "number",
       "invoiceNumber": "string",
       "buyerName": "string",
