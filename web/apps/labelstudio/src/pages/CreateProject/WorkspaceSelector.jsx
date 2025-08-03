@@ -8,6 +8,8 @@ const WorkspaceSelector = forwardRef(
     const [workspaces, setWorkspaces] = useState([]);
     const [loading, setLoading] = useState(true);
     const api = useAPI();
+    
+
 
     useEffect(() => {
       const fetchWorkspaces = async () => {
@@ -55,6 +57,21 @@ const WorkspaceSelector = forwardRef(
       })),
     ];
 
+    // Get the placeholder text based on current state
+    const getPlaceholder = () => {
+      if (loading) return "Loading workspaces...";
+      if (value && value !== "") {
+        // Find the workspace name for the current value
+        const selectedWorkspace = workspaces.find(w => w.id === value);
+        if (selectedWorkspace) {
+          return selectedWorkspace.name;
+        }
+        // If value is set but workspace not found, show the ID
+        return `Workspace #${value}`;
+      }
+      return props.placeholder || "Select a workspace (optional)";
+    };
+
     // If this component has a name prop, it should be integrated with Form
     if (name) {
       return (
@@ -62,7 +79,7 @@ const WorkspaceSelector = forwardRef(
           {(fieldRef) => (
             <Select
               ref={fieldRef}
-              placeholder={loading ? "Loading workspaces..." : "Select a workspace"}
+              placeholder={getPlaceholder()}
               disabled={disabled || loading}
               options={options}
               value={value}
@@ -79,7 +96,7 @@ const WorkspaceSelector = forwardRef(
     return (
       <Select
         ref={ref}
-        placeholder={loading ? "Loading workspaces..." : "Select a workspace"}
+        placeholder={getPlaceholder()}
         disabled={disabled || loading}
         options={options}
         value={value}

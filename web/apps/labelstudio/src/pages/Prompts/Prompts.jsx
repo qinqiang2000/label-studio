@@ -415,12 +415,14 @@ const CollapsibleJsonEditor = ({ value, onChange, placeholder, disabled, error }
 };
 
 const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
+
+  
   const [formData, setFormData] = useState({
     name: prompt?.name || "",
     content: prompt?.content || "",
     temperature: prompt?.temperature || "",
     response_schema: prompt?.response_schema ? JSON.stringify(prompt.response_schema, null, 2) : "",
-    workspace: prompt?.workspace || "",
+    workspace: prompt?.workspace?.id || prompt?.workspace_id || "",
   });
 
   const [errors, setErrors] = useState({});
@@ -480,7 +482,9 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
 
     // Add workspace if provided
     if (formData.workspace !== "") {
-      submitData.workspace_id = formData.workspace;
+      // Ensure we only send the workspace ID, not the full object
+      const workspaceId = typeof formData.workspace === 'object' ? formData.workspace.id : formData.workspace;
+      submitData.workspace_id = workspaceId;
     }
     
     onSave(submitData);
