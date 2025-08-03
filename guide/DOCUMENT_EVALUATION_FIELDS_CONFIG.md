@@ -346,4 +346,148 @@ curl -H "Authorization: Token YOUR_TOKEN" \
 
 ---
 
-*最后更新: 2025-01-03*
+## 命令行工具
+
+为了简化字段配置管理，现在提供了专用的命令行工具，可以一条命令完成所有操作。
+
+### 字段管理命令
+
+#### 基本语法
+```bash
+poetry run python manage.py field_manage <action> <document_type> [field_name] [options]
+```
+
+#### 添加字段
+```bash
+# 添加必需字段
+poetry run python manage.py field_manage add invoice billFromName \
+  --label="开票方名称" --type=string --required
+
+# 添加可选字段  
+poetry run python manage.py field_manage add invoice note \
+  --label="备注" --type=string --optional
+
+# 添加数值字段
+poetry run python manage.py field_manage add invoice discount \
+  --label="折扣金额" --type=number --optional
+```
+
+#### 删除字段
+```bash
+poetry run python manage.py field_manage remove invoice oldField
+```
+
+#### 查看字段
+```bash
+# 列出文档类型的所有字段
+poetry run python manage.py field_manage list invoice
+
+# 查看特定字段详情
+poetry run python manage.py field_manage info invoice billFromName
+```
+
+### 文档类型管理命令
+
+#### 基本语法
+```bash
+poetry run python manage.py doc_type_manage <action> [document_key] [options]
+```
+
+#### 列出所有文档类型
+```bash
+poetry run python manage.py doc_type_manage list
+```
+
+#### 查看文档类型详情
+```bash
+poetry run python manage.py doc_type_manage info invoice
+```
+
+#### 创建新文档类型
+
+**使用模板快速创建:**
+```bash
+# 创建合同类型文档（使用预定义模板）
+poetry run python manage.py doc_type_manage create contract \
+  --name="Contract" --template=contract
+
+# 创建基础文档类型
+poetry run python manage.py doc_type_manage create my_doc \
+  --name="My Document" --template=basic
+```
+
+**手动配置创建:**
+```bash
+poetry run python manage.py doc_type_manage create purchase_order \
+  --name="Purchase Order" \
+  --description="采购订单文档" \
+  --required="docType,orderNumber,orderDate,supplier" \
+  --optional="totalAmount,deliveryDate" \
+  --labels="docType:文档类型,orderNumber:订单号,orderDate:订单日期" \
+  --types="docType:string,orderNumber:string,orderDate:date"
+```
+
+#### 可用模板
+- `basic`: 基础文档（只有docType字段）
+- `invoice`: 发票模板（包含常用发票字段）  
+- `receipt`: 收据模板（包含常用收据字段）
+- `contract`: 合同模板（包含常用合同字段）
+
+### 命令示例
+
+#### 完整的新字段添加流程
+```bash
+# 1. 查看当前字段
+poetry run python manage.py field_manage list invoice
+
+# 2. 添加新字段
+poetry run python manage.py field_manage add invoice supplierCode \
+  --label="供应商代码" --type=string --required
+
+# 3. 验证添加结果
+poetry run python manage.py field_manage info invoice supplierCode
+
+# 4. 验证API响应
+curl -H "Authorization: Token YOUR_TOKEN" \
+  "http://127.0.0.1:8080/api/frontend/evaluation-configs/presets/"
+```
+
+#### 完整的新文档类型创建流程
+```bash
+# 1. 查看当前文档类型
+poetry run python manage.py doc_type_manage list
+
+# 2. 创建新文档类型
+poetry run python manage.py doc_type_manage create delivery_note \
+  --name="Delivery Note" --template=basic \
+  --description="送货单文档"
+
+# 3. 添加字段到新文档类型
+poetry run python manage.py field_manage add delivery_note deliveryDate \
+  --label="送货日期" --type=date --required
+
+poetry run python manage.py field_manage add delivery_note driverName \
+  --label="司机姓名" --type=string --optional
+
+# 4. 查看创建结果
+poetry run python manage.py doc_type_manage info delivery_note
+```
+
+### 命令优势
+
+✅ **一条命令搞定**: 替代之前需要手动编辑3个文件的复杂操作  
+✅ **自动同步**: 自动更新JSON配置、前端兜底配置、数据库配置  
+✅ **错误安全**: 内置参数验证，避免配置错误  
+✅ **操作可视**: 详细的操作反馈和结果验证  
+✅ **未来扩展**: 核心逻辑可复用到Web管理界面
+
+### 注意事项
+
+1. **前端兜底配置**: 目前前端路径检测可能需要调整，如看到路径警告是正常的
+2. **权限要求**: 需要对配置文件和数据库的写入权限
+3. **备份建议**: 重要操作前建议备份配置文件
+4. **验证步骤**: 操作后建议验证API响应确保配置生效
+
+---
+
+*最后更新: 2025-08-03*

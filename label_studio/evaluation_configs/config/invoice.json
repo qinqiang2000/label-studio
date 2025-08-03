@@ -56,7 +56,11 @@
   "field_validation_rules": {
     "docType": {
       "required": true,
-      "allowed_values": ["invoice", "receipt", "other"]
+      "allowed_values": [
+        "invoice",
+        "receipt",
+        "other"
+      ]
     },
     "totalAmount": {
       "required": true,
@@ -77,7 +81,11 @@
     "matching_strategy": {
       "type": "degraded_field_based",
       "mode": "field_based",
-      "primary_fields": ["invoiceNumber", "invoiceDate", "totalAmount"],
+      "primary_fields": [
+        "invoiceNumber",
+        "invoiceDate",
+        "totalAmount"
+      ],
       "verbose": true
     }
   }
