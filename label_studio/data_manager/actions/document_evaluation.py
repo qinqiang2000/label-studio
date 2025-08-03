@@ -594,7 +594,7 @@ def _create_statistics_sheet(writer, statistics, compare_fields, evaluation_conf
         # 整体指标 section - 使用关键词查找而非硬编码位置，提高robust性
         metrics_mapping = {
             '可识别率': ('recognition_rate', statistics.get('recognition_rate', 0.0)),
-            '文件准确率': ('document_accuracy', statistics['document_accuracy']),
+            '文档准确率': ('document_accuracy', statistics['document_accuracy']),
             '票据准确率': ('invoice_accuracy', statistics['invoice_accuracy']),
             '字段准确率': ('overall_field_accuracy', statistics['overall_field_accuracy'])
         }
