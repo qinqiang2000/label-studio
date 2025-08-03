@@ -5,6 +5,62 @@
  * 修改这个文件后，权限常量和Hook方法会自动生成。
  */
 
+// ====== 权限系统模式配置 ======
+export const PERMISSION_SYSTEM_CONFIG = {
+  // 权限模式：'strict' 严格模式 | 'loose' 宽松模式
+  mode: 'loose',
+  
+  // 严格模式：所有UI元素都需要显式权限配置，未配置的元素不显示
+  // 宽松模式：只有显式配置为需要权限的元素才检查权限，其他元素默认显示
+  
+  // 在宽松模式下生效的默认策略
+  looseMode: {
+    // 默认所有用户都能看到的UI区域
+    defaultVisible: true,
+    
+    // 需要最低角色要求的UI区域
+    roleBasedUI: {
+      basic_ui: ['annotator', 'workspace_admin', 'superuser'],
+      admin_ui: ['workspace_admin', 'superuser'], 
+      super_ui: ['superuser']
+    },
+    
+    // 真正需要权限控制的危险操作
+    dangerousOperations: [
+      'delete_project',
+      'delete_workspace', 
+      'manage_users',
+      'manage_permissions',
+      'system_settings'
+    ],
+    
+    // 页面级权限简化映射
+    // 将细粒度的按钮权限映射到页面级权限
+    pagePermissionMapping: {
+      // 项目管理页面
+      'project_management': [
+        'show_create_project_button',
+        'show_import_project_button', 
+        'show_export_project_button'
+      ],
+      
+      // 工作空间管理页面
+      'workspace_management': [
+        'show_create_workspace_button',
+        'show_edit_workspace_button',
+        'show_delete_workspace_button'
+      ],
+      
+      // 用户管理页面
+      'user_management': [
+        'show_invite_users_button',
+        'show_manage_user_roles',
+        'show_permission_management_button'
+      ]
+    }
+  }
+};
+
 // 权限组定义 - 用于批量管理相关权限
 export const PERMISSION_GROUPS = {
   // 基础用户权限组

@@ -2,7 +2,7 @@
 
 ## 虚拟环境
 ```bash
-source /Users/qinqiang02/Library/Caches/pypoetry/virtualenvs/label-studio-ofHy_tK8-py3.12/bin/activate
+所有python命令，都加上poetry run
 ```
 
 ## 常用命令

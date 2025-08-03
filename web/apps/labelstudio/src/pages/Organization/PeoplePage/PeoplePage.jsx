@@ -6,6 +6,7 @@ import { HeidiTips } from "../../../components/HeidiTips/HeidiTips";
 import { modal } from "../../../components/Modal/Modal";
 import { Space } from "../../../components/Space/Space";
 import { SmartButton } from "../../../components/SmartPermission/SmartButton";
+import { SimpleButton } from "../../../components/SmartPermission/SimpleButton";
 import { useAPI } from "../../../providers/ApiProvider";
 import { useConfig } from "../../../providers/ConfigProvider";
 import { useCurrentUser } from "../../../providers/CurrentUser";
@@ -107,13 +108,27 @@ export const PeoplePage = () => {
             {isFF(FF_AUTH_TOKENS) && user?.is_superuser && (
               <Button onClick={showApiTokenSettingsModal}>API Tokens Settings</Button>
             )}
-            <SmartButton
+            {/* 旧方式：需要配置具体权限 */}
+            {/* <SmartButton
               permission="show_permission_management_button"
               onClick={() => window.open('/admin/permission-management', '_blank')}
               fallback="hide"
             >
+              Permission Settings (Old)
+            </SmartButton> */}
+            
+            {/* 新方式：只需要指定角色要求，无需配置具体权限 */}
+            <SimpleButton
+              requireRole="admin_ui"
+              onClick={() => window.open('/admin/permission-management', '_blank')}
+            >
               Permission Settings
-            </SmartButton>
+            </SimpleButton>
+            
+            {/* 普通按钮：完全无需权限配置 */}
+            {/* <Button onClick={() => window.open('/admin/permission-management', '_blank')}>
+              Permission Settings (Simple)
+            </Button> */}
             <Button icon={<IconPlus />} primary onClick={() => setInvitationOpen(true)}>
               Add People
             </Button>
