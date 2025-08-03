@@ -183,7 +183,7 @@ const downloadAnalysisReport = (content, filename = 'analysis_report') => {
 </head>
 <body>
     <div class="header">
-        <h1>Label Studio 评估报告分析</h1>
+        <h1>评估报告分析</h1>
         <div class="timestamp">生成时间: ${new Date().toLocaleString('zh-CN')}</div>
     </div>
     <div class="content">
