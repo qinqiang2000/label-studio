@@ -3,6 +3,33 @@ from django.conf import settings
 import json
 
 
+class PromptWorkspace(models.Model):
+    """Through model for prompt-workspace many-to-many relationship"""
+    
+    prompt = models.ForeignKey(
+        'Prompt',
+        on_delete=models.CASCADE,
+        related_name='prompt_workspaces',
+        help_text='Prompt'
+    )
+    
+    workspace = models.ForeignKey(
+        'workspaces.Workspace',
+        on_delete=models.CASCADE,
+        related_name='workspace_prompts',
+        help_text='Workspace'
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'prompt_workspace'
+        unique_together = ['prompt', 'workspace']
+        
+    def __str__(self):
+        return f"{self.prompt.name} - {self.workspace.name}"
+
+
 class Prompt(models.Model):
     """Model for storing prompts"""
     
@@ -26,13 +53,22 @@ class Prompt(models.Model):
         related_name='prompts',
         help_text="User who created this prompt"
     )
+    # Legacy field - kept for migration compatibility, will be removed after migration
     workspace = models.ForeignKey(
         'workspaces.Workspace',
         on_delete=models.SET_NULL,
-        related_name='prompts',
+        related_name='legacy_prompts',
         null=True,
         blank=True,
-        help_text='Workspace this prompt belongs to'
+        help_text='Legacy single workspace field - use workspaces instead'
+    )
+    
+    workspaces = models.ManyToManyField(
+        'workspaces.Workspace',
+        through='PromptWorkspace',
+        related_name='prompts',
+        blank=True,
+        help_text='Workspaces this prompt belongs to'
     )
     
     class Meta:
@@ -56,6 +92,29 @@ class Prompt(models.Model):
                     json.loads(self.response_schema)
             except (json.JSONDecodeError, TypeError):
                 raise ValidationError("Response schema must be valid JSON")
+
+    def has_workspace(self, workspace):
+        """Check if prompt belongs to the specified workspace"""
+        return self.workspaces.filter(pk=workspace.pk).exists()
+    
+    def add_workspace(self, workspace):
+        """Add workspace to this prompt"""
+        if not self.has_workspace(workspace):
+            PromptWorkspace.objects.create(
+                prompt=self,
+                workspace=workspace
+            )
+    
+    def remove_workspace(self, workspace):
+        """Remove workspace from this prompt"""
+        PromptWorkspace.objects.filter(
+            prompt=self,
+            workspace=workspace
+        ).delete()
+    
+    def get_workspace_ids(self):
+        """Get list of workspace IDs this prompt belongs to"""
+        return list(self.workspaces.values_list('pk', flat=True))
 
     def get_runtime_config(self):
         """Get runtime config for ML backend"""

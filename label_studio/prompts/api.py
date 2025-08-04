@@ -21,11 +21,12 @@ class PromptListAPI(generics.ListCreateAPIView):
         # Filter prompts based on workspace membership (unless user is superuser)
         if not self.request.user.is_superuser:
             prompts = prompts.filter(
-                Q(workspace__isnull=True) |  # Prompts without workspace
-                Q(workspace__members=self.request.user)  # Prompts in workspaces where user is a member
-            )
+                Q(workspaces__isnull=True) |  # Prompts without any workspaces (organization-wide)
+                Q(workspaces__members=self.request.user)  # Prompts in workspaces where user is a member
+            ).distinct()  # Use distinct() to avoid duplicates from multiple workspace matches
         
-        return prompts
+        # Prefetch related data for better performance
+        return prompts.prefetch_related('workspaces').select_related('workspace', 'created_by')
 
 
 class PromptDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -41,8 +42,9 @@ class PromptDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         # Filter prompts based on workspace membership (unless user is superuser)
         if not self.request.user.is_superuser:
             prompts = prompts.filter(
-                Q(workspace__isnull=True) |  # Prompts without workspace
-                Q(workspace__members=self.request.user)  # Prompts in workspaces where user is a member
-            )
+                Q(workspaces__isnull=True) |  # Prompts without any workspaces (organization-wide)
+                Q(workspaces__members=self.request.user)  # Prompts in workspaces where user is a member
+            ).distinct()  # Use distinct() to avoid duplicates from multiple workspace matches
         
-        return prompts 
+        # Prefetch related data for better performance
+        return prompts.prefetch_related('workspaces').select_related('workspace', 'created_by') 

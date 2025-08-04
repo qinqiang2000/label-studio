@@ -422,7 +422,10 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
     content: prompt?.content || "",
     temperature: prompt?.temperature || "",
     response_schema: prompt?.response_schema ? JSON.stringify(prompt.response_schema, null, 2) : "",
+    // Legacy single workspace support (for backward compatibility)
     workspace: prompt?.workspace?.id || prompt?.workspace_id || "",
+    // New multi-workspace support
+    workspaces: prompt?.workspaces ? prompt.workspaces.map(w => w.id) : (prompt?.workspace_ids || []),
   });
 
   const [errors, setErrors] = useState({});
@@ -480,8 +483,17 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
       }
     }
 
-    // Add workspace if provided
-    if (formData.workspace !== "") {
+    // Add workspaces if provided (new multi-workspace approach)
+    if (Array.isArray(formData.workspaces) && formData.workspaces.length > 0) {
+      // Ensure we only send workspace IDs
+      submitData.workspace_ids = formData.workspaces.map(w => 
+        typeof w === 'object' ? w.id : w
+      );
+    }
+    
+    // Legacy single workspace support (for backward compatibility)
+    // Only use this if no workspaces are provided
+    if ((!Array.isArray(formData.workspaces) || formData.workspaces.length === 0) && formData.workspace !== "") {
       // Ensure we only send the workspace ID, not the full object
       const workspaceId = typeof formData.workspace === 'object' ? formData.workspace.id : formData.workspace;
       submitData.workspace_id = workspaceId;
@@ -567,17 +579,18 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
       </div>
 
       <div className={Block.elem("form-field")}>
-        <label htmlFor="workspace">
-          Workspace 
+        <label htmlFor="workspaces">
+          Workspaces 
           <small style={{ color: '#666', fontWeight: 'normal' }}>
-            {' '}(Optional: Select a workspace or leave empty for organization-wide visibility)
+            {' '}(Optional: Select workspaces or leave empty for organization-wide visibility)
           </small>
         </label>
         <WorkspaceSelector
-          value={formData.workspace}
-          onChange={(value) => setFormData(prev => ({ ...prev, workspace: value }))}
+          value={formData.workspaces}
+          onChange={(value) => setFormData(prev => ({ ...prev, workspaces: value || [] }))}
           disabled={isLoading}
-          placeholder="Select a workspace (optional)"
+          multiple={true}
+          placeholder="Select workspaces (organization-wide if none selected)"
           getPopupContainer={() => document.body}
         />
       </div>
@@ -628,23 +641,31 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
     return `${year}-${month}-${day} ${hour}:${minute}`;
   };
 
-  const getWorkspaceDisplay = (workspace) => {
-    if (!workspace) {
-      return 'Organization-wide (visible to all users)';
-    }
-    
-    // Handle different workspace data formats
-    if (typeof workspace === 'object') {
-      if (workspace.name) {
-        return workspace.name;
-      } else if (workspace.id) {
-        return `Workspace #${workspace.id}`;
+  const getWorkspaceDisplay = (prompt) => {
+    // Check if prompt has multiple workspaces (new structure)
+    if (prompt.workspaces && Array.isArray(prompt.workspaces) && prompt.workspaces.length > 0) {
+      if (prompt.workspaces.length === 1) {
+        return prompt.workspaces[0].name || `Workspace #${prompt.workspaces[0].id}`;
+      } else {
+        return `${prompt.workspaces.length} workspaces: ${prompt.workspaces.map(w => w.name || `#${w.id}`).join(', ')}`;
       }
-    } else if (typeof workspace === 'string' || typeof workspace === 'number') {
-      return `Workspace #${workspace}`;
     }
     
-    return 'Unknown workspace';
+    // Fallback to legacy single workspace (for backward compatibility)
+    if (prompt.workspace) {
+      // Handle different workspace data formats
+      if (typeof prompt.workspace === 'object') {
+        if (prompt.workspace.name) {
+          return prompt.workspace.name;
+        } else if (prompt.workspace.id) {
+          return `Workspace #${prompt.workspace.id}`;
+        }
+      } else if (typeof prompt.workspace === 'string' || typeof prompt.workspace === 'number') {
+        return `Workspace #${prompt.workspace}`;
+      }
+    }
+    
+    return 'Organization-wide (visible to all users)';
   };
 
   const handleCardClick = (e) => {
@@ -702,7 +723,7 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
         {/* Display workspace info */}
         <div className={Block.elem("card-meta")} style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #eee' }}>
           <div style={{ fontSize: '12px', marginBottom: '4px', color: '#666' }}>
-            <strong>Workspace:</strong> {getWorkspaceDisplay(prompt.workspace)}
+            <strong>Workspaces:</strong> {getWorkspaceDisplay(prompt)}
           </div>
         </div>
       </div>
