@@ -94,3 +94,6 @@ label_studio/core/static/js/*.js.map
 **/.*copy*.tsx
 
 .last_synced_commit
+
+# Claude AI assistant documentation
+CLAUDE.md
