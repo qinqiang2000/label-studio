@@ -5,13 +5,14 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from .models import Prompt
 from .serializers import PromptSerializer
+from .permissions import PromptsAccessPermission
 
 
 class PromptListAPI(generics.ListCreateAPIView):
     """List all prompts or create a new prompt"""
     
     serializer_class = PromptSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, PromptsAccessPermission]
     
     def get_queryset(self):
         """Filter prompts based on workspace membership"""
@@ -31,7 +32,7 @@ class PromptDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update or delete a prompt"""
     
     serializer_class = PromptSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, PromptsAccessPermission]
     
     def get_queryset(self):
         """Filter prompts based on workspace membership"""
