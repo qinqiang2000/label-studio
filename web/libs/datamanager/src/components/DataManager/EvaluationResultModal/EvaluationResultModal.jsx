@@ -250,7 +250,7 @@ const EvaluationResultModal = ({ result, onClose }) => {
           }
         }
         
-        const response = await fetch('/api/prompts/', {
+        const response = await fetch('/api/dm/accessible-prompts/', {
           method: 'GET',
           headers,
         });

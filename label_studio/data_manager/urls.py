@@ -14,6 +14,7 @@ urlpatterns = [
     path('api/dm/project/', api.ProjectStateAPI.as_view(), name='dm-project'),
     path('api/dm/actions/', api.ProjectActionsAPI.as_view(), name='dm-actions'),
     path('api/dm/analysis/', api.EvaluationAnalysisAPI.as_view(), name='dm-analysis'),
+    path('api/dm/accessible-prompts/', api.AccessiblePromptsAPI.as_view(), name='dm-accessible-prompts'),
     # path("api/dm/tasks/", api.TaskListAPI.as_view()),
     # path("api/dm/tasks/<int:pk>", api.TaskAPI.as_view()),
     path('api/download-excel/', views.download_excel_report, name='download-excel'),

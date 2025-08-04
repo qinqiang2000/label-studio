@@ -8,6 +8,7 @@ from core.redis import start_job_async_or_sync
 from core.utils.common import load_func
 from data_manager.functions import evaluate_predictions
 from django.conf import settings
+from django.db.models import Q
 from projects.models import Project
 from tasks.functions import update_tasks_counters
 from tasks.models import Annotation, AnnotationDraft, Prediction, Task
@@ -26,14 +27,15 @@ def retrieve_tasks_predictions_form(user, project):
     
     # 安全地获取可用的 prompts（限制数量）
     try:
-        from prompts.models import Prompt
-        # 限制最多显示10个最新的prompts
-        prompts = Prompt.objects.all().order_by('-updated_at')[:10]
-        for prompt in prompts:
-            prompt_options.append({
-                "label": prompt.name,
-                "value": prompt.name
-            })
+        from prompts.utils import get_user_accessible_prompt_options
+        # 使用公共函数获取用户可访问的prompt选项
+        user_prompt_options = get_user_accessible_prompt_options(user, limit=10)
+        # 替换默认选项，使用公共函数返回的选项（已包含"None"选项）
+        prompt_options = user_prompt_options
+        
+        # 获取实际的prompts来设置默认值
+        from prompts.utils import get_user_accessible_prompts
+        prompts = get_user_accessible_prompts(user, limit=10)
         logger.debug(f"Found {len(prompts)} prompts for selection (limited to 10)")
         
         # 如果有可用的 prompts，默认选择第一个（最新的）

@@ -28,7 +28,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from projects.models import Project
 from projects.serializers import ProjectSerializer
-from rest_framework import generics, viewsets
+from rest_framework import generics, permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
@@ -663,5 +663,72 @@ class EvaluationAnalysisAPI(APIView):
             logger.error(f"Analysis failed for project {pk}: {str(e)}")
             return Response({
                 'status': 'error',
+                'error': str(e)
+            }, status=500)
+
+
+@method_decorator(
+    name='get',
+    decorator=swagger_auto_schema(
+        tags=['Data Manager'],
+        operation_summary='Get accessible prompts',
+        operation_description='Retrieve prompts that the current user has access to based on workspace membership',
+        manual_parameters=[
+            openapi.Parameter(
+                name='limit',
+                type=openapi.TYPE_INTEGER,
+                in_=openapi.IN_QUERY,
+                description='Maximum number of prompts to return (default: 50)',
+                required=False,
+            ),
+        ],
+        responses={
+            200: openapi.Response(
+                description='Accessible prompts retrieved successfully',
+                examples={
+                    'application/json': [
+                        {
+                            'id': 1,
+                            'name': 'Default Analysis Prompt',
+                            'content': 'Analyze the following data...',
+                            'temperature': 0.7,
+                            'response_schema': None,
+                            'created_at': '2024-01-01T00:00:00Z',
+                            'updated_at': '2024-01-01T00:00:00Z'
+                        }
+                    ]
+                },
+            ),
+            403: openapi.Response(description='Access denied - user not authenticated'),
+        },
+    ),
+)
+class AccessiblePromptsAPI(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """
+        获取用户可访问的prompts列表
+        根据用户的workspace成员身份进行过滤
+        """
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=403)
+
+        # 获取limit参数
+        limit = int_from_request(request.GET, 'limit', 50)
+        if limit > 100:  # 限制最大值防止性能问题
+            limit = 100
+
+        try:
+            from prompts.utils import get_user_accessible_prompts_list
+            prompts_data = get_user_accessible_prompts_list(request.user, limit=limit)
+            
+            logger.debug(f"Retrieved {len(prompts_data)} accessible prompts for user {request.user.id}")
+            return Response(prompts_data, status=200)
+            
+        except Exception as e:
+            logger.error(f"Error retrieving accessible prompts for user {request.user.id}: {str(e)}")
+            return Response({
+                'detail': 'Error retrieving prompts',
                 'error': str(e)
             }, status=500)
