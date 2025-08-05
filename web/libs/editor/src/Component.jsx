@@ -32,37 +32,37 @@ export class LabelStudio extends Component {
    * @param {object} task
    */
   _patchTaskDataWithAnnotation(task) {
-    console.log('[patch] called with task:', task);
+    console.log("[patch] called with task:", task);
     if (!task || !task.data) return;
     // 1. 优先最新 annotation
     let source = null;
     if (Array.isArray(task.annotations) && task.annotations.length > 0) {
-      console.log('[patch] annotations:', task.annotations);
+      console.log("[patch] annotations:", task.annotations);
       source = [...task.annotations]
-        .filter(a => Array.isArray(a.result) && a.result.length > 0)
+        .filter((a) => Array.isArray(a.result) && a.result.length > 0)
         .sort((a, b) => {
-          const getTime = x => new Date(x.updated_at || x.created_at || 0).getTime();
+          const getTime = (x) => new Date(x.updated_at || x.created_at || 0).getTime();
           return getTime(b) - getTime(a) || (b.id || 0) - (a.id || 0);
         })[0];
-      console.log('[patch] picked annotation:', source);
+      console.log("[patch] picked annotation:", source);
     }
     // 2. 没有 annotation 时，fallback 到最新 prediction
     if (!source && Array.isArray(task.predictions) && task.predictions.length > 0) {
-      console.log('[patch] predictions:', task.predictions);
+      console.log("[patch] predictions:", task.predictions);
       source = [...task.predictions]
-        .filter(p => Array.isArray(p.result) && p.result.length > 0)
+        .filter((p) => Array.isArray(p.result) && p.result.length > 0)
         .sort((a, b) => {
-          const getTime = x => new Date(x.updated_at || x.created_at || 0).getTime();
+          const getTime = (x) => new Date(x.updated_at || x.created_at || 0).getTime();
           return getTime(b) - getTime(a) || (b.id || 0) - (a.id || 0);
         })[0];
-      console.log('[patch] picked prediction:', source);
+      console.log("[patch] picked prediction:", source);
     }
     if (!source) {
-      console.log('[patch] no annotation or prediction found');
+      console.log("[patch] no annotation or prediction found");
       return;
     }
-    source.result.forEach(r => {
-      if (r.type === 'textarea' && r.from_name && r.value && Array.isArray(r.value.text)) {
+    source.result.forEach((r) => {
+      if (r.type === "textarea" && r.from_name && r.value && Array.isArray(r.value.text)) {
         const key = r.from_name;
         const val = r.value.text[0];
         if (key && val !== undefined && val !== null) {

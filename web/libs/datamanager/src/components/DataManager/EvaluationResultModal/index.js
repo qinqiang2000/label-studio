@@ -1,1 +1,1 @@
-export { EvaluationResultModal } from './EvaluationResultModal';
+export { EvaluationResultModal } from "./EvaluationResultModal";

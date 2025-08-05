@@ -22,15 +22,15 @@ export const CurrentUserProvider = ({ children }) => {
       .callApi("currentUserPermissions")
       .then((permissionData) => {
         if (user) {
-          setUser(prevUser => ({
+          setUser((prevUser) => ({
             ...prevUser,
             permissions: permissionData.permissions,
-            role_info: permissionData.role_info
+            role_info: permissionData.role_info,
           }));
         }
       })
       .catch((error) => {
-        console.warn('Failed to refresh permissions:', error);
+        console.warn("Failed to refresh permissions:", error);
       });
   }, [api, user]);
 
@@ -41,18 +41,20 @@ export const CurrentUserProvider = ({ children }) => {
   // 定期刷新权限（每5分钟）
   useEffect(() => {
     if (!user) return;
-    
+
     const interval = setInterval(refreshPermissions, 5 * 60 * 1000); // 5分钟
     return () => clearInterval(interval);
   }, [user, refreshPermissions]);
 
   return (
-    <CurrentUserContext.Provider value={{ 
-      user, 
-      fetch, 
-      refreshPermissions, 
-      isInProgress 
-    }}>
+    <CurrentUserContext.Provider
+      value={{
+        user,
+        fetch,
+        refreshPermissions,
+        isInProgress,
+      }}
+    >
       {children}
     </CurrentUserContext.Provider>
   );

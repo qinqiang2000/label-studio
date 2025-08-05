@@ -38,7 +38,8 @@ const initializeDataManager = async (root, props, params) => {
     polling: !window.APP_SETTINGS,
     showPreviews: false,
     apiEndpoints: APIConfig.endpoints,
-    toolbar: "actions columns filters search ordering label-button loading-possum error-box | refresh import-button export-button import-invoice-button view-toggle",
+    toolbar:
+      "actions columns filters search ordering label-button loading-possum error-box | refresh import-button export-button import-invoice-button view-toggle",
     interfaces: {
       import: true,
       export: true,
@@ -231,7 +232,7 @@ export const DataManagerPage = ({ ...props }) => {
       )}
       {/* Allow this to exist before the DataManager is initialized as the async app.fetchData call eventually calls startLabeling, and that requires the root element to exist */}
       <Block ref={root} name="datamanager" />
-      
+
       {showImportInvoice && project && (
         <ImportInvoiceModal
           project={project}

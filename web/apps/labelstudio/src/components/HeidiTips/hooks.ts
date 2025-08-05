@@ -4,7 +4,7 @@ import type { Tip, TipsCollection } from "./types";
 
 export const useRandomTip = (collection: keyof TipsCollection) => {
   const [tip, setTip] = useState<Tip | null>(null);
-  
+
   useEffect(() => {
     getRandomTip(collection).then(setTip);
   }, [collection]);

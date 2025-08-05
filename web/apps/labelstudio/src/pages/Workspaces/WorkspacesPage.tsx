@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Button } from '@humansignal/ui';
-import { Block, Elem } from '../../utils/bem';
-import { useAPI } from '../../providers/ApiProvider';
-import { modal } from '../../components/Modal/Modal';
-import { CreateWorkspaceModal } from './CreateWorkspaceModal';
-import { WorkspaceCard } from './WorkspaceCard';
-import { WorkspaceArchived } from './WorkspaceArchived';
-import { useButtonPermissions } from '../../hooks/useButtonPermissions';
-import { SmartButton } from '../../components/SmartPermission/SmartButton';
-import './WorkspacesPage.scss';
+import type React from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Block, Elem } from "../../utils/bem";
+import { useAPI } from "../../providers/ApiProvider";
+import { modal } from "../../components/Modal/Modal";
+import { CreateWorkspaceModal } from "./CreateWorkspaceModal";
+import { WorkspaceCard } from "./WorkspaceCard";
+import { WorkspaceArchived } from "./WorkspaceArchived";
+import { useButtonPermissions } from "../../hooks/useButtonPermissions";
+import { SmartButton } from "../../components/SmartPermission/SmartButton";
+import "./WorkspacesPage.scss";
 
 interface Workspace {
   id: number;
@@ -41,16 +41,16 @@ export const WorkspacesPage: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
-  
+
   const api = useAPI();
   const buttonPermissions = useButtonPermissions();
 
   const fetchCurrentUser = useCallback(async () => {
     try {
-      const user = await api.callApi('currentUser');
+      const user = await api.callApi("currentUser");
       setCurrentUser(user);
     } catch (error) {
-      console.error('Failed to fetch current user:', error);
+      console.error("Failed to fetch current user:", error);
     }
   }, [api]);
 
@@ -58,14 +58,14 @@ export const WorkspacesPage: React.FC = () => {
     try {
       setLoading(true);
       // Fetch active workspaces
-      const response = await api.callApi('workspaces');
+      const response = await api.callApi("workspaces");
       setWorkspaces(response || []);
-      
+
       // Fetch archived workspaces
-      const archivedResponse = await api.callApi('archivedWorkspaces');
+      const archivedResponse = await api.callApi("archivedWorkspaces");
       setArchivedWorkspaces(archivedResponse || []);
     } catch (error) {
-      console.error('Failed to fetch workspaces:', error);
+      console.error("Failed to fetch workspaces:", error);
       setWorkspaces([]);
       setArchivedWorkspaces([]);
     } finally {
@@ -80,7 +80,7 @@ export const WorkspacesPage: React.FC = () => {
 
   const handleCreateWorkspace = useCallback(() => {
     const modalInstance = modal({
-      title: 'Create Workspace',
+      title: "Create Workspace",
       body: (
         <CreateWorkspaceModal
           onClose={() => modalInstance.close()}
@@ -90,7 +90,7 @@ export const WorkspacesPage: React.FC = () => {
           }}
         />
       ),
-      style: { width: 600 }
+      style: { width: 600 },
     });
   }, [fetchWorkspaces]);
 
@@ -114,9 +114,7 @@ export const WorkspacesPage: React.FC = () => {
       <Elem name="header">
         <Elem name="title">
           <h1>Workspaces</h1>
-          <Elem name="subtitle">
-            Organize and manage your projects by grouping them into workspaces
-          </Elem>
+          <Elem name="subtitle">Organize and manage your projects by grouping them into workspaces</Elem>
         </Elem>
         <Elem name="actions">
           <SmartButton
@@ -136,10 +134,9 @@ export const WorkspacesPage: React.FC = () => {
             <Elem name="empty-icon">🏢</Elem>
             <Elem name="empty-title">No workspaces yet</Elem>
             <Elem name="empty-description">
-              {canCreateWorkspace 
+              {canCreateWorkspace
                 ? "Create your first workspace to organize your projects"
-                : "No workspaces available. Contact an administrator to create workspaces."
-              }
+                : "No workspaces available. Contact an administrator to create workspaces."}
             </Elem>
             <SmartButton
               permission="show_create_workspace_button"
@@ -180,4 +177,4 @@ export const WorkspacesPage: React.FC = () => {
       </Elem>
     </Block>
   );
-}; 
+};

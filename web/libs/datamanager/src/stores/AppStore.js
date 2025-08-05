@@ -747,11 +747,16 @@ export const AppStore = types
         Object.assign(actionParams, options.body);
       }
 
-      const result = yield self.apiCall("invokeAction", requestParams, {
-        body: actionParams,
-      }, {
-        errorHandler: options.suppressError ? () => true : undefined
-      });
+      const result = yield self.apiCall(
+        "invokeAction",
+        requestParams,
+        {
+          body: actionParams,
+        },
+        {
+          errorHandler: options.suppressError ? () => true : undefined,
+        },
+      );
 
       if (result.async) {
         self.SDK.invoke("toast", { message: "Your action is being processed in the background.", type: "info" });

@@ -151,32 +151,32 @@ const FormatInfo = ({ availableFormats, selected, onClick }) => {
       <Elem name="info">You can export dataset in one of the following formats:</Elem>
       <Elem name="list">
         {availableFormats
-        .filter(format => !format.disabled)
-        .map((format) => (
-          <Elem
-            key={format.name}
-            name="item"
-            mod={{
-              active: !format.disabled,
-              selected: format.name === selected,
-            }}
-            onClick={!format.disabled ? () => onClick(format) : null}
-          >
-            <Elem name="name">
-              {format.title}
+          .filter((format) => !format.disabled)
+          .map((format) => (
+            <Elem
+              key={format.name}
+              name="item"
+              mod={{
+                active: !format.disabled,
+                selected: format.name === selected,
+              }}
+              onClick={!format.disabled ? () => onClick(format) : null}
+            >
+              <Elem name="name">
+                {format.title}
 
-              <Space size="small">
-                {format.tags?.map?.((tag, index) => (
-                  <Elem key={index} name="tag">
-                    {tag}
-                  </Elem>
-                ))}
-              </Space>
+                <Space size="small">
+                  {format.tags?.map?.((tag, index) => (
+                    <Elem key={index} name="tag">
+                      {tag}
+                    </Elem>
+                  ))}
+                </Space>
+              </Elem>
+
+              {format.description && <Elem name="description">{format.description}</Elem>}
             </Elem>
-
-            {format.description && <Elem name="description">{format.description}</Elem>}
-          </Elem>
-        ))}
+          ))}
       </Elem>
       <Elem name="feedback">
         Can't find an export format?

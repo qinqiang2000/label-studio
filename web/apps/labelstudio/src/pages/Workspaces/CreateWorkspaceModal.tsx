@@ -1,9 +1,10 @@
-import React, { useCallback, useState } from 'react';
-import { Block, Elem } from '../../utils/bem';
-import { Button, Form, Modal } from '@humansignal/ui';
+import type React from "react";
+import { useCallback, useState } from "react";
+import { Block, Elem } from "../../utils/bem";
+import { Button } from "@humansignal/ui";
 import { Input, TextArea } from "../../components/Form";
-import { useAPI } from '../../providers/ApiProvider';
-import './CreateWorkspaceModal.scss';
+import { useAPI } from "../../providers/ApiProvider";
+import "./CreateWorkspaceModal.scss";
 
 interface CreateWorkspaceModalProps {
   onClose: () => void;
@@ -11,49 +12,61 @@ interface CreateWorkspaceModalProps {
 }
 
 const defaultColors = [
-  '#1976d2', '#dc004e', '#9c27b0', '#673ab7',
-  '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4',
-  '#009688', '#4caf50', '#8bc34a', '#cddc39',
-  '#ffeb3b', '#ffc107', '#ff9800', '#ff5722',
+  "#1976d2",
+  "#dc004e",
+  "#9c27b0",
+  "#673ab7",
+  "#3f51b5",
+  "#2196f3",
+  "#03a9f4",
+  "#00bcd4",
+  "#009688",
+  "#4caf50",
+  "#8bc34a",
+  "#cddc39",
+  "#ffeb3b",
+  "#ffc107",
+  "#ff9800",
+  "#ff5722",
 ];
 
-export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
-  onClose,
-  onWorkspaceCreated
-}) => {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [color, setColor] = useState('#1976d2');
+export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({ onClose, onWorkspaceCreated }) => {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState("#1976d2");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const api = useAPI();
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!name.trim()) {
-      alert('Please provide a workspace name');
-      return;
-    }
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
 
-    try {
-      setIsSubmitting(true);
-      await api.callApi('createWorkspace', {
-        body: {
-          name: name.trim(),
-          description: description.trim(),
-          color
-        }
-      });
-      
-      onWorkspaceCreated();
-    } catch (error) {
-      console.error('Failed to create workspace:', error);
-      alert('Failed to create workspace. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [name, description, color, api, onWorkspaceCreated, onClose]);
+      if (!name.trim()) {
+        alert("Please provide a workspace name");
+        return;
+      }
+
+      try {
+        setIsSubmitting(true);
+        await api.callApi("createWorkspace", {
+          body: {
+            name: name.trim(),
+            description: description.trim(),
+            color,
+          },
+        });
+
+        onWorkspaceCreated();
+      } catch (error) {
+        console.error("Failed to create workspace:", error);
+        alert("Failed to create workspace. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [name, description, color, api, onWorkspaceCreated, onClose],
+  );
 
   return (
     <Block name="create-workspace-modal">
@@ -94,7 +107,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                 key={colorOption}
                 name="color-option"
                 mod={{ selected: color === colorOption }}
-                style={{ backgroundColor: colorOption, position: 'relative' }}
+                style={{ backgroundColor: colorOption, position: "relative" }}
                 onClick={() => !isSubmitting && setColor(colorOption)}
               >
                 {color === colorOption && (
@@ -105,11 +118,11 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                     style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      pointerEvents: 'none',
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      pointerEvents: "none",
                       zIndex: 2,
                     }}
                   >
@@ -129,22 +142,14 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
         </Elem>
 
         <Elem name="actions">
-          <Button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
+          <Button type="button" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            look="primary"
-            disabled={isSubmitting || !name.trim()}
-          >
-            {isSubmitting ? 'Creating...' : 'Create Workspace'}
+          <Button type="submit" look="primary" disabled={isSubmitting || !name.trim()}>
+            {isSubmitting ? "Creating..." : "Create Workspace"}
           </Button>
         </Elem>
       </form>
     </Block>
   );
-}; 
+};

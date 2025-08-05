@@ -461,7 +461,7 @@ export class DataManager {
           destroy(this.store);
         }
       } catch (error) {
-        console.warn('Store already destroyed:', error);
+        console.warn("Store already destroyed:", error);
       }
       this.store = null;
     }
@@ -491,7 +491,7 @@ export class DataManager {
   }
 
   // 定义需要忽略警告的已移除工具列表
-  ignoredInstruments = ['search'];
+  ignoredInstruments = ["search"];
 
   get toolbarInstruments() {
     const sections = this.toolbar.split("|").map((s) => s.trim());
@@ -500,20 +500,20 @@ export class DataManager {
       const sectionInstruments = section.split(" ").filter((instrument) => {
         // 忽略已知的已移除工具
         if (this.ignoredInstruments.includes(instrument)) return false;
-        
+
         const nativeInstrument = !!instruments[instrument];
         const customInstrument = !!this.instruments.has(instrument);
-        
+
         if (!nativeInstrument && !customInstrument) {
           console.warn(`Unknwown instrument detected: ${instrument}. Did you forget to register it?`);
         }
 
         return nativeInstrument || customInstrument;
       });
-      
+
       return sectionInstruments;
     });
-    
+
     return instrumentsList;
   }
   static urlJSON = { serializeJsonForUrl, deserializeJsonFromUrl };

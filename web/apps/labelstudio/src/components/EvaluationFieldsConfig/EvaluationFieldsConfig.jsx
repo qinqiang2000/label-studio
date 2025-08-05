@@ -1,16 +1,16 @@
-import React, { useState, useCallback, useEffect } from "react";
-import { Select, Button, Tabs } from "@humansignal/ui";
+import { useState, useCallback, useEffect } from "react";
+import { Select, Button } from "@humansignal/ui";
 import { Block, Elem } from "../../utils/bem";
-import { Form, Input, TextArea } from "../Form";
+import { TextArea } from "../Form";
 import { EvaluationMatchingStrategyConfig } from "./EvaluationMatchingStrategyConfig";
 import "./EvaluationFieldsConfig.scss";
 
 export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
-  const [documentType, setDocumentType] = useState('invoice');
-  const [customFields, setCustomFields] = useState('');
+  const [documentType, setDocumentType] = useState("invoice");
+  const [customFields, setCustomFields] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [matchingStrategy, setMatchingStrategy] = useState(null);
-  const [activeTab, setActiveTab] = useState('fields');
+  const [activeTab, setActiveTab] = useState("fields");
   const [documentTypeConfigs, setDocumentTypeConfigs] = useState({});
   const [isLoadingConfigs, setIsLoadingConfigs] = useState(true);
 
@@ -19,90 +19,153 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
     const fetchDocumentTypeConfigs = async () => {
       try {
         setIsLoadingConfigs(true);
-        const response = await fetch('/api/frontend/evaluation-configs/presets/', {
+        const response = await fetch("/api/frontend/evaluation-configs/presets/", {
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
         });
-        
+
         if (response.ok) {
           const presets = await response.json();
-          
+
           // 转换为组件需要的格式
           const configs = {};
-          Object.keys(presets).forEach(key => {
+          Object.keys(presets).forEach((key) => {
             const config = presets[key];
             configs[key] = {
               label: config.name,
               fields: config.required_fields || config.fields || [],
-              description: config.description || `适用于${config.name}的评估`
+              description: config.description || `适用于${config.name}的评估`,
             };
           });
-          
+
           // 如果后端返回空配置，使用兜底配置
           if (Object.keys(configs).length === 0) {
-            console.warn('[EvaluationFieldsConfig] Backend returned empty configurations, using fallback');
+            console.warn("[EvaluationFieldsConfig] Backend returned empty configurations, using fallback");
             setDocumentTypeConfigs({
               invoice: {
                 label: "发票 (Invoice)",
-                fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
-                description: "适用于发票和收据的评估"
+                fields: [
+                  "totalAmount",
+                  "invoiceDate",
+                  "docType",
+                  "currency",
+                  "billToName",
+                  "billFromName",
+                  "totalTaxAmount",
+                ],
+                description: "适用于发票和收据的评估",
               },
               bank_receipt: {
                 label: "银行回单 (Bank Receipt)",
-                fields: ["tradeId", "recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
-                description: "适用于银行回单的评估"
+                fields: [
+                  "tradeId",
+                  "recieptNum",
+                  "logNum",
+                  "tradeDate",
+                  "amount",
+                  "paymentName",
+                  "paymentBank",
+                  "paymentAccount",
+                  "payeeName",
+                  "payeeBank",
+                  "payeeAccount",
+                  "currency",
+                ],
+                description: "适用于银行回单的评估",
               },
               custom: {
                 label: "自定义 (Custom)",
                 fields: [],
-                description: "自定义评估字段"
-              }
+                description: "自定义评估字段",
+              },
             });
           } else {
             setDocumentTypeConfigs(configs);
           }
-          console.log('[EvaluationFieldsConfig] Loaded document type configurations from backend:', configs);
+          console.log("[EvaluationFieldsConfig] Loaded document type configurations from backend:", configs);
         } else {
-          console.warn('[EvaluationFieldsConfig] Failed to load document type configurations, using fallback');
+          console.warn("[EvaluationFieldsConfig] Failed to load document type configurations, using fallback");
           // 兜底配置
           setDocumentTypeConfigs({
             invoice: {
               label: "发票 (Invoice)",
-              fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
-              description: "适用于发票和收据的评估"
+              fields: [
+                "totalAmount",
+                "invoiceDate",
+                "docType",
+                "currency",
+                "billToName",
+                "billFromName",
+                "totalTaxAmount",
+              ],
+              description: "适用于发票和收据的评估",
             },
             bank_receipt: {
               label: "银行回单 (Bank Receipt)",
-              fields: ["tradeId", "recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
-              description: "适用于银行回单的评估"
+              fields: [
+                "tradeId",
+                "recieptNum",
+                "logNum",
+                "tradeDate",
+                "amount",
+                "paymentName",
+                "paymentBank",
+                "paymentAccount",
+                "payeeName",
+                "payeeBank",
+                "payeeAccount",
+                "currency",
+              ],
+              description: "适用于银行回单的评估",
             },
             custom: {
               label: "自定义 (Custom)",
               fields: [],
-              description: "自定义评估字段"
-            }
+              description: "自定义评估字段",
+            },
           });
         }
       } catch (error) {
-        console.error('[EvaluationFieldsConfig] Error fetching document type configurations:', error);
+        console.error("[EvaluationFieldsConfig] Error fetching document type configurations:", error);
         // 兜底配置
         setDocumentTypeConfigs({
-  invoice: {
-    label: "发票 (Invoice)",
-    fields: ["totalAmount", "invoiceDate", "docType", "currency", "billToName", "billFromName", "totalTaxAmount"],
-    description: "适用于发票和收据的评估"
-  },
-  bank_receipt: {
-    label: "银行回单 (Bank Receipt)",
-    fields: ["tradeId", "recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
-    description: "适用于银行回单的评估"
-  },
-  custom: {
-    label: "自定义 (Custom)",
-    fields: [],
-    description: "自定义评估字段"
-  }
+          invoice: {
+            label: "发票 (Invoice)",
+            fields: [
+              "totalAmount",
+              "invoiceDate",
+              "docType",
+              "currency",
+              "billToName",
+              "billFromName",
+              "totalTaxAmount",
+            ],
+            description: "适用于发票和收据的评估",
+          },
+          bank_receipt: {
+            label: "银行回单 (Bank Receipt)",
+            fields: [
+              "tradeId",
+              "recieptNum",
+              "logNum",
+              "tradeDate",
+              "amount",
+              "paymentName",
+              "paymentBank",
+              "paymentAccount",
+              "payeeName",
+              "payeeBank",
+              "payeeAccount",
+              "currency",
+            ],
+            description: "适用于银行回单的评估",
+          },
+          custom: {
+            label: "自定义 (Custom)",
+            fields: [],
+            description: "自定义评估字段",
+          },
         });
       } finally {
         setIsLoadingConfigs(false);
@@ -115,13 +178,13 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
   // 从项目配置中加载当前设置
   useEffect(() => {
     if (isLoadingConfigs) return; // 等待配置加载完成
-    
+
     const config = project?.evaluation_field_config || {};
     if (config.document_type) {
       setDocumentType(config.document_type);
     }
-    if (config.document_type === 'custom' && config.default_fields) {
-      setCustomFields(config.default_fields.join(', '));
+    if (config.document_type === "custom" && config.default_fields) {
+      setCustomFields(config.default_fields.join(", "));
     }
     if (config.matching_strategy) {
       setMatchingStrategy(config.matching_strategy);
@@ -130,15 +193,18 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
 
   // 当文档类型变化时，如果不是自定义类型，清空自定义字段
   useEffect(() => {
-    if (documentType !== 'custom') {
-      setCustomFields('');
+    if (documentType !== "custom") {
+      setCustomFields("");
     }
   }, [documentType]);
 
   // 获取当前配置的字段列表
   const getCurrentFields = useCallback(() => {
-    if (documentType === 'custom') {
-      return customFields.split(',').map(f => f.trim()).filter(Boolean);
+    if (documentType === "custom") {
+      return customFields
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean);
     }
     return documentTypeConfigs[documentType]?.fields || [];
   }, [documentType, customFields, documentTypeConfigs]);
@@ -150,19 +216,19 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
       document_type: documentType,
       default_fields: fields,
       matching_strategy: matchingStrategy,
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     };
 
     try {
       // 调用API保存配置
       const response = await fetch(`/api/projects/${project.id}/`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          evaluation_field_config: config
-        })
+          evaluation_field_config: config,
+        }),
       });
 
       if (response.ok) {
@@ -170,7 +236,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
         setIsEditing(false);
       }
     } catch (error) {
-      console.error('Failed to save evaluation config:', error);
+      console.error("Failed to save evaluation config:", error);
     }
   }, [project.id, documentType, customFields, getCurrentFields, onUpdate, matchingStrategy]);
 
@@ -193,9 +259,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
     <Block name="evaluation-fields-config">
       <Elem name="header">
         <Elem name="title">评估字段配置</Elem>
-        <Elem name="description">
-          配置不同文档类型的评估字段，用于自动化评估功能
-        </Elem>
+        <Elem name="description">配置不同文档类型的评估字段，用于自动化评估功能</Elem>
       </Elem>
 
       {!isEditing ? (
@@ -204,30 +268,36 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
             <Elem name="item">
               <Elem name="label">文档类型:</Elem>
               <Elem name="value">
-                {documentTypeConfigs[currentConfig.document_type || 'invoice']?.label || '发票 (Invoice)'}
+                {documentTypeConfigs[currentConfig.document_type || "invoice"]?.label || "发票 (Invoice)"}
               </Elem>
             </Elem>
             <Elem name="description-text">
-              {documentTypeConfigs[currentConfig.document_type || 'invoice']?.description || '适用于发票的评估'}
+              {documentTypeConfigs[currentConfig.document_type || "invoice"]?.description || "适用于发票的评估"}
             </Elem>
-            
-            {currentConfig.document_type && documentTypeConfigs[currentConfig.document_type] && documentTypeConfigs[currentConfig.document_type].fields && (
-              <Elem name="predefined-fields">
-                <Elem name="fields-label">预定义字段:</Elem>
-                <Elem name="fields-list">
-                  {documentTypeConfigs[currentConfig.document_type].fields.map((field) => (
-                    <Elem key={field} name="field-tag">
-                      {field}
-                    </Elem>
-                  ))}
+
+            {currentConfig.document_type &&
+              documentTypeConfigs[currentConfig.document_type] &&
+              documentTypeConfigs[currentConfig.document_type].fields && (
+                <Elem name="predefined-fields">
+                  <Elem name="fields-label">预定义字段:</Elem>
+                  <Elem name="fields-list">
+                    {documentTypeConfigs[currentConfig.document_type].fields.map((field) => (
+                      <Elem key={field} name="field-tag">
+                        {field}
+                      </Elem>
+                    ))}
+                  </Elem>
                 </Elem>
-              </Elem>
-            )}
-            
+              )}
+
             <Elem name="item">
               <Elem name="label">当前配置字段:</Elem>
               <Elem name="current-fields">
-                {(documentTypeConfigs[currentConfig.document_type || 'invoice']?.fields || documentTypeConfigs.invoice?.fields || []).join(', ') || '无'}
+                {(
+                  documentTypeConfigs[currentConfig.document_type || "invoice"]?.fields ||
+                  documentTypeConfigs.invoice?.fields ||
+                  []
+                ).join(", ") || "无"}
               </Elem>
             </Elem>
           </Elem>
@@ -242,26 +312,24 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
           <Elem name="form-container">
             <Elem name="form-row">
               {/* <Elem name="form-group"> */}
-                <label htmlFor="document-type-select">文档类型</label>
-                <Select
-                  id="document-type-select"
-                  value={documentType}
-                  onChange={setDocumentType}
-                  options={Object.entries(documentTypeConfigs).map(([key, config]) => ({
-                    value: key,
-                    label: config.label
-                  }))}
-                  placeholder="选择文档类型"
-                  className="evaluation-config-select"
-                />
+              <label htmlFor="document-type-select">文档类型</label>
+              <Select
+                id="document-type-select"
+                value={documentType}
+                onChange={setDocumentType}
+                options={Object.entries(documentTypeConfigs).map(([key, config]) => ({
+                  value: key,
+                  label: config.label,
+                }))}
+                placeholder="选择文档类型"
+                className="evaluation-config-select"
+              />
               {/* </Elem> */}
             </Elem>
 
-            <Elem name="description-section">
-              {documentTypeConfigs[documentType]?.description}
-            </Elem>
+            <Elem name="description-section">{documentTypeConfigs[documentType]?.description}</Elem>
 
-            {documentType === 'custom' ? (
+            {documentType === "custom" ? (
               <Elem name="form-row">
                 <Elem name="form-group">
                   <label htmlFor="custom-fields-textarea">自定义字段 (用逗号分隔)</label>
@@ -291,9 +359,7 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
 
             <Elem name="preview">
               <Elem name="preview-label">当前配置字段:</Elem>
-              <Elem name="preview-fields">
-                {currentFields.join(', ') || '无'}
-              </Elem>
+              <Elem name="preview-fields">{currentFields.join(", ") || "无"}</Elem>
             </Elem>
 
             {/* 匹配策略配置 */}
@@ -308,20 +374,20 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
             </Elem>
 
             <Elem name="actions">
-              <Button look="primary" onClick={handleSave} style={{ marginRight: '9px' }}>
+              <Button look="primary" onClick={handleSave} style={{ marginRight: "9px" }}>
                 保存配置
               </Button>
-              <Button 
-                look="default" 
+              <Button
+                look="default"
                 onClick={() => {
                   setIsEditing(false);
                   // 重置到当前配置
                   const config = project?.evaluation_field_config || {};
-                  setDocumentType(config.document_type || 'invoice');
-                  if (config.document_type === 'custom' && config.default_fields) {
-                    setCustomFields(config.default_fields.join(', '));
+                  setDocumentType(config.document_type || "invoice");
+                  if (config.document_type === "custom" && config.default_fields) {
+                    setCustomFields(config.default_fields.join(", "));
                   } else {
-                    setCustomFields('');
+                    setCustomFields("");
                   }
                 }}
               >
@@ -333,4 +399,4 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
       )}
     </Block>
   );
-}; 
+};

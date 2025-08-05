@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import { useCallback } from "react";
 import { Button } from "./Button/Button";
 
 export const ImportInvoiceButton = ({ size, ...props }) => {
@@ -19,4 +19,4 @@ export const ImportInvoiceButton = ({ size, ...props }) => {
   );
 };
 
-ImportInvoiceButton.displayName = "ImportInvoiceButton"; 
+ImportInvoiceButton.displayName = "ImportInvoiceButton";

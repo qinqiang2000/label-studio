@@ -4,12 +4,25 @@ import { useAPI } from "../../providers/ApiProvider";
 import { FormField } from "../../components/Form/FormField";
 
 const WorkspaceSelector = forwardRef(
-  ({ value, onChange, disabled, showLabel = false, children, name, validate, required, skip, multiple = false, ...props }, ref) => {
+  (
+    {
+      value,
+      onChange,
+      disabled,
+      showLabel = false,
+      children,
+      name,
+      validate,
+      required,
+      skip,
+      multiple = false,
+      ...props
+    },
+    ref,
+  ) => {
     const [workspaces, setWorkspaces] = useState([]);
     const [loading, setLoading] = useState(true);
     const api = useAPI();
-    
-
 
     useEffect(() => {
       const fetchWorkspaces = async () => {
@@ -42,36 +55,38 @@ const WorkspaceSelector = forwardRef(
       );
     }
 
-    const options = multiple ? [
-      // For multiple selection, don't include the "No workspace" option as a selectable item
-      // Instead, empty selection means no workspaces (organization-wide)
-      ...workspaces.map((workspace) => ({
-        value: workspace.id,
-        label: workspace.name,
-      })),
-    ] : [
-      {
-        value: "",
-        label: (
-          <Tooltip title="[Notice] This project will be visible to all users in the organization!">
-            <span>No workspace (visible to all users!)</span>
-          </Tooltip>
-        ),
-      },
-      ...workspaces.map((workspace) => ({
-        value: workspace.id,
-        label: workspace.name,
-      })),
-    ];
+    const options = multiple
+      ? [
+          // For multiple selection, don't include the "No workspace" option as a selectable item
+          // Instead, empty selection means no workspaces (organization-wide)
+          ...workspaces.map((workspace) => ({
+            value: workspace.id,
+            label: workspace.name,
+          })),
+        ]
+      : [
+          {
+            value: "",
+            label: (
+              <Tooltip title="[Notice] This project will be visible to all users in the organization!">
+                <span>No workspace (visible to all users!)</span>
+              </Tooltip>
+            ),
+          },
+          ...workspaces.map((workspace) => ({
+            value: workspace.id,
+            label: workspace.name,
+          })),
+        ];
 
     // Get the placeholder text based on current state
     const getPlaceholder = () => {
       if (loading) return "Loading workspaces...";
-      
+
       if (multiple) {
         if (Array.isArray(value) && value.length > 0) {
           if (value.length === 1) {
-            const selectedWorkspace = workspaces.find(w => w.id === value[0]);
+            const selectedWorkspace = workspaces.find((w) => w.id === value[0]);
             return selectedWorkspace ? selectedWorkspace.name : `Workspace #${value[0]}`;
           }
           return `${value.length} workspaces selected`;
@@ -80,7 +95,7 @@ const WorkspaceSelector = forwardRef(
       } else {
         if (value && value !== "") {
           // Find the workspace name for the current value
-          const selectedWorkspace = workspaces.find(w => w.id === value);
+          const selectedWorkspace = workspaces.find((w) => w.id === value);
           if (selectedWorkspace) {
             return selectedWorkspace.name;
           }

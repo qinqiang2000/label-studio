@@ -1,8 +1,8 @@
-import React from 'react';
-import { Block, Elem } from '../../utils/bem';
-import { Button } from '@humansignal/ui';
-import { IconChevron } from '@humansignal/icons';
-import { WorkspaceCard } from './WorkspaceCard';
+import type React from "react";
+import { Block, Elem } from "../../utils/bem";
+import { Button } from "@humansignal/ui";
+import { IconChevron } from "@humansignal/icons";
+import { WorkspaceCard } from "./WorkspaceCard";
 
 interface Workspace {
   id: number;
@@ -37,14 +37,12 @@ export const WorkspaceArchived: React.FC<WorkspaceArchivedProps> = ({
   isExpanded,
   onToggle,
   onUpdate,
-  currentUser
+  currentUser,
 }) => {
   return (
     <Block name="workspace-archived">
       <Elem name="header" onClick={onToggle}>
-        <Elem name="title">
-          Archived Workspaces ({workspaces.length})
-        </Elem>
+        <Elem name="title">Archived Workspaces ({workspaces.length})</Elem>
         <Button size="small" look="alt">
           <IconChevron mod={{ rotated: isExpanded }} />
         </Button>
@@ -54,16 +52,11 @@ export const WorkspaceArchived: React.FC<WorkspaceArchivedProps> = ({
         <Elem name="content">
           <Elem name="workspaces-grid">
             {workspaces.map((workspace) => (
-              <WorkspaceCard
-                key={workspace.id}
-                workspace={workspace}
-                onUpdate={onUpdate}
-                currentUser={currentUser}
-              />
+              <WorkspaceCard key={workspace.id} workspace={workspace} onUpdate={onUpdate} currentUser={currentUser} />
             ))}
           </Elem>
         </Elem>
       )}
     </Block>
   );
-}; 
+};

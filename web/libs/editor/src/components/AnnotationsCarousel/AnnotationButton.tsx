@@ -85,7 +85,6 @@ export const AnnotationButton = observer(
     const CommentIcon = renderCommentIcon(entity);
     // need to find a more reliable way to grab this value
     // const historyActionType = annotationStore.history.toJSON()?.[0]?.actionType;
-    
 
     useEffect(() => {
       setIsGroundTruth(entity.ground_truth);

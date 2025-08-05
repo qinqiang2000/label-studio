@@ -1182,7 +1182,7 @@ const _Annotation = types
     deserializeResults(json, { suggestions = false, hidden = false } = {}) {
       try {
         const objAnnotation = self.prepareAnnotation(json);
-        
+
         const areas = suggestions ? self.suggestions : self.areas;
 
         self._initialAnnotationObj = objAnnotation;

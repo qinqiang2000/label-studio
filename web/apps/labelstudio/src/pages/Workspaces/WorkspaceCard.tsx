@@ -1,16 +1,17 @@
-import React, { useCallback, useState } from 'react';
-import { Block, Elem } from '../../utils/bem';
-import { Button } from '@humansignal/ui';
-import { IconChevron, IconGear, IconEllipsisVertical, IconChevronDown, IconChevronRight } from '@humansignal/icons';
-import { useAPI } from '../../providers/ApiProvider';
-import { modal } from '../../components/Modal/Modal';
-import { Dropdown } from '../../components/Dropdown/Dropdown';
-import { Menu } from '../../components/Menu/Menu';
-import { EditWorkspaceModal } from './EditWorkspaceModal';
-import { ManageMembersModal } from './ManageMembersModal';
-import { useButtonPermissions } from '../../hooks/useButtonPermissions';
-import { timeAgo } from '../../utils/helpers';
-import './WorkspaceCard.scss';
+import type React from "react";
+import { useCallback, useState } from "react";
+import { Block, Elem } from "../../utils/bem";
+import { Button } from "@humansignal/ui";
+import { IconEllipsisVertical, IconChevronDown, IconChevronRight } from "@humansignal/icons";
+import { useAPI } from "../../providers/ApiProvider";
+import { modal } from "../../components/Modal/Modal";
+import { Dropdown } from "../../components/Dropdown/Dropdown";
+import { Menu } from "../../components/Menu/Menu";
+import { EditWorkspaceModal } from "./EditWorkspaceModal";
+import { ManageMembersModal } from "./ManageMembersModal";
+import { useButtonPermissions } from "../../hooks/useButtonPermissions";
+import { timeAgo } from "../../utils/helpers";
+import "./WorkspaceCard.scss";
 
 interface Workspace {
   id: number;
@@ -69,7 +70,7 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
 
   const handleEditWorkspace = useCallback(() => {
     const modalInstance = modal({
-      title: 'Edit Workspace',
+      title: "Edit Workspace",
       body: (
         <EditWorkspaceModal
           workspace={workspace}
@@ -80,13 +81,13 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
           }}
         />
       ),
-      style: { width: 600 }
+      style: { width: 600 },
     });
   }, [workspace, onUpdate]);
 
   const handleManageMembers = useCallback(() => {
     const modalInstance = modal({
-      title: 'Manage Members',
+      title: "Manage Members",
       body: (
         <ManageMembersModal
           workspace={workspace}
@@ -97,25 +98,25 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
           }}
         />
       ),
-      style: { width: 800 }
+      style: { width: 800 },
     });
   }, [workspace, onUpdate]);
 
   const handleArchiveWorkspace = useCallback(async () => {
-    const action = workspace.is_archived ? 'unarchive' : 'archive';
+    const action = workspace.is_archived ? "unarchive" : "archive";
     const confirmed = confirm(`Are you sure you want to ${action} this workspace?`);
-    
+
     if (!confirmed) return;
 
     try {
-      const response = await api.callApi('archiveWorkspace', {
-        params: { pk: workspace.id }
+      const response = await api.callApi("archiveWorkspace", {
+        params: { pk: workspace.id },
       });
-      
+
       onUpdate();
     } catch (error: any) {
       console.error(`Failed to ${action} workspace:`, error);
-      
+
       // Show specific error message if available
       const errorMessage = error?.response?.data?.error || `Failed to ${action} workspace. Please try again.`;
       alert(errorMessage);
@@ -123,31 +124,32 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
   }, [workspace, api, onUpdate]);
 
   const handleDeleteWorkspace = useCallback(async () => {
-    const confirmed = confirm('Are you sure you want to delete this workspace? This action cannot be undone.');
-    
+    const confirmed = confirm("Are you sure you want to delete this workspace? This action cannot be undone.");
+
     if (!confirmed) return;
 
-    const result = await api.callApi('deleteWorkspace', {
+    const result = await api.callApi("deleteWorkspace", {
       params: { pk: workspace.id },
-      suppressError: true
+      suppressError: true,
     });
-    
+
     if (result?.error) {
-      console.error('Failed to delete workspace:', result);
-      
+      console.error("Failed to delete workspace:", result);
+
       // Show specific error message if available, otherwise show a generic message
-      let errorMessage = 'Failed to delete workspace. Please try again.';
-      
+      let errorMessage = "Failed to delete workspace. Please try again.";
+
       if (result?.response?.error) {
         // If it's the specific error about projects, show a more user-friendly message
         const serverError = result.response.error;
-        if (serverError.includes('project(s)')) {
-          errorMessage = 'If you want to delete a workspace, first delete the projects or move them to another workspace from the project settings.';
+        if (serverError.includes("project(s)")) {
+          errorMessage =
+            "If you want to delete a workspace, first delete the projects or move them to another workspace from the project settings.";
         } else {
           errorMessage = serverError;
         }
       }
-      
+
       alert(errorMessage);
     } else {
       // Success - update the workspace list
@@ -160,13 +162,13 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
       // Fetch projects if not already loaded
       try {
         setProjectsLoading(true);
-        const response = await api.callApi('workspaceProjects', {
-          params: { pk: workspace.id }
+        const response = await api.callApi("workspaceProjects", {
+          params: { pk: workspace.id },
         });
         setProjects((response as unknown as Project[]) || []);
       } catch (error) {
-        console.error('Failed to fetch workspace projects:', error);
-        alert('Failed to load projects. Please try again.');
+        console.error("Failed to fetch workspace projects:", error);
+        alert("Failed to load projects. Please try again.");
         return;
       } finally {
         setProjectsLoading(false);
@@ -180,13 +182,13 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
       // Fetch prompts if not already loaded
       try {
         setPromptsLoading(true);
-        const response = await api.callApi('workspacePrompts', {
-          params: { pk: workspace.id }
+        const response = await api.callApi("workspacePrompts", {
+          params: { pk: workspace.id },
         });
         setPrompts((response as unknown as Prompt[]) || []);
       } catch (error) {
-        console.error('Failed to fetch workspace prompts:', error);
-        alert('Failed to load prompts. Please try again.');
+        console.error("Failed to fetch workspace prompts:", error);
+        alert("Failed to load prompts. Please try again.");
         return;
       } finally {
         setPromptsLoading(false);
@@ -209,37 +211,33 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
         <Elem name="color-indicator" style={{ backgroundColor: workspace.color }} />
         <Elem name="info">
           <Elem name="title">{workspace.name}</Elem>
-          <Elem name="description">{workspace.description || 'No description'}</Elem>
+          <Elem name="description">{workspace.description || "No description"}</Elem>
         </Elem>
         {(buttonPermissions.editWorkspace || buttonPermissions.deleteWorkspace) && (
           <Elem name="actions">
-            <Dropdown.Trigger content={
-              <Menu>
-                {buttonPermissions.editWorkspace && (
-                  <Menu.Item onClick={handleEditWorkspace}>Edit</Menu.Item>
-                )}
-                {buttonPermissions.canManageWorkspaces && (
-                  <Menu.Item onClick={handleManageMembers}>Manage Members</Menu.Item>
-                )}
-                {(buttonPermissions.editWorkspace || buttonPermissions.deleteWorkspace) && (
-                  <Menu.Divider />
-                )}
-                {buttonPermissions.editWorkspace && (
-                  <Menu.Item onClick={handleArchiveWorkspace}>
-                    {workspace.is_archived ? 'Unarchive' : 'Archive'}
-                  </Menu.Item>
-                )}
-                {buttonPermissions.deleteWorkspace && (
-                  <Menu.Item onClick={handleDeleteWorkspace}>Delete</Menu.Item>
-                )}
-              </Menu>
-            }>
+            <Dropdown.Trigger
+              content={
+                <Menu>
+                  {buttonPermissions.editWorkspace && <Menu.Item onClick={handleEditWorkspace}>Edit</Menu.Item>}
+                  {buttonPermissions.canManageWorkspaces && (
+                    <Menu.Item onClick={handleManageMembers}>Manage Members</Menu.Item>
+                  )}
+                  {(buttonPermissions.editWorkspace || buttonPermissions.deleteWorkspace) && <Menu.Divider />}
+                  {buttonPermissions.editWorkspace && (
+                    <Menu.Item onClick={handleArchiveWorkspace}>
+                      {workspace.is_archived ? "Unarchive" : "Archive"}
+                    </Menu.Item>
+                  )}
+                  {buttonPermissions.deleteWorkspace && <Menu.Item onClick={handleDeleteWorkspace}>Delete</Menu.Item>}
+                </Menu>
+              }
+            >
               <Button type="link" icon={<IconEllipsisVertical />} size="small" />
             </Dropdown.Trigger>
           </Elem>
         )}
       </Elem>
-      
+
       <Elem name="stats">
         <Elem name="stat">
           <Elem name="stat-value">{workspace.member_count}</Elem>
@@ -264,7 +262,7 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
             disabled={projectsLoading}
             icon={showProjects ? <IconChevronDown /> : <IconChevronRight />}
           >
-            {projectsLoading ? 'Loading...' : showProjects ? 'Hide Projects' : 'Show Projects'}
+            {projectsLoading ? "Loading..." : showProjects ? "Hide Projects" : "Show Projects"}
           </Button>
           <Button
             look="alt"
@@ -273,7 +271,7 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
             disabled={promptsLoading}
             icon={showPrompts ? <IconChevronDown /> : <IconChevronRight />}
           >
-            {promptsLoading ? 'Loading...' : showPrompts ? 'Hide Prompts' : 'Show Prompts'}
+            {promptsLoading ? "Loading..." : showPrompts ? "Hide Prompts" : "Show Prompts"}
           </Button>
         </Elem>
       </Elem>
@@ -284,21 +282,15 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
             <Elem name="no-projects">No projects in this workspace yet</Elem>
           ) : (
             projects.map((project) => (
-              <Elem 
-                key={project.id} 
-                name="project-item"
-                onClick={() => handleViewProject(project.id)}
-              >
+              <Elem key={project.id} name="project-item" onClick={() => handleViewProject(project.id)}>
                 <Elem name="project-color" style={{ backgroundColor: project.color }} />
                 <Elem name="project-info">
                   <Elem name="project-title">{project.title}</Elem>
                   <Elem name="project-description">
-                    {project.description || 'No description'} • {project.task_number} tasks
+                    {project.description || "No description"} • {project.task_number} tasks
                   </Elem>
                 </Elem>
-                <Elem name="project-created">
-                  {timeAgo(project.created_at)}
-                </Elem>
+                <Elem name="project-created">{timeAgo(project.created_at)}</Elem>
               </Elem>
             ))
           )}
@@ -311,24 +303,16 @@ export const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, onUpdat
             <Elem name="no-prompts">No prompts in this workspace yet</Elem>
           ) : (
             prompts.map((prompt) => (
-              <Elem 
-                key={prompt.id} 
-                name="prompt-item"
-                onClick={() => handleViewPrompt(prompt.id)}
-              >
+              <Elem key={prompt.id} name="prompt-item" onClick={() => handleViewPrompt(prompt.id)}>
                 <Elem name="prompt-info">
                   <Elem name="prompt-title">{prompt.name}</Elem>
                   <Elem name="prompt-description">
                     {prompt.temperature !== null && prompt.temperature !== undefined && (
-                      <span style={{ color: '#666' }}>
-                        Temperature: {prompt.temperature}
-                      </span>
+                      <span style={{ color: "#666" }}>Temperature: {prompt.temperature}</span>
                     )}
                   </Elem>
                 </Elem>
-                <Elem name="prompt-created">
-                  {timeAgo(prompt.created_at)}
-                </Elem>
+                <Elem name="prompt-created">{timeAgo(prompt.created_at)}</Elem>
               </Elem>
             ))
           )}

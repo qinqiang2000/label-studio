@@ -1,4 +1,4 @@
-import { EnterpriseBadge, Select } from "@humansignal/ui";
+import { EnterpriseBadge } from "@humansignal/ui";
 import { useCallback, useContext } from "react";
 import { Button } from "../../components";
 import { Form, Input, TextArea } from "../../components/Form";
@@ -42,10 +42,7 @@ export const GeneralSettings = () => {
                   <Elem name="title">Workspace</Elem>
                   {/* {isFF(FF_LSDV_E_297) && <EnterpriseBadge className="ml-2" />} */}
                 </Elem>
-                <WorkspaceSelector 
-                  name="workspace" 
-                  value={project?.workspace?.id || project?.workspace || ""}
-                />
+                <WorkspaceSelector name="workspace" value={project?.workspace?.id || project?.workspace || ""} />
                 <Caption>
                   Simplify project management by organizing projects into workspaces.{" "}
                   <a
@@ -123,10 +120,7 @@ export const GeneralSettings = () => {
 
         {/* 评估字段配置 */}
         <Block name="evaluation-config-section">
-          <EvaluationFieldsConfig 
-            project={project} 
-            onUpdate={updateProject}
-          />
+          <EvaluationFieldsConfig project={project} onUpdate={updateProject} />
         </Block>
       </Elem>
       {isFF(FF_LSDV_E_297) && <HeidiTips collection="projectSettings" />}

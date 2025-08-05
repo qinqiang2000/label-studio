@@ -5,7 +5,6 @@ import { Input } from "../../../components/Form";
 import { HeidiTips } from "../../../components/HeidiTips/HeidiTips";
 import { modal } from "../../../components/Modal/Modal";
 import { Space } from "../../../components/Space/Space";
-import { SmartButton } from "../../../components/SmartPermission/SmartButton";
 import { SimpleButton } from "../../../components/SmartPermission/SimpleButton";
 import { useAPI } from "../../../providers/ApiProvider";
 import { useConfig } from "../../../providers/ConfigProvider";
@@ -116,15 +115,12 @@ export const PeoplePage = () => {
             >
               Permission Settings (Old)
             </SmartButton> */}
-            
+
             {/* 新方式：只需要指定角色要求，无需配置具体权限 */}
-            <SimpleButton
-              requireRole="admin_ui"
-              onClick={() => window.open('/admin/permission-management', '_blank')}
-            >
+            <SimpleButton requireRole="admin_ui" onClick={() => window.open("/admin/permission-management", "_blank")}>
               Permission Settings
             </SimpleButton>
-            
+
             {/* 普通按钮：完全无需权限配置 */}
             {/* <Button onClick={() => window.open('/admin/permission-management', '_blank')}>
               Permission Settings (Simple)

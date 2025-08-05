@@ -11,8 +11,7 @@ import ReactSimpleCodeEditor from "react-simple-code-editor";
 import Prism from "prismjs";
 import "prismjs/components/prism-json";
 import "prismjs/themes/prism.css";
-import Tooltip from "antd/lib/tooltip";
-import { InfoCircleOutlined, EditOutlined, CommentOutlined } from "@ant-design/icons";
+import { InfoCircleOutlined, CommentOutlined } from "@ant-design/icons";
 
 import InfoModal from "../../../components/Infomodal/Infomodal";
 import Registry from "../../../core/Registry";
@@ -41,23 +40,16 @@ const { TextArea } = Input;
 const FALLBACK_REQUIRED_FIELDS = [
   "序号",
   "docType",
-  "billToName", 
-  "totalAmount", 
-  "totalTaxAmount", 
-  "invoiceNumber", 
-  "invoiceDate", 
-  "currency"
+  "billToName",
+  "totalAmount",
+  "totalTaxAmount",
+  "invoiceNumber",
+  "invoiceDate",
+  "currency",
 ];
 
 // 错误类型配置
-const ERROR_TYPES = [
-  "图像质量问题",
-  "文字识别解析错误",
-  "规则没转化", 
-  "企业特殊要求",
-  "系统问题",
-  "其他"
-];
+const ERROR_TYPES = ["图像质量问题", "文字识别解析错误", "规则没转化", "企业特殊要求", "系统问题", "其他"];
 
 // Cache for evaluation configurations - per project ID
 const evaluationConfigCache = new Map();
@@ -65,20 +57,20 @@ const evaluationConfigCache = new Map();
 // Centralized API utility for evaluation configs
 class EvaluationConfigAPI {
   static CACHE_DURATION = 30 * 1000; // 30 seconds for faster testing
-  
+
   static getAuthToken() {
     // Try multiple sources for the auth token
     const sources = [
-      () => window.localStorage?.getItem('token'),
-      () => window.localStorage?.getItem('auth_token'),
-      () => window.localStorage?.getItem('access_token'),
-      () => window.sessionStorage?.getItem('token'),
-      () => window.sessionStorage?.getItem('auth_token'),
-      () => window.sessionStorage?.getItem('access_token'),
+      () => window.localStorage?.getItem("token"),
+      () => window.localStorage?.getItem("auth_token"),
+      () => window.localStorage?.getItem("access_token"),
+      () => window.sessionStorage?.getItem("token"),
+      () => window.sessionStorage?.getItem("auth_token"),
+      () => window.sessionStorage?.getItem("access_token"),
       () => window.APP_SETTINGS?.token,
       () => window.LSF?.store?.auth?.token,
     ];
-    
+
     for (const getToken of sources) {
       try {
         const token = getToken();
@@ -87,34 +79,34 @@ class EvaluationConfigAPI {
         // Continue to next source
       }
     }
-    
+
     // Try cookies as last resort
     if (document.cookie) {
-      const cookies = document.cookie.split(';');
-      for (let cookie of cookies) {
-        const [name, value] = cookie.split('=').map(s => s.trim());
-        if (['token', 'auth_token', 'access_token'].includes(name)) {
+      const cookies = document.cookie.split(";");
+      for (const cookie of cookies) {
+        const [name, value] = cookie.split("=").map((s) => s.trim());
+        if (["token", "auth_token", "access_token"].includes(name)) {
           return value;
         }
       }
     }
-    
+
     return null;
   }
-  
+
   static createHeaders() {
     const headers = {
-      'Content-Type': 'application/json'
+      "Content-Type": "application/json",
     };
-    
+
     const token = this.getAuthToken();
     if (token) {
-      headers['Authorization'] = `Token ${token}`;
+      headers["Authorization"] = `Token ${token}`;
     }
-    
+
     return headers;
   }
-  
+
   static clearCache(projectId = null) {
     if (projectId) {
       const cacheKey = String(projectId);
@@ -123,113 +115,112 @@ class EvaluationConfigAPI {
       evaluationConfigCache.clear();
     }
   }
-  
+
   static async fetchProjectConfig(projectId, forceRefresh = false) {
     const now = Date.now();
     const cacheKey = String(projectId);
-    
+
     // Force refresh if requested
     if (forceRefresh) {
       this.clearCache(projectId);
     }
-    
+
     // Return cached data if still valid and not forcing refresh
     const cachedData = evaluationConfigCache.get(cacheKey);
     if (!forceRefresh && cachedData && cachedData.expiry > now) {
       return cachedData.config;
     }
-    
+
     try {
       // Use the unified API endpoint pattern
       const apiUrl = `/api/frontend/evaluation-configs/project/${projectId}/`;
       const headers = this.createHeaders();
       const response = await fetch(apiUrl, {
-        headers: headers
+        headers: headers,
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
-      
+
       const config = await response.json();
-      
+
       const requiredFields = [...(config.required_fields || [])];
-      
+
       // Always include 序号 if not present
-      if (!requiredFields.includes('序号')) {
-        requiredFields.unshift('序号');
+      if (!requiredFields.includes("序号")) {
+        requiredFields.unshift("序号");
       }
-      
+
       const configData = {
         required_fields: requiredFields,
         optional_fields: config.optional_fields || [],
         all_fields: config.all_fields || [],
         validation_rules: config.validation_rules || {},
-        config_key: config.config_key || 'default',
+        config_key: config.config_key || "default",
         field_labels: config.field_labels || {},
-        project_default_fields: config.project_default_fields || []
+        project_default_fields: config.project_default_fields || [],
       };
-      
+
       // Cache the result
       evaluationConfigCache.set(cacheKey, {
         config: configData,
-        expiry: now + this.CACHE_DURATION
+        expiry: now + this.CACHE_DURATION,
       });
-      
+
       return configData;
-      
     } catch (error) {
       throw error;
     }
   }
-  
+
   static getFallbackConfig() {
     return {
       required_fields: FALLBACK_REQUIRED_FIELDS,
       optional_fields: [],
       all_fields: FALLBACK_REQUIRED_FIELDS,
       validation_rules: {},
-      config_key: 'fallback'
+      config_key: "fallback",
     };
   }
-  
+
   static async fetchAllConfigs() {
     try {
-      const apiUrl = '/api/frontend/evaluation-configs/active/';
-      
+      const apiUrl = "/api/frontend/evaluation-configs/active/";
+
       const headers = this.createHeaders();
       const response = await fetch(apiUrl, { headers });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const configs = await response.json();
-      
+
       // 转换为以key为索引的对象
       const configsByKey = {};
       if (Array.isArray(configs)) {
-        configs.forEach(config => {
+        configs.forEach((config) => {
           // 检查配置是否有效（不需要检查is_active，因为API已经过滤了）
           if (config.key) {
             const requiredFields = [...(config.required_fields || [])];
-            if (!requiredFields.includes('序号')) {
-              requiredFields.unshift('序号');
+            if (!requiredFields.includes("序号")) {
+              requiredFields.unshift("序号");
             }
-            
+
             configsByKey[config.key] = {
               required_fields: requiredFields,
               optional_fields: config.optional_fields || [],
               all_fields: config.all_fields || [],
               validation_rules: config.validation_rules || config.field_validation_rules || {},
               config_key: config.key,
-              field_labels: config.field_labels || {}
+              field_labels: config.field_labels || {},
             };
           }
         });
       }
-      
+
       return configsByKey;
     } catch (error) {
       return {};
@@ -240,19 +231,240 @@ class EvaluationConfigAPI {
     try {
       return await this.fetchProjectConfig(projectId, forceRefresh);
     } catch (error) {
-      console.warn('Using fallback config, error:', error.message);
+      console.warn("Using fallback config, error:", error.message);
       const fallbackConfig = this.getFallbackConfig();
-      
+
       // Cache the fallback too to avoid repeated failed requests (shorter duration)
       const now = Date.now();
       const cacheKey = String(projectId);
       evaluationConfigCache.set(cacheKey, {
         config: fallbackConfig,
-        expiry: now + (this.CACHE_DURATION / 2) // Shorter cache for fallback
+        expiry: now + this.CACHE_DURATION / 2, // Shorter cache for fallback
       });
-      
+
       return fallbackConfig;
     }
+  }
+}
+
+// Field Annotation API utility class
+class FieldAnnotationAPI {
+  // 临时存储未提交annotation的字段备注
+  static tempFieldAnnotations = new Map();
+  
+  static async saveFieldAnnotations(annotationId, fieldAnnotations) {
+    try {
+      console.log("🔄 [API] 开始保存字段备注到服务器");
+      console.log("🔄 [API] annotationId:", annotationId);
+      console.log("🔄 [API] fieldAnnotations:", JSON.stringify(fieldAnnotations, null, 2));
+      
+      // 对于临时ID，先存储在前端，等待annotation提交后再保存
+      if (this.isTemporaryAnnotationId(annotationId)) {
+        console.log("🔄 [API] 临时ID，保存到前端缓存:", annotationId);
+        this.tempFieldAnnotations.set(annotationId, fieldAnnotations);
+        return { success: true, data: { field_annotations: fieldAnnotations } };
+      }
+      
+      // 有效数字ID，直接保存到后端
+      if (!this.isValidAnnotationId(annotationId)) {
+        throw new Error(`无效的annotation ID: ${annotationId}`);
+      }
+      
+      const apiUrl = `/api/annotations/${annotationId}/field-annotations/`;
+      const headers = EvaluationConfigAPI.createHeaders();
+      
+      const response = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: headers,
+        body: JSON.stringify({ field_annotations: fieldAnnotations })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ [API] 字段备注保存成功:", result);
+      return { success: true, data: result };
+    } catch (error) {
+      console.error("❌ [API] 字段备注保存失败:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  static async loadFieldAnnotations(annotationId) {
+    try {
+      console.log("🔄 [API] 开始从服务器加载字段备注");
+      console.log("🔄 [API] annotationId:", annotationId);
+      
+      // 对于临时ID，从前端缓存加载
+      if (this.isTemporaryAnnotationId(annotationId)) {
+        console.log("🔄 [API] 临时ID，从前端缓存加载:", annotationId);
+        const cached = this.tempFieldAnnotations.get(annotationId) || {};
+        console.log("✅ [API] 从缓存加载字段备注:", cached);
+        return { success: true, data: cached };
+      }
+      
+      // 有效数字ID，从后端加载
+      if (!this.isValidAnnotationId(annotationId)) {
+        console.log("ℹ️ [API] 无效annotation ID，返回空数据");
+        return { success: true, data: {} };
+      }
+      
+      const apiUrl = `/api/annotations/${annotationId}/field-annotations/`;
+      const headers = EvaluationConfigAPI.createHeaders();
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: headers
+      });
+
+      if (!response.ok) {
+        // 如果是404，说明还没有字段备注数据，返回空对象
+        if (response.status === 404) {
+          console.log("ℹ️ [API] 尚无字段备注数据");
+          return { success: true, data: {} };
+        }
+        
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ [API] 字段备注加载成功:", result);
+      return { success: true, data: result.field_annotations || {} };
+    } catch (error) {
+      console.error("❌ [API] 字段备注加载失败:", error);
+      return { success: false, error: error.message, data: {} };
+    }
+  }
+  
+  // 当annotation从临时ID变为数字ID时，迁移字段备注
+  static async migrateFieldAnnotations(oldId, newId) {
+    if (!this.isTemporaryAnnotationId(oldId) || !this.isValidAnnotationId(newId)) {
+      return;
+    }
+    
+    const tempData = this.tempFieldAnnotations.get(oldId);
+    if (!tempData || Object.keys(tempData).length === 0) {
+      return;
+    }
+    
+    console.log("🔄 [API] 迁移字段备注从临时ID到数字ID:", oldId, "->", newId);
+    
+    try {
+      // 保存到后端
+      const result = await this.saveFieldAnnotations(newId, tempData);
+      if (result.success) {
+        // 清除临时存储
+        this.tempFieldAnnotations.delete(oldId);
+        console.log("✅ [API] 字段备注迁移成功");
+      }
+    } catch (error) {
+      console.error("❌ [API] 字段备注迁移失败:", error);
+    }
+  }
+
+  // 检查annotation ID是否为有效的数字ID
+  static isValidAnnotationId(annotationId) {
+    if (!annotationId) return false;
+    
+    // 检查是否为数字或可转换为数字的字符串
+    const numericId = Number(annotationId);
+    return !isNaN(numericId) && numericId > 0 && Number.isInteger(numericId);
+  }
+  
+  // 检查annotation ID是否为临时字符串ID（如"3EB5k"）
+  static isTemporaryAnnotationId(annotationId) {
+    if (!annotationId) return false;
+    
+    // 临时ID通常是5位字符串，包含字母和数字
+    return typeof annotationId === 'string' && 
+           annotationId.length >= 4 && 
+           annotationId.length <= 8 && 
+           /^[A-Za-z0-9]+$/.test(annotationId) &&
+           !this.isValidAnnotationId(annotationId);
+  }
+
+  // 等待annotation获得有效ID
+  static async ensureValidAnnotationId(annotation, store) {
+    const currentId = annotation?.pk || annotation?.id;
+    
+    if (this.isValidAnnotationId(currentId)) {
+      return currentId;
+    }
+
+    console.log("🔄 [API] annotation ID无效，尝试保存annotation获取有效ID");
+    
+    // 触发annotation保存来获得有效ID
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("保存annotation超时"));
+      }, 15000); // 15秒超时
+
+      let isResolved = false;
+      
+      const cleanup = () => {
+        clearTimeout(timeout);
+        if (observer) {
+          observer.dispose?.();
+        }
+      };
+
+      const resolveOnce = (id) => {
+        if (!isResolved) {
+          isResolved = true;
+          cleanup();
+          console.log("✅ [API] 获得有效annotation ID:", id);
+          resolve(id);
+        }
+      };
+
+      let observer = null;
+
+      try {
+        // 监听 annotation pk 属性变化
+        if (annotation && typeof annotation.observe === 'function') {
+          observer = annotation.observe('pk', (change) => {
+            const newId = change.newValue;
+            if (this.isValidAnnotationId(newId)) {
+              resolveOnce(newId);
+            }
+          });
+        }
+
+        // 如果annotation是新的，调用submitAnnotation
+        if (!annotation.exists) {
+          console.log("🔄 [API] 调用submitAnnotation创建新annotation");
+          store.submitAnnotation();
+        } else {
+          console.log("🔄 [API] 调用updateAnnotation更新annotation");
+          store.updateAnnotation();
+        }
+
+        // 作为备用方案，仍保留轮询检查（但间隔更长）
+        const backupCheck = () => {
+          if (isResolved) return;
+          
+          const updatedId = annotation?.pk || annotation?.id;
+          if (this.isValidAnnotationId(updatedId)) {
+            resolveOnce(updatedId);
+          } else {
+            // 每秒检查一次作为备用
+            setTimeout(backupCheck, 1000);
+          }
+        };
+
+        // 延迟启动备用检查
+        setTimeout(backupCheck, 2000);
+
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
+    });
   }
 }
 
@@ -262,52 +474,54 @@ function getRequiredFields(item) {
   if (!annotation) {
     return FALLBACK_REQUIRED_FIELDS;
   }
-  
+
   const store = annotation.store;
   if (!store) {
     return FALLBACK_REQUIRED_FIELDS;
   }
-  
+
   // Try multiple ways to get project ID
   let projectId = store.projectId || store.project?.id;
-  
+
   // Try to get from window object if not found
   if (!projectId && window.APP_SETTINGS?.projectId) {
     projectId = window.APP_SETTINGS.projectId;
   }
-  
+
   // Try to get from URL if still not found
   if (!projectId && window.location) {
     const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
     if (urlMatch) {
-      projectId = parseInt(urlMatch[1]);
+      projectId = Number.parseInt(urlMatch[1]);
     }
   }
-  
+
   // Try to get from history state
   if (!projectId && window.history?.state?.projectId) {
     projectId = window.history.state.projectId;
   }
-  
+
   if (!projectId) {
     return FALLBACK_REQUIRED_FIELDS;
   }
-  
+
   // Check if we have cached config for this project
   const cacheKey = String(projectId);
   const cachedData = evaluationConfigCache.get(cacheKey);
-  
+
   if (cachedData && cachedData.expiry > Date.now()) {
     return cachedData.config.required_fields;
   }
-  
+
   // Async load config (won't block rendering, will update on next render)
-  EvaluationConfigAPI.getConfigWithFallback(projectId).then((config) => {
-    // This will trigger a re-render with the correct fields
-  }).catch((error) => {
-    console.error('Failed to load evaluation config:', error);
-  });
-  
+  EvaluationConfigAPI.getConfigWithFallback(projectId)
+    .then((config) => {
+      // This will trigger a re-render with the correct fields
+    })
+    .catch((error) => {
+      console.error("Failed to load evaluation config:", error);
+    });
+
   const fallbackFields = cachedData?.config?.required_fields || FALLBACK_REQUIRED_FIELDS;
   return fallbackFields;
 }
@@ -317,7 +531,7 @@ function getRequiredFieldsForDocument(docType, defaultRequiredFields, allConfigs
   // 对于docType为"other"或"unknown"的文档，不设置任何必填字段
   if (docType) {
     const docTypeLower = docType.toLowerCase();
-    if (docTypeLower === 'other' || docTypeLower === 'unknown') {
+    if (docTypeLower === "other" || docTypeLower === "unknown") {
       return []; // 不设置任何必填字段
     } else {
       // 如果找到了对应文档类型的配置，使用它
@@ -327,7 +541,7 @@ function getRequiredFieldsForDocument(docType, defaultRequiredFields, allConfigs
       }
     }
   }
-  
+
   // 默认使用项目配置
   return defaultRequiredFields;
 }
@@ -335,29 +549,35 @@ function getRequiredFieldsForDocument(docType, defaultRequiredFields, allConfigs
 // 扩展的高亮函数：根据文档类型动态高亮必填字段
 function highlightWithDynamicRequiredFields(code, allConfigs = {}, fallbackFields = FALLBACK_REQUIRED_FIELDS) {
   let html = Prism.highlight(code, Prism.languages.json, "json");
-  
+
   try {
     // 先尝试解析JSON来获取文档结构
     const parsed = JSON.parse(code);
-    
+
     if (Array.isArray(parsed)) {
       // 为每个文档根据其docType应用相应的高亮
-              parsed.forEach((doc, index) => {
-          const docType = doc.docType;
-          const requiredFields = allConfigs[docType]?.required_fields || fallbackFields;
-          
-          // 为每个必填字段应用高亮
-          requiredFields.forEach((field) => {
+      parsed.forEach((doc, index) => {
+        const docType = doc.docType;
+        const requiredFields = allConfigs[docType]?.required_fields || fallbackFields;
+
+        // 为每个必填字段应用高亮
+        requiredFields.forEach((field) => {
           // 创建更精确的正则表达式，匹配特定文档中的字段
           const fieldRegex = new RegExp(`<span class=\"token property\">(\\"${field}\\")<\/span>`, "g");
-          html = html.replace(fieldRegex, `<span class=\"token property required-field required-field-${docType || 'default'}\">$1</span>`);
+          html = html.replace(
+            fieldRegex,
+            `<span class=\"token property required-field required-field-${docType || "default"}\">$1</span>`,
+          );
 
           // 给必填字段的值也添加对应的class
           const valueRegex = new RegExp(
-            `(<span class=\"token property required-field required-field-${docType || 'default'}\">\\"${field}\\"<\/span><span class=\"token operator\">:<\/span>\\s*)(<span class=\"token (?:string|number|boolean|null)\">.*?<\/span>)`,
+            `(<span class=\"token property required-field required-field-${docType || "default"}\">\\"${field}\\"<\/span><span class=\"token operator\">:<\/span>\\s*)(<span class=\"token (?:string|number|boolean|null)\">.*?<\/span>)`,
             "g",
           );
-          html = html.replace(valueRegex, `$1<span class=\"token string required-field-value required-field-value-${docType || 'default'}\">$2</span>`);
+          html = html.replace(
+            valueRegex,
+            `$1<span class=\"token string required-field-value required-field-value-${docType || "default"}\">$2</span>`,
+          );
         });
       });
     } else {
@@ -368,7 +588,7 @@ function highlightWithDynamicRequiredFields(code, allConfigs = {}, fallbackField
     // JSON解析失败，回退到原来的逻辑
     return highlightWithRequiredFields(code, fallbackFields);
   }
-  
+
   return html;
 }
 
@@ -718,13 +938,17 @@ const HtxTextArea = observer(({ item }) => {
   const [evaluationConfig, setEvaluationConfig] = useState(null);
   const [allConfigs, setAllConfigs] = useState({}); // 所有评估配置
   const [activeTab, setActiveTab] = useState("kv"); // 添加tab状态
-  
+
   // 字段备注相关状态
   const [fieldAnnotationsModalVisible, setFieldAnnotationsModalVisible] = useState(false);
   const [currentFieldKey, setCurrentFieldKey] = useState(null);
   const [currentFieldAnnotation, setCurrentFieldAnnotation] = useState({ errorTypes: [], reason: "" });
   const [fieldAnnotations, setFieldAnnotations] = useState({}); // 存储所有字段备注
   
+  // 保存状态相关
+  const [isSavingFieldAnnotation, setIsSavingFieldAnnotation] = useState(false);
+  const [savingMessage, setSavingMessage] = useState("");
+
   const onFocus = useCallback(
     (ev, model) => {
       item.setLastFocusedElement(ev.target, model);
@@ -732,159 +956,199 @@ const HtxTextArea = observer(({ item }) => {
     [item],
   );
 
-  // 获取当前text数组的索引（最新的一个）
-  const getCurrentTextIndex = useCallback(() => {
-    if (item.regions && item.regions.length > 0) {
-      return item.regions.length - 1;
+  // 从API加载字段备注数据
+  const loadFieldAnnotations = useCallback(async () => {
+    const annotation = item.annotation;
+    if (!annotation) {
+      console.log("📥 [API] 无annotation，设置为空对象");
+      setFieldAnnotations({});
+      return;
     }
-    return 0;
-  }, [item.regions]);
 
-  // 从result中加载字段备注
-  const loadFieldAnnotations = useCallback(() => {
-    try {
-      const result = item.result;
-      if (result && result.meta && result.meta.field_annotations) {
-        const textIndex = getCurrentTextIndex();
-        const textKey = `text_index_${textIndex}`;
-        const annotations = result.meta.field_annotations[textKey] || {};
-        setFieldAnnotations(annotations);
-      } else {
-        setFieldAnnotations({});
-      }
-    } catch (error) {
-      console.error('Error loading field annotations:', error);
+    // 获取annotation ID
+    const currentId = annotation.pk || annotation.id;
+    if (!currentId) {
+      console.log("📥 [API] annotation无ID，设置为空对象");
+      setFieldAnnotations({});
+      return;
+    }
+
+    // 检查ID类型并决定是否加载
+    if (FieldAnnotationAPI.isValidAnnotationId(currentId)) {
+      console.log("📥 [API] 加载字段备注，有效数字ID:", currentId);
+    } else if (FieldAnnotationAPI.isTemporaryAnnotationId(currentId)) {
+      console.log("📥 [API] 加载字段备注，临时ID:", currentId);
+    } else {
+      console.log("📥 [API] 无效annotation ID，设置为空对象");
+      setFieldAnnotations({});
+      return;
+    }
+
+    const result = await FieldAnnotationAPI.loadFieldAnnotations(currentId);
+    if (result.success) {
+      setFieldAnnotations(result.data || {});
+      console.log("📥 [API] 字段备注加载成功:", result.data);
+    } else {
+      console.error("📥 [API] 加载字段备注失败:", result.error);
       setFieldAnnotations({});
     }
-  }, [item.result, getCurrentTextIndex]);
+  }, [item.annotation?.pk, item.annotation?.id]);
 
-  // 保存字段备注到result
-  const saveFieldAnnotations = useCallback((annotations) => {
-    try {
-      const result = item.result;
-      if (result) {
-        const textIndex = getCurrentTextIndex();
-        const textKey = `text_index_${textIndex}`;
-        
-        // 获取现有的 field_annotations 或创建空对象
-        const currentFieldAnnotations = result.meta?.field_annotations || {};
-        const newFieldAnnotations = {
-          ...currentFieldAnnotations,
-          [textKey]: { ...annotations }
-        };
-        
-        // 使用 setMetaValue 设置 field_annotations
-        result.setMetaValue('field_annotations', newFieldAnnotations);
-        
-        // 触发更新
-        item.updateResult();
-        item.onChange();
-      }
-    } catch (error) {
-      console.error('Error saving field annotations:', error);
-    }
-  }, [item, getCurrentTextIndex]);
+  // 本地更新字段备注状态（仅用于UI显示）
+  const updateLocalFieldAnnotations = useCallback((annotations) => {
+    setFieldAnnotations(annotations);
+  }, []);
 
   // 处理字段备注点击
-  const handleFieldAnnotationClick = useCallback((arrayIndex, fieldKey) => {
-    const annotationKey = `ticket_${arrayIndex}_${fieldKey}`;
-    const existingAnnotation = fieldAnnotations[annotationKey] || { errorTypes: [], reason: "" };
-    
-    setCurrentFieldKey(annotationKey);
-    setCurrentFieldAnnotation({ ...existingAnnotation });
-    setFieldAnnotationsModalVisible(true);
-  }, [fieldAnnotations]);
+  const handleFieldAnnotationClick = useCallback(
+    (arrayIndex, fieldKey) => {
+      const annotationKey = `ticket_${arrayIndex}_${fieldKey}`;
+      const existingAnnotation = fieldAnnotations[annotationKey] || { errorTypes: [], reason: "" };
 
-  // 保存字段备注
-  const handleSaveFieldAnnotation = useCallback(() => {
-    const updatedAnnotations = {
-      ...fieldAnnotations,
-      [currentFieldKey]: { ...currentFieldAnnotation }
-    };
+      setCurrentFieldKey(annotationKey);
+      setCurrentFieldAnnotation({ ...existingAnnotation });
+      setFieldAnnotationsModalVisible(true);
+    },
+    [fieldAnnotations],
+  );
+
+  // 保存字段备注到服务器
+  const handleSaveFieldAnnotation = useCallback(async () => {
+    const annotation = item.annotation;
+    const store = annotation?.store;
     
-    // 如果备注为空，删除该字段的备注
-    if (currentFieldAnnotation.errorTypes.length === 0 && !currentFieldAnnotation.reason.trim()) {
-      delete updatedAnnotations[currentFieldKey];
+    if (!annotation || !store) {
+      console.error("💾 [API] 无annotation或store，无法保存");
+      alert("无法保存字段备注：标注环境未就绪");
+      return;
     }
-    
-    // 先更新本地UI状态
-    setFieldAnnotations(updatedAnnotations);
-    // 然后保存到result
-    saveFieldAnnotations(updatedAnnotations);
-    
-    setFieldAnnotationsModalVisible(false);
-    setCurrentFieldKey(null);
-    setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
-  }, [fieldAnnotations, currentFieldKey, currentFieldAnnotation, saveFieldAnnotations]);
+
+    try {
+      setIsSavingFieldAnnotation(true);
+      setSavingMessage("正在准备保存字段备注...");
+      console.log("💾 [API] 开始保存字段备注流程");
+      
+      const currentId = annotation.pk || annotation.id;
+      
+      // 构建更新后的字段备注数据
+      const updatedAnnotations = {
+        ...fieldAnnotations,
+        [currentFieldKey]: { ...currentFieldAnnotation },
+      };
+
+      // 如果备注为空，删除该字段的备注
+      if (currentFieldAnnotation.errorTypes.length === 0 && !currentFieldAnnotation.reason.trim()) {
+        delete updatedAnnotations[currentFieldKey];
+      }
+
+      console.log("💾 [API] 即将保存字段备注，annotation ID:", currentId);
+      console.log("💾 [API] 字段备注数据:", JSON.stringify(updatedAnnotations, null, 2));
+
+      // 直接调用API保存（API内部会处理临时ID的缓存）
+      setSavingMessage("正在保存字段备注...");
+      const result = await FieldAnnotationAPI.saveFieldAnnotations(currentId, updatedAnnotations);
+      
+      if (result.success) {
+        // 保存成功，更新本地UI状态
+        setFieldAnnotations(updatedAnnotations);
+        setSavingMessage("保存成功！");
+        console.log("✅ [API] 字段备注保存成功");
+        
+        // 短暂显示成功消息后关闭弹窗
+        setTimeout(() => {
+          setFieldAnnotationsModalVisible(false);
+          setCurrentFieldKey(null);
+          setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
+          setIsSavingFieldAnnotation(false);
+          setSavingMessage("");
+        }, 800);
+      } else {
+        // 保存失败，显示错误信息
+        setIsSavingFieldAnnotation(false);
+        setSavingMessage("");
+        console.error("❌ [API] 字段备注保存失败:", result.error);
+        alert(`保存失败: ${result.error}`);
+        return; // 保存失败时不关闭弹窗
+      }
+      
+    } catch (error) {
+      setIsSavingFieldAnnotation(false);
+      setSavingMessage("");
+      console.error("❌ [API] 字段备注保存过程出错:", error);
+      alert(`保存失败: ${error.message}`);
+    }
+  }, [fieldAnnotations, currentFieldKey, currentFieldAnnotation, item.annotation]);
 
   // 检查字段是否有备注
-  const hasFieldAnnotation = useCallback((arrayIndex, fieldKey) => {
-    const annotationKey = `ticket_${arrayIndex}_${fieldKey}`;
-    const annotation = fieldAnnotations[annotationKey];
-    return annotation && (annotation.errorTypes.length > 0 || annotation.reason.trim());
-  }, [fieldAnnotations]);
-
+  const hasFieldAnnotation = useCallback(
+    (arrayIndex, fieldKey) => {
+      const annotationKey = `ticket_${arrayIndex}_${fieldKey}`;
+      const annotation = fieldAnnotations[annotationKey];
+      return annotation && (annotation.errorTypes.length > 0 || annotation.reason.trim());
+    },
+    [fieldAnnotations],
+  );
 
   // Load evaluation configuration on component mount
   useEffect(() => {
     const loadEvaluationConfig = async () => {
       try {
         const annotation = item?.annotation;
-        
+
         if (!annotation) {
           return;
         }
-        
+
         const store = annotation.store;
-        
+
         if (!store) {
           return;
         }
-        
+
         // Try multiple ways to get project ID with enhanced logging
         let projectId = store.projectId || store.project?.id;
-        
+
         // Try to get from window object if not found
         if (!projectId && window.APP_SETTINGS?.projectId) {
           projectId = window.APP_SETTINGS.projectId;
         }
-        
+
         // Try to get from URL if still not found
         if (!projectId && window.location) {
           const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
           if (urlMatch) {
-            projectId = parseInt(urlMatch[1]);
+            projectId = Number.parseInt(urlMatch[1]);
           }
         }
-        
+
         // Try to get from history state
         if (!projectId && window.history?.state?.projectId) {
           projectId = window.history.state.projectId;
         }
-        
+
         // Try to get from global store if available
         if (!projectId && window.LSF?.store?.projectId) {
           projectId = window.LSF.store.projectId;
         }
-        
+
         if (!projectId) {
           setRequiredFields(FALLBACK_REQUIRED_FIELDS);
           return;
         }
-        
+
         // 并行获取项目配置和所有配置
         const [config, allConfigsData] = await Promise.all([
           EvaluationConfigAPI.getConfigWithFallback(projectId, true),
-          EvaluationConfigAPI.fetchAllConfigs()
+          EvaluationConfigAPI.fetchAllConfigs(),
         ]);
-        
+
         if (config) {
           setRequiredFields(config.required_fields);
           setEvaluationConfig(config);
         } else {
           setRequiredFields(FALLBACK_REQUIRED_FIELDS);
         }
-        
+
         if (allConfigsData && Object.keys(allConfigsData).length > 0) {
           setAllConfigs(allConfigsData);
         } else {
@@ -898,30 +1162,52 @@ const HtxTextArea = observer(({ item }) => {
     loadEvaluationConfig();
   }, [item?.annotation?.store?.projectId, item?.annotation?.store?.project?.id]);
 
-  // 加载字段备注
+  // 从API加载字段备注
   useEffect(() => {
-    loadFieldAnnotations();
-  }, [loadFieldAnnotations, item.result, item.annotation?.id]);
+    console.log("🔄 [API] useEffect 触发，加载字段备注");
+    console.log("🔄 [API] item.annotation?.id:", item.annotation?.id);
+    
+    if (item.annotation?.id) {
+      loadFieldAnnotations();
+    } else {
+      setFieldAnnotations({});
+    }
+  }, [loadFieldAnnotations, item.annotation?.id]);
+
+  // 监听annotation ID变化，处理从临时ID到数字ID的迁移
+  useEffect(() => {
+    const annotation = item.annotation;
+    if (!annotation) return;
+    
+    const currentId = annotation.pk || annotation.id;
+    
+    // 如果当前ID是数字ID，检查是否有需要迁移的临时数据
+    if (FieldAnnotationAPI.isValidAnnotationId(currentId)) {
+      // 检查是否存在需要迁移的临时数据
+      FieldAnnotationAPI.tempFieldAnnotations.forEach(async (tempData, tempId) => {
+        if (FieldAnnotationAPI.isTemporaryAnnotationId(tempId)) {
+          console.log("🔄 [API] 检测到annotation获得数字ID，准备迁移字段备注");
+          await FieldAnnotationAPI.migrateFieldAnnotations(tempId, currentId);
+          // 重新加载字段备注以显示迁移后的数据
+          loadFieldAnnotations();
+        }
+      });
+    }
+  }, [item.annotation?.pk, loadFieldAnnotations]);
 
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
   // 仅当当前值为空且 name 包含 json 时显示按钮
   const showAutoFill =
-    !item._value &&
-    item.displaymode === PER_REGION_MODES.TAG &&
-    item.name &&
-    item.name.toLowerCase().includes("json");
+    !item._value && item.displaymode === PER_REGION_MODES.TAG && item.name && item.name.toLowerCase().includes("json");
 
   // 检查是否应该执行自动更新（不仅是空字段，切换tab时也要更新）
   const shouldAutoUpdate =
-    item.displaymode === PER_REGION_MODES.TAG &&
-    item.name &&
-    item.name.toLowerCase().includes("json");
-
+    item.displaymode === PER_REGION_MODES.TAG && item.name && item.name.toLowerCase().includes("json");
 
   // 辅助函数：提取(id: xxx)中的xxx
   const extractName = (str) => {
-    if (typeof str !== 'string') return str;
+    if (typeof str !== "string") return str;
     const match = str.match(/\(id: ([^)]+)\)/);
     return match ? match[1] : str;
   };
@@ -932,12 +1218,14 @@ const HtxTextArea = observer(({ item }) => {
     try {
       const store = item.annotation?.store;
       const annotationStore = store?.annotationStore;
-      const preds = annotationStore?.predictions?.toJSON ? annotationStore.predictions.toJSON() : annotationStore.predictions;
+      const preds = annotationStore?.predictions?.toJSON
+        ? annotationStore.predictions.toJSON()
+        : annotationStore.predictions;
       let filled = false;
 
       // 检查当前选中的是否为prediction
       const isPredictionSelected = item.annotation?.type === "prediction";
-      
+
       // 获取当前选中的prediction ID（如果是prediction模式）
       const currentPredictionId = isPredictionSelected ? item.annotation?.id : null;
 
@@ -945,20 +1233,22 @@ const HtxTextArea = observer(({ item }) => {
         // 当前在查看prediction时，只使用当前选中的prediction数据
         if (Array.isArray(preds)) {
           // 找到当前选中的prediction
-          const currentPred = preds.find(pred => pred.id === currentPredictionId);
+          const currentPred = preds.find((pred) => pred.id === currentPredictionId);
           if (currentPred) {
             // 只处理当前选中的prediction
             if (currentPred.trackedState && currentPred.trackedState.areas) {
-              Array.from(currentPred.trackedState.areas.values()).forEach(area => {
+              Array.from(currentPred.trackedState.areas.values()).forEach((area) => {
                 if (Array.isArray(area.results)) {
-                  area.results.forEach(r => {
-                    const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-                    const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                  area.results.forEach((r) => {
+                    const fromName = extractName(typeof r.from_name === "string" ? r.from_name : String(r.from_name));
+                    const toName = extractName(typeof r.to_name === "string" ? r.to_name : String(r.to_name));
                     if (
                       fromName === item.name &&
                       toName === item.toname &&
                       r.type === "textarea" &&
-                      r.value && r.value.text && r.value.text.length > 0
+                      r.value &&
+                      r.value.text &&
+                      r.value.text.length > 0
                     ) {
                       const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
                       item.setValue(value);
@@ -971,13 +1261,15 @@ const HtxTextArea = observer(({ item }) => {
             }
             if (!filled && currentPred.result) {
               for (const r of currentPred.result) {
-                const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-                const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                const fromName = extractName(typeof r.from_name === "string" ? r.from_name : String(r.from_name));
+                const toName = extractName(typeof r.to_name === "string" ? r.to_name : String(r.to_name));
                 if (
                   fromName === item.name &&
                   toName === item.toname &&
                   r.type === "textarea" &&
-                  r.value && r.value.text && r.value.text.length > 0
+                  r.value &&
+                  r.value.text &&
+                  r.value.text.length > 0
                 ) {
                   const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
                   item.setValue(value);
@@ -995,36 +1287,41 @@ const HtxTextArea = observer(({ item }) => {
         // 当前在查看annotation时，保持原有逻辑：优先使用annotations数据
         // 1. 先用 annotations
         if (annotationStore?.annotations) {
-          const anns = annotationStore.annotations.toJSON ? annotationStore.annotations.toJSON() : annotationStore.annotations;
+          const anns = annotationStore.annotations.toJSON
+            ? annotationStore.annotations.toJSON()
+            : annotationStore.annotations;
           let lastMatchedValue = null;
           for (const ann of anns) {
             let results = ann.result;
             if (!results && ann.resultSnapshot) results = ann.resultSnapshot;
-            if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result) results = ann._initialAnnotationObj.result;
+            if (!results && ann._initialAnnotationObj && ann._initialAnnotationObj.result)
+              results = ann._initialAnnotationObj.result;
             // If still no results, treat _initialAnnotationObj as an array of result items
             if (
               !results &&
               ann._initialAnnotationObj &&
-              (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === 'object')
+              (Array.isArray(ann._initialAnnotationObj) || typeof ann._initialAnnotationObj === "object")
             ) {
               // Convert to array if it's an object with numeric keys
               const arr = Array.isArray(ann._initialAnnotationObj)
                 ? ann._initialAnnotationObj
-                : Object.values(ann._initialAnnotationObj).filter(v => v && typeof v === 'object' && v.type);
+                : Object.values(ann._initialAnnotationObj).filter((v) => v && typeof v === "object" && v.type);
               if (arr.length > 0) results = arr;
             }
-            if (results && typeof results.toJSON === 'function') {
+            if (results && typeof results.toJSON === "function") {
               results = results.toJSON();
             }
             if (Array.isArray(results)) {
               for (const r of results) {
-                const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-                const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                const fromName = extractName(typeof r.from_name === "string" ? r.from_name : String(r.from_name));
+                const toName = extractName(typeof r.to_name === "string" ? r.to_name : String(r.to_name));
                 if (
                   fromName === item.name &&
                   toName === item.toname &&
                   r.type === "textarea" &&
-                  r.value && r.value.text && r.value.text.length > 0
+                  r.value &&
+                  r.value.text &&
+                  r.value.text.length > 0
                 ) {
                   const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
                   lastMatchedValue = value;
@@ -1043,16 +1340,18 @@ const HtxTextArea = observer(({ item }) => {
         if (!filled && Array.isArray(preds)) {
           for (const pred of preds) {
             if (pred.trackedState && pred.trackedState.areas) {
-              Array.from(pred.trackedState.areas.values()).forEach(area => {
+              Array.from(pred.trackedState.areas.values()).forEach((area) => {
                 if (Array.isArray(area.results)) {
-                  area.results.forEach(r => {
-                    const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-                    const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                  area.results.forEach((r) => {
+                    const fromName = extractName(typeof r.from_name === "string" ? r.from_name : String(r.from_name));
+                    const toName = extractName(typeof r.to_name === "string" ? r.to_name : String(r.to_name));
                     if (
                       fromName === item.name &&
                       toName === item.toname &&
                       r.type === "textarea" &&
-                      r.value && r.value.text && r.value.text.length > 0
+                      r.value &&
+                      r.value.text &&
+                      r.value.text.length > 0
                     ) {
                       const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
                       item.setValue(value);
@@ -1065,13 +1364,15 @@ const HtxTextArea = observer(({ item }) => {
             }
             if (pred.result) {
               for (const r of pred.result) {
-                const fromName = extractName(typeof r.from_name === 'string' ? r.from_name : String(r.from_name));
-                const toName = extractName(typeof r.to_name === 'string' ? r.to_name : String(r.to_name));
+                const fromName = extractName(typeof r.from_name === "string" ? r.from_name : String(r.from_name));
+                const toName = extractName(typeof r.to_name === "string" ? r.to_name : String(r.to_name));
                 if (
                   fromName === item.name &&
                   toName === item.toname &&
                   r.type === "textarea" &&
-                  r.value && r.value.text && r.value.text.length > 0
+                  r.value &&
+                  r.value.text &&
+                  r.value.text.length > 0
                 ) {
                   const value = Array.isArray(r.value.text) ? r.value.text[r.value.text.length - 1] : r.value.text;
                   item.setValue(value);
@@ -1083,7 +1384,6 @@ const HtxTextArea = observer(({ item }) => {
           }
         }
       }
-      
     } finally {
       setAutoFillLoading(false);
     }
@@ -1093,7 +1393,6 @@ const HtxTextArea = observer(({ item }) => {
   useEffect(() => {
     // 关键节点日志：自动填充触发
     if (showAutoFill) {
-      
     }
     if (showAutoFill) {
       handleAutoFill();
@@ -1147,17 +1446,17 @@ const HtxTextArea = observer(({ item }) => {
               const pageCount = {};
               const multiPageTickets = []; // 存储跨多页的票据信息
               let hasFieldErrors = false;
-              let allErrorMessages = []; // 收集所有错误信息
+              const allErrorMessages = []; // 收集所有错误信息
 
               // 预先获取项目特定配置，避免在循环中重复获取
               const annotation = item?.annotation;
               const store = annotation?.store;
               const projectId = store?.projectId || store?.project?.id;
-              
+
               let currentRequiredFields = requiredFields;
               let currentEvaluationConfig = evaluationConfig;
-              let currentAllConfigs = allConfigs;
-              
+              const currentAllConfigs = allConfigs;
+
               // 尝试获取项目特定配置
               if (projectId) {
                 const cacheKey = String(projectId);
@@ -1179,23 +1478,23 @@ const HtxTextArea = observer(({ item }) => {
 
                 // 检查docType字段 - 统计所有除了"other"之外的文档类型
                 let isValidDocType = true;
-                
+
                 // 如果没有docType字段，但数据包含其他必需字段，则尝试推断类型
                 if (!x.docType) {
                   // 尝试根据当前配置类型或数据特征设置默认docType
                   if (x.tradeDate && x.amount && (x.paymentName || x.payeeName)) {
-                    x.docType = 'bank_receipt';
+                    x.docType = "bank_receipt";
                   } else if (x.invoiceNumber && x.totalAmount && (x.billToName || x.buyerName)) {
-                    x.docType = 'invoice';
+                    x.docType = "invoice";
                   } else if (x.totalAmount && !x.invoiceNumber && !x.tradeDate) {
-                    x.docType = 'receipt';
+                    x.docType = "receipt";
                   }
                 }
-                
+
                 // 票据统计逻辑：统计所有除了"other"之外的文档类型
                 if (x.docType) {
                   const docTypeLower = x.docType.toLowerCase();
-                  if (docTypeLower === 'other' || docTypeLower === 'unknown') {
+                  if (docTypeLower === "other" || docTypeLower === "unknown") {
                     isValidDocType = false; // 标记为无效，不参与票据统计
                   } else {
                     isValidDocType = true;
@@ -1204,9 +1503,9 @@ const HtxTextArea = observer(({ item }) => {
                   // 如果仍然没有docType，标记为无效票据类型（不参与统计）
                   isValidDocType = false;
                 }
-                
+
                 // 票据统计处理（但不影响字段验证）
-                let shouldCountForStats = isValidDocType;
+                const shouldCountForStats = isValidDocType;
 
                 // 只有有效票据类型才进行统计
                 if (shouldCountForStats) {
@@ -1250,12 +1549,12 @@ const HtxTextArea = observer(({ item }) => {
                 const docType = x.docType;
                 const fieldsToCheck = getRequiredFieldsForDocument(docType, currentRequiredFields, currentAllConfigs);
                 const docConfig = currentAllConfigs[docType];
-                let docConfigForLabel = docConfig || currentEvaluationConfig;
-                
+                const docConfigForLabel = docConfig || currentEvaluationConfig;
+
                 fieldsToCheck.forEach((field) => {
                   // 对于docType字段，检查原始数据是否包含
-                  if (field === 'docType') {
-                    if (!originalDoc.hasOwnProperty('docType')) {
+                  if (field === "docType") {
+                    if (!originalDoc.hasOwnProperty("docType")) {
                       missing.push(field);
                     }
                   } else {
@@ -1265,18 +1564,18 @@ const HtxTextArea = observer(({ item }) => {
                     }
                   }
                 });
-                
+
                 if (missing.length > 0) {
                   hasFieldErrors = true;
                   // 根据配置获取文档类型显示名
                   const docTypeValidationRules = docConfigForLabel?.validation_rules?.docType;
                   let docTypeText = x.docType || "文档";
-                  
+
                   // 如果有配置的映射，使用友好的显示名
                   if (docTypeValidationRules && docConfigForLabel?.field_labels?.docType) {
                     docTypeText = docConfigForLabel.field_labels.docType[x.docType] || docTypeText;
                   }
-                  
+
                   const errorMsg = `${docTypeText}[${i + 1}]缺: ${missing.map((m) => `"${m}"`).join(", ")}`;
                   allErrorMessages.push(errorMsg);
                 }
@@ -1302,7 +1601,7 @@ const HtxTextArea = observer(({ item }) => {
               statsArray.sort((a, b) => a.sortKey - b.sortKey);
 
               setPageStats(statsArray.length > 0 ? statsArray.map((item) => item.text).join(", ") : "暂无票据");
-              
+
               // 显示所有错误信息，但限制最多显示3个，超过则显示省略号
               if (hasFieldErrors) {
                 if (allErrorMessages.length <= 3) {
@@ -1396,48 +1695,51 @@ const HtxTextArea = observer(({ item }) => {
   const handleRefreshConfig = async () => {
     const annotation = item?.annotation;
     if (!annotation?.store) return;
-    
+
     let projectId = annotation.store.projectId || annotation.store.project?.id;
     if (!projectId && window.location) {
       const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
       if (urlMatch) {
-        projectId = parseInt(urlMatch[1]);
+        projectId = Number.parseInt(urlMatch[1]);
       }
     }
-    
+
     if (projectId) {
       try {
         const config = await EvaluationConfigAPI.fetchProjectConfig(projectId, true);
         setRequiredFields(config.required_fields);
         setEvaluationConfig(config);
       } catch (error) {
-        console.error('配置刷新失败:', error);
+        console.error("配置刷新失败:", error);
       }
     }
   };
 
   // 处理KV模式下的值变更
-  const handleKVValueChange = useCallback((arrayIndex, key, value) => {
-    try {
-      const parsed = JSON.parse(item._value || "[]");
-      if (Array.isArray(parsed) && parsed[arrayIndex]) {
-        // 创建新的对象来更新值
-        const updatedItem = { ...parsed[arrayIndex] };
-        updatedItem[key] = value;
-        
-        // 更新数组
-        const updatedArray = [...parsed];
-        updatedArray[arrayIndex] = updatedItem;
-        
-        // 更新JSON值
-        const updatedJson = JSON.stringify(updatedArray, null, 2);
-        item.setValue(updatedJson);
-        validateJsonAndFields(updatedJson);
+  const handleKVValueChange = useCallback(
+    (arrayIndex, key, value) => {
+      try {
+        const parsed = JSON.parse(item._value || "[]");
+        if (Array.isArray(parsed) && parsed[arrayIndex]) {
+          // 创建新的对象来更新值
+          const updatedItem = { ...parsed[arrayIndex] };
+          updatedItem[key] = value;
+
+          // 更新数组
+          const updatedArray = [...parsed];
+          updatedArray[arrayIndex] = updatedItem;
+
+          // 更新JSON值
+          const updatedJson = JSON.stringify(updatedArray, null, 2);
+          item.setValue(updatedJson);
+          validateJsonAndFields(updatedJson);
+        }
+      } catch (error) {
+        console.error("Error updating KV value:", error);
       }
-    } catch (error) {
-      console.error('Error updating KV value:', error);
-    }
-  }, [item, validateJsonAndFields]);
+    },
+    [item, validateJsonAndFields],
+  );
 
   // 解析JSON数据用于KV显示
   const parseJsonForKV = useCallback(() => {
@@ -1455,22 +1757,22 @@ const HtxTextArea = observer(({ item }) => {
   return item.displaymode === PER_REGION_MODES.TAG ? (
     <div className={textareaClassName} style={visibleStyle} ref={item.elementRef}>
       {/* 调试按钮 - 开发环境可见 */}
-      {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+      {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && (
         <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
           <Button
             size="small"
             onClick={handleRefreshConfig}
-            style={{ 
+            style={{
               fontSize: "12px",
               height: "24px",
               backgroundColor: "#f0f0f0",
-              border: "1px solid #d9d9d9"
+              border: "1px solid #d9d9d9",
             }}
           >
             刷新配置 (调试)
           </Button>
           <span style={{ marginLeft: "8px", fontSize: "12px", color: "#666" }}>
-            当前配置: {evaluationConfig?.config_key || 'fallback'}
+            当前配置: {evaluationConfig?.config_key || "fallback"}
           </span>
         </div>
       )}
@@ -1482,15 +1784,15 @@ const HtxTextArea = observer(({ item }) => {
             icon={<InfoCircleOutlined style={{ display: "none" }} />}
             loading={autoFillLoading}
             onClick={handleAutoFill}
-            style={{ 
-              opacity: 0, 
-              width: 0, 
-              height: 0, 
-              padding: 0, 
-              margin: 0, 
-              border: "none", 
-              overflow: "hidden", 
-              position: "absolute" 
+            style={{
+              opacity: 0,
+              width: 0,
+              height: 0,
+              padding: 0,
+              margin: 0,
+              border: "none",
+              overflow: "hidden",
+              position: "absolute",
             }}
           >
             自动填充
@@ -1513,7 +1815,6 @@ const HtxTextArea = observer(({ item }) => {
               item.addText(item._value);
               item.setValue("");
             }
-
             return false;
           }}
         >
@@ -1540,147 +1841,154 @@ const HtxTextArea = observer(({ item }) => {
                       {(() => {
                         const jsonArray = parseJsonForKV();
                         if (jsonArray.length === 0) {
-                          return (
-                            <div style={{ color: "#999", textAlign: "center", padding: "20px" }}>
-                              暂无数据
-                            </div>
-                          );
+                          return <div style={{ color: "#999", textAlign: "center", padding: "20px" }}>暂无数据</div>;
                         }
-                        
+
                         return jsonArray.map((itemData, arrayIndex) => {
                           // 使用统一的必填字段获取函数
                           const docType = itemData.docType;
                           const fieldsToCheck = getRequiredFieldsForDocument(docType, requiredFields, allConfigs);
-                          
+
                           // 创建一个包含所有必填字段的完整对象
                           const completeItemData = { ...itemData };
-                          
+
                           // 确保所有必填字段都存在，如果缺失则添加空值
-                          fieldsToCheck.forEach(field => {
+                          fieldsToCheck.forEach((field) => {
                             if (!Object.hasOwn(completeItemData, field)) {
                               completeItemData[field] = "";
                             }
                           });
-                          
+
                           // 创建字段排序：序号在最前，其他必填字段按配置顺序，然后是非必填字段
                           const sortedKeys = [];
-                          
+
                           // 1. 先添加序号字段（如果存在）
                           if (Object.hasOwn(completeItemData, "序号")) {
                             sortedKeys.push("序号");
                           }
-                          
+
                           // 2. 按配置顺序添加其他必填字段
-                          fieldsToCheck.forEach(field => {
+                          fieldsToCheck.forEach((field) => {
                             if (field !== "序号" && Object.hasOwn(completeItemData, field)) {
                               sortedKeys.push(field);
                             }
                           });
-                          
+
                           // 3. 添加剩余的非必填字段
-                          Object.keys(completeItemData).forEach(key => {
+                          Object.keys(completeItemData).forEach((key) => {
                             if (!sortedKeys.includes(key)) {
                               sortedKeys.push(key);
                             }
                           });
-                          
+
                           return (
                             <div key={arrayIndex}>
-                              <div style={{ 
-                                marginBottom: arrayIndex === jsonArray.length - 1 ? 0 : 10, 
-                                paddingBottom: arrayIndex === jsonArray.length - 1 ? 0 : 10,
-                                borderBottom: arrayIndex === jsonArray.length - 1 ? "none" : "1px dashed #d9d9d9"
-                              }}>
+                              <div
+                                style={{
+                                  marginBottom: arrayIndex === jsonArray.length - 1 ? 0 : 10,
+                                  paddingBottom: arrayIndex === jsonArray.length - 1 ? 0 : 10,
+                                  borderBottom: arrayIndex === jsonArray.length - 1 ? "none" : "1px dashed #d9d9d9",
+                                }}
+                              >
                                 {sortedKeys.map((key) => {
-                                
-                                const value = completeItemData[key];
-                                const displayValue = typeof value === "object" ? JSON.stringify(value) : String(value || "");
-                                
-                                // 序号字段特殊处理：直接显示为标签
-                                if (key === "序号") {
+                                  const value = completeItemData[key];
+                                  const displayValue =
+                                    typeof value === "object" ? JSON.stringify(value) : String(value || "");
+
+                                  // 序号字段特殊处理：直接显示为标签
+                                  if (key === "序号") {
+                                    return (
+                                      <div
+                                        key={key}
+                                        style={{
+                                          marginBottom: 4,
+                                          color: "#1890ff",
+                                          fontWeight: "bold",
+                                          fontSize: 13,
+                                        }}
+                                      >
+                                        序号：{displayValue}
+                                      </div>
+                                    );
+                                  }
+
+                                  // 检查是否为必填字段（使用之前计算的fieldsToCheck）
+                                  const isRequired = fieldsToCheck.includes(key);
+                                  // 检查是否为缺失的必填字段
+                                  const isMissingRequired =
+                                    isRequired && (!Object.hasOwn(itemData, key) || !itemData[key]);
+
                                   return (
-                                    <div key={key} style={{ 
-                                      marginBottom: 4,
-                                      color: "#1890ff",
-                                      fontWeight: "bold",
-                                      fontSize: 13
-                                    }}>
-                                      序号：{displayValue}
+                                    <div
+                                      key={key}
+                                      style={{
+                                        marginBottom: 8,
+                                        display: "grid",
+                                        gridTemplateColumns: "115px 1fr",
+                                        gap: "8px",
+                                        alignItems: "start",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          fontWeight: "500",
+                                          color: isMissingRequired ? "#d4380d" : "#666",
+                                          paddingTop: 4,
+                                          wordBreak: "break-word",
+                                          lineHeight: "1.3",
+                                          hyphens: "auto",
+                                          fontSize: 13,
+                                          cursor: "pointer",
+                                          position: "relative",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                        }}
+                                        onClick={() => handleFieldAnnotationClick(arrayIndex, key)}
+                                      >
+                                        <span>{key}:</span>
+                                        {hasFieldAnnotation(arrayIndex, key) && (
+                                          <CommentOutlined
+                                            style={{
+                                              color: "#1890ff",
+                                              fontSize: "12px",
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+                                      <div>
+                                        <Input.TextArea
+                                          value={displayValue}
+                                          onChange={(e) => {
+                                            if (!item.isReadOnly()) {
+                                              let newValue = e.target.value;
+                                              // 尝试解析JSON字符串
+                                              try {
+                                                if (newValue.startsWith("{") || newValue.startsWith("[")) {
+                                                  newValue = JSON.parse(newValue);
+                                                }
+                                              } catch (error) {
+                                                // 如果不是有效JSON，保持字符串
+                                              }
+                                              handleKVValueChange(arrayIndex, key, newValue);
+                                            }
+                                          }}
+                                          disabled={item.isReadOnly()}
+                                          autoSize={{ minRows: 1, maxRows: 6 }}
+                                          style={{
+                                            fontSize: 12,
+                                            ...(isRequired
+                                              ? {
+                                                  backgroundColor: "#fff2e8",
+                                                }
+                                              : {}),
+                                          }}
+                                          placeholder={isMissingRequired ? `Missing field: ${key}` : undefined}
+                                        />
+                                      </div>
                                     </div>
                                   );
-                                }
-                                
-                                // 检查是否为必填字段（使用之前计算的fieldsToCheck）
-                                const isRequired = fieldsToCheck.includes(key);
-                                // 检查是否为缺失的必填字段
-                                const isMissingRequired = isRequired && (!Object.hasOwn(itemData, key) || !itemData[key]);
-                                
-                                return (
-                                  <div key={key} style={{ 
-                                    marginBottom: 8, 
-                                    display: "grid", 
-                                    gridTemplateColumns: "115px 1fr",
-                                    gap: "8px",
-                                    alignItems: "start"
-                                  }}>
-                                    <div 
-                                      style={{ 
-                                        fontWeight: "500", 
-                                        color: isMissingRequired ? "#d4380d" : "#666",
-                                        paddingTop: 4,
-                                        wordBreak: "break-word",
-                                        lineHeight: "1.3",
-                                        hyphens: "auto",
-                                        fontSize: 13,
-                                        cursor: "pointer",
-                                        position: "relative",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "4px"
-                                      }}
-                                      onClick={() => handleFieldAnnotationClick(arrayIndex, key)}
-                                    >
-                                      <span>{key}:</span>
-                                      {hasFieldAnnotation(arrayIndex, key) && (
-                                        <CommentOutlined 
-                                          style={{ 
-                                            color: "#1890ff", 
-                                            fontSize: "12px" 
-                                          }} 
-                                        />
-                                      )}
-                                    </div>
-                                    <div>
-                                      <Input.TextArea
-                                        value={displayValue}
-                                        onChange={(e) => {
-                                          if (!item.isReadOnly()) {
-                                            let newValue = e.target.value;
-                                            // 尝试解析JSON字符串
-                                            try {
-                                              if (newValue.startsWith("{") || newValue.startsWith("[")) {
-                                                newValue = JSON.parse(newValue);
-                                              }
-                                            } catch (error) {
-                                              // 如果不是有效JSON，保持字符串
-                                            }
-                                            handleKVValueChange(arrayIndex, key, newValue);
-                                          }
-                                        }}
-                                        disabled={item.isReadOnly()}
-                                        autoSize={{ minRows: 1, maxRows: 6 }}
-                                        style={{ 
-                                          fontSize: 12,
-                                          ...(isRequired ? { 
-                                            backgroundColor: "#fff2e8"
-                                          } : {})
-                                        }}
-                                        placeholder={isMissingRequired ? `Missing field: ${key}` : undefined}
-                                      />
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                })}
                               </div>
                             </div>
                           );
@@ -1755,37 +2063,68 @@ const HtxTextArea = observer(({ item }) => {
         open={fieldAnnotationsModalVisible}
         onOk={handleSaveFieldAnnotation}
         onCancel={() => {
-          setFieldAnnotationsModalVisible(false);
-          setCurrentFieldKey(null);
-          setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
+          if (!isSavingFieldAnnotation) {
+            setFieldAnnotationsModalVisible(false);
+            setCurrentFieldKey(null);
+            setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
+          }
         }}
-        okText="Save"
+        okText={isSavingFieldAnnotation ? "保存中..." : "Save"}
         cancelText="Cancel"
         width={600}
+        confirmLoading={isSavingFieldAnnotation}
+        closable={!isSavingFieldAnnotation}
+        maskClosable={!isSavingFieldAnnotation}
       >
+        {/* 保存状态提示 */}
+        {isSavingFieldAnnotation && (
+          <div style={{ 
+            marginBottom: 16, 
+            padding: "8px 12px", 
+            backgroundColor: "#f0f9ff", 
+            border: "1px solid #bae6fd", 
+            borderRadius: 4,
+            color: "#0369a1"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{
+                width: "16px",
+                height: "16px",
+                border: "2px solid #0369a1",
+                borderTop: "2px solid transparent",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }} />
+              <span>{savingMessage}</span>
+            </div>
+          </div>
+        )}
+        
         <div style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 8, fontWeight: "500" }}>Error Types (Multiple Selection):</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {ERROR_TYPES.map(type => (
+            {ERROR_TYPES.map((type) => (
               <Tag.CheckableTag
                 key={type}
                 checked={currentFieldAnnotation.errorTypes.includes(type)}
                 onChange={(checked) => {
-                  if (checked) {
-                    setCurrentFieldAnnotation(prev => ({
-                      ...prev,
-                      errorTypes: [...prev.errorTypes, type]
-                    }));
-                  } else {
-                    setCurrentFieldAnnotation(prev => ({
-                      ...prev,
-                      errorTypes: prev.errorTypes.filter(t => t !== type)
-                    }));
+                  if (!isSavingFieldAnnotation) {
+                    if (checked) {
+                      setCurrentFieldAnnotation((prev) => ({
+                        ...prev,
+                        errorTypes: [...prev.errorTypes, type],
+                      }));
+                    } else {
+                      setCurrentFieldAnnotation((prev) => ({
+                        ...prev,
+                        errorTypes: prev.errorTypes.filter((t) => t !== type),
+                      }));
+                    }
                   }
                 }}
                 style={{
                   borderRadius: "4px",
-                  padding: "4px 8px"
+                  padding: "4px 8px",
                 }}
               >
                 {type}
@@ -1793,21 +2132,32 @@ const HtxTextArea = observer(({ item }) => {
             ))}
           </div>
         </div>
-        
+
         <div>
           <div style={{ marginBottom: 8, fontWeight: "500" }}>Reason:</div>
           <Input.TextArea
             value={currentFieldAnnotation.reason}
             onChange={(e) => {
-              setCurrentFieldAnnotation(prev => ({
-                ...prev,
-                reason: e.target.value
-              }));
+              if (!isSavingFieldAnnotation) {
+                setCurrentFieldAnnotation((prev) => ({
+                  ...prev,
+                  reason: e.target.value,
+                }));
+              }
             }}
             placeholder="Please enter the reason..."
             rows={4}
+            disabled={isSavingFieldAnnotation}
           />
         </div>
+        
+        {/* 添加旋转动画的CSS */}
+        <style jsx>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </Modal>
     </div>
   ) : null;
@@ -1816,4 +2166,3 @@ const HtxTextArea = observer(({ item }) => {
 Registry.addTag("textarea", TextAreaModel, HtxTextArea);
 
 export { TextAreaModel, HtxTextArea };
-

@@ -67,11 +67,11 @@ export const loadLiveTipsCollection = async () => {
 
     if (response.ok) {
       const data = await response.json();
-      
+
       // Cache the fetched content
       localStorage.setItem(CACHE_FETCHED_AT_KEY, String(Date.now()));
       localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-      
+
       return data;
     }
   } catch (error) {

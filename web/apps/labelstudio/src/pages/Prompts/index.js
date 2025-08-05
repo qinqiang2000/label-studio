@@ -1,1 +1,1 @@
-export { PromptsPage } from './Prompts'; 
+export { PromptsPage } from "./Prompts";

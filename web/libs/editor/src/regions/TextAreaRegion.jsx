@@ -46,7 +46,7 @@ const Model = types
       //   _valueType: typeof self._value
       // });
     },
-    
+
     setValue(val) {
       // Debug: Log setValue details
       // console.log(`[Label Studio Debug] TextAreaRegion setValue called:`, {
@@ -59,7 +59,7 @@ const Model = types
       //   currentValue: self._value,
       //   stringified: JSON.stringify(val)
       // });
-      
+
       if (self._value === val || !self.parent.validateText(val)) return;
 
       self._value = val;

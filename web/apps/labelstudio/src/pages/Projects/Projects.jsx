@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useParams as useRouterParams } from "react-router";
 import { Redirect } from "react-router-dom";
-import { Button } from "../../components";
 import { Oneof } from "../../components/Oneof/Oneof";
 import { Spinner } from "../../components/Spinner/Spinner";
 import { ApiContext } from "../../providers/ApiProvider";
@@ -10,7 +9,6 @@ import { Block, Elem } from "../../utils/bem";
 import { CreateProject } from "../CreateProject/CreateProject";
 import { DataManagerPage } from "../DataManager/DataManager";
 import { SettingsPage } from "../Settings";
-import { useButtonPermissions } from "../../hooks/useButtonPermissions";
 import { SmartButton } from "../../components/SmartPermission/SmartButton";
 import "./Projects.scss";
 import { EmptyProjectsList, ProjectsList } from "./ProjectsList";
@@ -60,7 +58,7 @@ export const ProjectsPage = () => {
         signal: abortController.controller.current.signal,
         errorFilter: (e) => e.error.includes("aborted"),
         headers: {
-          'Accept': 'application/json',
+          Accept: "application/json",
         },
       });
 
@@ -94,7 +92,7 @@ export const ProjectsPage = () => {
           signal: abortController.controller.current.signal,
           errorFilter: (e) => e.error.includes("aborted"),
           headers: {
-            'Accept': 'application/json',
+            Accept: "application/json",
           },
         });
 
@@ -180,10 +178,10 @@ ProjectsPage.routes = ({ store }) => [
 ProjectsPage.context = ({ openModal, showButton }) => {
   if (!showButton) return null;
   return (
-    <SmartButton 
+    <SmartButton
       permission="show_create_project_button"
-      onClick={openModal} 
-      look="primary" 
+      onClick={openModal}
+      look="primary"
       size="compact"
       fallback="hide"
     >

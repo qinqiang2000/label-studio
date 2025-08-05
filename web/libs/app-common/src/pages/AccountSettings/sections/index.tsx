@@ -18,10 +18,7 @@ type UserInfo = {
   is_superuser: boolean;
 };
 
-export const accountSettingsSections = (
-  settings: AuthTokenSettings,
-  user?: UserInfo | null
-): SectionType[] => {
+export const accountSettingsSections = (settings: AuthTokenSettings, user?: UserInfo | null): SectionType[] => {
   return [
     {
       title: "Personal Info",

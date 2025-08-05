@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
-import { useCurrentUser } from '../providers/CurrentUser';
-import { PERMISSION_SYSTEM_CONFIG } from '../config/permissions';
+import { useMemo } from "react";
+import { useCurrentUser } from "../providers/CurrentUser";
+import { PERMISSION_SYSTEM_CONFIG } from "../config/permissions";
 
 /**
  * 简化的角色访问控制 Hook
@@ -8,41 +8,44 @@ import { PERMISSION_SYSTEM_CONFIG } from '../config/permissions';
  */
 export const useRoleAccess = () => {
   const { user } = useCurrentUser();
-  
+
   // 获取用户角色
   const userRole = useMemo(() => {
-    if (user?.is_superuser) return 'superuser';
-    return user?.role_info?.name || 'annotator';
+    if (user?.is_superuser) return "superuser";
+    return user?.role_info?.name || "annotator";
   }, [user?.is_superuser, user?.role_info?.name]);
-  
+
   // 角色级别判断
-  const roleCheckers = useMemo(() => ({
-    // 基础用户检查
-    isBasicUser: () => ['annotator', 'workspace_admin', 'superuser'].includes(userRole),
-    
-    // 管理员检查
-    isAdmin: () => ['workspace_admin', 'superuser'].includes(userRole),
-    
-    // 超级管理员检查
-    isSuperUser: () => userRole === 'superuser',
-    
-    // 获取当前角色
-    getCurrentRole: () => userRole,
-    
-    // 检查是否有UI区域访问权限
-    hasUIAccess: (uiArea) => {
-      const allowedRoles = PERMISSION_SYSTEM_CONFIG.looseMode.roleBasedUI[uiArea] || [];
-      return allowedRoles.includes(userRole);
-    },
-    
-    // 检查是否可以执行危险操作
-    canPerformDangerousOperation: () => userRole === 'superuser'
-  }), [userRole]);
-  
+  const roleCheckers = useMemo(
+    () => ({
+      // 基础用户检查
+      isBasicUser: () => ["annotator", "workspace_admin", "superuser"].includes(userRole),
+
+      // 管理员检查
+      isAdmin: () => ["workspace_admin", "superuser"].includes(userRole),
+
+      // 超级管理员检查
+      isSuperUser: () => userRole === "superuser",
+
+      // 获取当前角色
+      getCurrentRole: () => userRole,
+
+      // 检查是否有UI区域访问权限
+      hasUIAccess: (uiArea) => {
+        const allowedRoles = PERMISSION_SYSTEM_CONFIG.looseMode.roleBasedUI[uiArea] || [];
+        return allowedRoles.includes(userRole);
+      },
+
+      // 检查是否可以执行危险操作
+      canPerformDangerousOperation: () => userRole === "superuser",
+    }),
+    [userRole],
+  );
+
   return {
     userRole,
     ...roleCheckers,
-    
+
     // 调试信息
     debug: {
       user: user,
@@ -58,7 +61,7 @@ export const useRoleAccess = () => {
  */
 export const useRoleGuard = () => {
   const roleAccess = useRoleAccess();
-  
+
   /**
    * 根据角色要求渲染组件
    * @param {string} requiredRole - 需要的角色：'basic_ui' | 'admin_ui' | 'super_ui'
@@ -70,19 +73,15 @@ export const useRoleGuard = () => {
     const hasAccess = roleAccess.hasUIAccess(requiredRole);
     return hasAccess ? component : fallback;
   };
-  
+
   /**
    * 角色保护HOC组件
    */
-  const RoleGuard = ({ 
-    requireRole, 
-    children, 
-    fallback = null 
-  }) => {
+  const RoleGuard = ({ requireRole, children, fallback = null }) => {
     const hasAccess = roleAccess.hasUIAccess(requireRole);
     return hasAccess ? children : fallback;
   };
-  
+
   return {
     renderWithRole,
     RoleGuard,

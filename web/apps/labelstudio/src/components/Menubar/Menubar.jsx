@@ -1,17 +1,13 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StaticContent } from "../../app/StaticContent/StaticContent";
 import {
-  IconBook,
   IconFolder,
   IconGrid,
   IconHome,
   IconPersonInCircle,
   IconPin,
-  IconTerminal,
   IconDoor,
-  IconGithub,
   IconSettings,
-  IconSlack,
   IconSparks,
 } from "@humansignal/icons";
 import { LogoPng } from "../../assets/images";
@@ -216,14 +212,20 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                   <Menu.Item label="Prompts" to="/prompts" icon={<IconSparks />} data-external exact />
                 )}
                 {permissions.menu.canViewOrganization() && (
-                  <Menu.Item label="Organization" to="/organization" icon={<IconPersonInCircle />} data-external exact />
+                  <Menu.Item
+                    label="Organization"
+                    to="/organization"
+                    icon={<IconPersonInCircle />}
+                    data-external
+                    exact
+                  />
                 )}
 
                 <Menu.Spacer />
 
                 <VersionNotifier showNewVersion />
 
-{/* Hidden menu items: API, Docs, GitHub, Slack Community
+                {/* Hidden menu items: API, Docs, GitHub, Slack Community
                 <Menu.Item
                   label="API"
                   href="https://api.labelstud.io/api-reference/introduction/getting-started"

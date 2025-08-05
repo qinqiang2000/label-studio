@@ -1,9 +1,10 @@
-import React, { useCallback, useState } from 'react';
-import { Block, Elem } from '../../utils/bem';
-import { Button, Form, Modal } from '@humansignal/ui';
-import { Input, TextArea } from '../../components/Form/Elements';
-import { useAPI } from '../../providers/ApiProvider';
-import './CreateWorkspaceModal.scss';
+import type React from "react";
+import { useCallback, useState } from "react";
+import { Block, Elem } from "../../utils/bem";
+import { Button } from "@humansignal/ui";
+import { Input, TextArea } from "../../components/Form/Elements";
+import { useAPI } from "../../providers/ApiProvider";
+import "./CreateWorkspaceModal.scss";
 
 interface Workspace {
   id: number;
@@ -20,51 +21,62 @@ interface EditWorkspaceModalProps {
 }
 
 const defaultColors = [
-  '#1976d2', '#dc004e', '#9c27b0', '#673ab7',
-  '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4',
-  '#009688', '#4caf50', '#8bc34a', '#cddc39',
-  '#ffeb3b', '#ffc107', '#ff9800', '#ff5722',
+  "#1976d2",
+  "#dc004e",
+  "#9c27b0",
+  "#673ab7",
+  "#3f51b5",
+  "#2196f3",
+  "#03a9f4",
+  "#00bcd4",
+  "#009688",
+  "#4caf50",
+  "#8bc34a",
+  "#cddc39",
+  "#ffeb3b",
+  "#ffc107",
+  "#ff9800",
+  "#ff5722",
 ];
 
-export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
-  workspace,
-  onClose,
-  onWorkspaceUpdated
-}) => {
+export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({ workspace, onClose, onWorkspaceUpdated }) => {
   const [name, setName] = useState(workspace.name);
   const [description, setDescription] = useState(workspace.description);
   const [color, setColor] = useState(workspace.color);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const api = useAPI();
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!name.trim()) {
-      alert('Please provide a workspace name');
-      return;
-    }
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
 
-    try {
-      setIsSubmitting(true);
-      await api.callApi('updateWorkspace', {
-        params: { pk: workspace.id },
-        body: {
-          name: name.trim(),
-          description: description.trim(),
-          color
-        }
-      });
-      
-      onWorkspaceUpdated();
-    } catch (error) {
-      console.error('Failed to update workspace:', error);
-      alert('Failed to update workspace. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [name, description, color, api, workspace.id, onWorkspaceUpdated, onClose]);
+      if (!name.trim()) {
+        alert("Please provide a workspace name");
+        return;
+      }
+
+      try {
+        setIsSubmitting(true);
+        await api.callApi("updateWorkspace", {
+          params: { pk: workspace.id },
+          body: {
+            name: name.trim(),
+            description: description.trim(),
+            color,
+          },
+        });
+
+        onWorkspaceUpdated();
+      } catch (error) {
+        console.error("Failed to update workspace:", error);
+        alert("Failed to update workspace. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [name, description, color, api, workspace.id, onWorkspaceUpdated, onClose],
+  );
 
   return (
     <Block name="create-workspace-modal">
@@ -105,7 +117,7 @@ export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
                 key={colorOption}
                 name="color-option"
                 mod={{ selected: color === colorOption }}
-                style={{ backgroundColor: colorOption, position: 'relative' }}
+                style={{ backgroundColor: colorOption, position: "relative" }}
                 onClick={() => !isSubmitting && setColor(colorOption)}
               >
                 {color === colorOption && (
@@ -116,11 +128,11 @@ export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                     style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      pointerEvents: 'none',
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      pointerEvents: "none",
                       zIndex: 2,
                     }}
                   >
@@ -140,22 +152,14 @@ export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
         </Elem>
 
         <Elem name="actions">
-          <Button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
+          <Button type="button" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            look="primary"
-            disabled={isSubmitting || !name.trim()}
-          >
-            {isSubmitting ? 'Updating...' : 'Update Workspace'}
+          <Button type="submit" look="primary" disabled={isSubmitting || !name.trim()}>
+            {isSubmitting ? "Updating..." : "Update Workspace"}
           </Button>
         </Elem>
       </form>
     </Block>
   );
-}; 
+};

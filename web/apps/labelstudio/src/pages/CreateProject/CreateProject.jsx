@@ -1,10 +1,9 @@
-import { EnterpriseBadge, Select } from "@humansignal/ui";
+import { Select } from "@humansignal/ui";
 import React from "react";
 import { useHistory } from "react-router";
 import { Button, ToggleItems } from "../../components";
 import { Modal } from "../../components/Modal/Modal";
 import { Space } from "../../components/Space/Space";
-import { HeidiTips } from "../../components/HeidiTips/HeidiTips";
 import { useAPI } from "../../providers/ApiProvider";
 import { Block, Elem } from "../../utils/bem";
 import { cn } from "../../utils/bem";
@@ -15,9 +14,7 @@ import { useImportPage } from "./Import/useImportPage";
 import { useDraftProject } from "./utils/useDraftProject";
 import { Input, TextArea } from "../../components/Form";
 import { Caption } from "../../components/Caption/Caption";
-import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
-import { createURL } from "../../components/HeidiTips/utils";
-import WorkspaceSelector from './WorkspaceSelector';
+import WorkspaceSelector from "./WorkspaceSelector";
 
 // Dynamic document type configurations - loaded from API
 // Fallback configurations for development/testing
@@ -29,7 +26,20 @@ const FALLBACK_DOCUMENT_TYPE_CONFIGS = {
   },
   bank_receipt: {
     label: "Bank Receipt",
-    fields: ["tradeId", "recieptNum", "logNum", "tradeDate", "amount", "paymentName", "paymentBank", "paymentAccount", "payeeName", "payeeBank", "payeeAccount", "currency"],
+    fields: [
+      "tradeId",
+      "recieptNum",
+      "logNum",
+      "tradeDate",
+      "amount",
+      "paymentName",
+      "paymentBank",
+      "paymentAccount",
+      "payeeName",
+      "payeeBank",
+      "payeeAccount",
+      "currency",
+    ],
     description: "For evaluating bank receipts",
   },
 };
@@ -60,7 +70,6 @@ const ProjectName = ({
         onSubmit();
       }}
     >
-      
       {/* Project title */}
       <div className="w-full flex flex-col gap-2">
         <label className="w-full" htmlFor="project_name">
@@ -97,16 +106,12 @@ const ProjectName = ({
       {/* Workspace selector */}
       {/* <div className="w-full flex flex-col gap-2"> */}
       <Block name="workspace-section">
-      <Elem name="badge-wrapper">
-                  <Elem name="title">Workspace</Elem>
-                </Elem>
-        <WorkspaceSelector
-          value={workspace || ""}
-          onChange={(value) => setWorkspace(value || null)}
-        />
-        <Caption>
-          Organize your projects by grouping them into workspaces.
-        </Caption></Block>
+        <Elem name="badge-wrapper">
+          <Elem name="title">Workspace</Elem>
+        </Elem>
+        <WorkspaceSelector value={workspace || ""} onChange={(value) => setWorkspace(value || null)} />
+        <Caption>Organize your projects by grouping them into workspaces.</Caption>
+      </Block>
       {/* </div> */}
 
       {/* Evaluation Configuration */}
@@ -118,7 +123,7 @@ const ProjectName = ({
           id="evaluation_config"
           value={evaluationConfig}
           onChange={setEvaluationConfig}
-          options={evaluationConfigs.map(config => ({
+          options={evaluationConfigs.map((config) => ({
             value: config.value,
             label: config.label,
           }))}
@@ -128,11 +133,12 @@ const ProjectName = ({
         />
         <Caption>
           {(() => {
-            const selectedConfig = evaluationConfigs.find(config => config.value === evaluationConfig);
+            const selectedConfig = evaluationConfigs.find((config) => config.value === evaluationConfig);
             return selectedConfig?.description || "Select a configuration to see its description";
           })()}
           <br />
-          To customize evaluation fields, configure them in Project Settings &gt; General Settings after project creation.
+          To customize evaluation fields, configure them in Project Settings &gt; General Settings after project
+          creation.
         </Caption>
       </div>
 
@@ -159,7 +165,6 @@ export const CreateProject = ({ onClose }) => {
   const [evaluationConfig, setEvaluationConfig] = React.useState("");
   const [evaluationConfigs, setEvaluationConfigs] = React.useState([]);
   const [isLoadingConfigs, setIsLoadingConfigs] = React.useState(true);
-
 
   const setStep = React.useCallback((step) => {
     _setStep(step);
@@ -196,10 +201,11 @@ export const CreateProject = ({ onClose }) => {
           // Set default selection to a suitable config - prefer Bank Receipt or Receipt over Invoice
           if (response.length > 0) {
             // Priority order: bank_receipt > receipt > invoice > first available
-            let defaultConfig = response.find(config => config.value === 'invoice') ||
-                                response.find(config => config.value === 'bank_receipt') ||
-                               response.find(config => config.value === 'receipt') ||
-                               response[0];
+            const defaultConfig =
+              response.find((config) => config.value === "invoice") ||
+              response.find((config) => config.value === "bank_receipt") ||
+              response.find((config) => config.value === "receipt") ||
+              response[0];
             setEvaluationConfig(defaultConfig.value);
           }
         } else {
@@ -211,7 +217,7 @@ export const CreateProject = ({ onClose }) => {
             description: config.description,
             fields: config.fields,
             required_fields: config.fields,
-            optional_fields: []
+            optional_fields: [],
           }));
           setEvaluationConfigs(fallbackConfigs);
         }
@@ -224,7 +230,7 @@ export const CreateProject = ({ onClose }) => {
           description: config.description,
           fields: config.fields,
           required_fields: config.fields,
-          optional_fields: []
+          optional_fields: [],
         }));
         setEvaluationConfigs(fallbackConfigs);
       } finally {
@@ -241,28 +247,23 @@ export const CreateProject = ({ onClose }) => {
     project && !name && setName(project.title);
   }, [project]);
 
-  const projectBody = React.useMemo(
-    () => {
-      const selectedConfig = evaluationConfigs.find(config => config.value === evaluationConfig);
-      return {
-        title: name,
-        description,
-        workspace: workspace,
-        label_config: project?.label_config ?? "<View></View>",
-        evaluation_field_config: {
-          document_type: evaluationConfig,  // 后端API期望的字段名
-          config_name: selectedConfig?.label || evaluationConfig,
-          default_fields: selectedConfig?.fields || [],
-          required_fields: selectedConfig?.required_fields || [],
-          optional_fields: selectedConfig?.optional_fields || [],
-          last_updated: new Date().toISOString()
-        },
-      };
-    },
-    [name, description, workspace, project?.label_config, evaluationConfig, evaluationConfigs],
-  );
-
-
+  const projectBody = React.useMemo(() => {
+    const selectedConfig = evaluationConfigs.find((config) => config.value === evaluationConfig);
+    return {
+      title: name,
+      description,
+      workspace: workspace,
+      label_config: project?.label_config ?? "<View></View>",
+      evaluation_field_config: {
+        document_type: evaluationConfig, // 后端API期望的字段名
+        config_name: selectedConfig?.label || evaluationConfig,
+        default_fields: selectedConfig?.fields || [],
+        required_fields: selectedConfig?.required_fields || [],
+        optional_fields: selectedConfig?.optional_fields || [],
+        last_updated: new Date().toISOString(),
+      },
+    };
+  }, [name, description, workspace, project?.label_config, evaluationConfig, evaluationConfigs]);
 
   const onCreate = React.useCallback(async () => {
     const imported = await finishUpload();
@@ -376,7 +377,6 @@ export const CreateProject = ({ onClose }) => {
           columns={columns}
           disableSaveButton={true}
         />
-
       </div>
     </Modal>
   );

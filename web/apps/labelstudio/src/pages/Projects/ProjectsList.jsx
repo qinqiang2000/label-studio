@@ -16,28 +16,27 @@ const DEFAULT_CARD_COLORS = ["#FFFFFF", "#FDFDFC"];
 export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, pageSize, onRefresh }) => {
   const [activeModal, setActiveModal] = useState(null);
 
-  const handleModalClose = useCallback((newProject) => {
-    setActiveModal(null);
-    if (newProject && onRefresh) {
-      // Refresh the projects list after successful project creation
-      try {
-        onRefresh();
-      } catch (error) {
-        console.error("Failed to refresh projects list:", error);
-        // Even if refresh fails, we still want to close the modal
+  const handleModalClose = useCallback(
+    (newProject) => {
+      setActiveModal(null);
+      if (newProject && onRefresh) {
+        // Refresh the projects list after successful project creation
+        try {
+          onRefresh();
+        } catch (error) {
+          console.error("Failed to refresh projects list:", error);
+          // Even if refresh fails, we still want to close the modal
+        }
       }
-    }
-  }, [onRefresh]);
+    },
+    [onRefresh],
+  );
 
   return (
     <>
       <Elem name="list">
         {projects.map((project) => (
-          <ProjectCard 
-            key={project.id} 
-            project={project} 
-            onShowDuplicateModal={() => setActiveModal(project.id)}
-          />
+          <ProjectCard key={project.id} project={project} onShowDuplicateModal={() => setActiveModal(project.id)} />
         ))}
       </Elem>
       <Elem name="pages">
@@ -52,13 +51,10 @@ export const ProjectsList = ({ projects, currentPage, totalItems, loadNextPage, 
           onPageLoad={(page, pageSize) => loadNextPage(page, pageSize)}
         />
       </Elem>
-      
+
       {/* Render modal outside of project cards */}
       {activeModal && (
-        <DuplicateProjectModal
-          project={projects.find(p => p.id === activeModal)}
-          onClose={handleModalClose}
-        />
+        <DuplicateProjectModal project={projects.find((p) => p.id === activeModal)} onClose={handleModalClose} />
       )}
     </>
   );
@@ -72,12 +68,7 @@ export const EmptyProjectsList = ({ openModal }) => {
         Heidi doesn't see any projects here!
       </Elem>
       <p>Create one and start labeling your data.</p>
-      <SmartButton 
-        permission="show_create_project_button"
-        onClick={openModal} 
-        look="primary"
-        fallback="hide"
-      >
+      <SmartButton permission="show_create_project_button" onClick={openModal} look="primary" fallback="hide">
         Create Project
       </SmartButton>
     </Block>
@@ -125,11 +116,15 @@ const ProjectCard = ({ project, onShowDuplicateModal }) => {
                     <Menu.Item href={`/projects/${project.id}/settings`}>Settings</Menu.Item>
                     <Menu.Item href={`/projects/${project.id}/data?labeling=1`}>Label</Menu.Item>
                     {buttonPermissions.canCreateProject && (
-                      <Menu.Item onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onShowDuplicateModal();
-                      }}>Duplicate</Menu.Item>
+                      <Menu.Item
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onShowDuplicateModal();
+                        }}
+                      >
+                        Duplicate
+                      </Menu.Item>
                     )}
                   </Menu>
                 }
