@@ -684,6 +684,13 @@ const Model = types
       returnFocus() {
         lastActiveElement?.focus?.();
       },
+
+      beforeSend() {
+        if (self._value && self._value.length) {
+          self.addText(self._value);
+          self._value = "";
+        }
+      },
     };
   });
 
@@ -737,14 +744,17 @@ const HtxTextArea = observer(({ item }) => {
   const loadFieldAnnotations = useCallback(() => {
     try {
       const result = item.result;
-      if (result && result.value && result.value.field_annotations) {
+      if (result && result.meta && result.meta.field_annotations) {
         const textIndex = getCurrentTextIndex();
         const textKey = `text_index_${textIndex}`;
-        const annotations = result.value.field_annotations[textKey] || {};
+        const annotations = result.meta.field_annotations[textKey] || {};
         setFieldAnnotations(annotations);
+      } else {
+        setFieldAnnotations({});
       }
     } catch (error) {
       console.error('Error loading field annotations:', error);
+      setFieldAnnotations({});
     }
   }, [item.result, getCurrentTextIndex]);
 
@@ -756,19 +766,19 @@ const HtxTextArea = observer(({ item }) => {
         const textIndex = getCurrentTextIndex();
         const textKey = `text_index_${textIndex}`;
         
-        // 初始化field_annotations结构
-        if (!result.value.field_annotations) {
-          result.value.field_annotations = {};
-        }
-        if (!result.value.field_annotations[textKey]) {
-          result.value.field_annotations[textKey] = {};
-        }
+        // 获取现有的 field_annotations 或创建空对象
+        const currentFieldAnnotations = result.meta?.field_annotations || {};
+        const newFieldAnnotations = {
+          ...currentFieldAnnotations,
+          [textKey]: { ...annotations }
+        };
         
-        // 保存当前字段的备注
-        result.value.field_annotations[textKey] = { ...annotations };
+        // 使用 setMetaValue 设置 field_annotations
+        result.setMetaValue('field_annotations', newFieldAnnotations);
         
-        // 触发result更新
+        // 触发更新
         item.updateResult();
+        item.onChange();
       }
     } catch (error) {
       console.error('Error saving field annotations:', error);
@@ -797,8 +807,11 @@ const HtxTextArea = observer(({ item }) => {
       delete updatedAnnotations[currentFieldKey];
     }
     
+    // 先更新本地UI状态
     setFieldAnnotations(updatedAnnotations);
+    // 然后保存到result
     saveFieldAnnotations(updatedAnnotations);
+    
     setFieldAnnotationsModalVisible(false);
     setCurrentFieldKey(null);
     setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
@@ -888,7 +901,7 @@ const HtxTextArea = observer(({ item }) => {
   // 加载字段备注
   useEffect(() => {
     loadFieldAnnotations();
-  }, [loadFieldAnnotations, item.result]);
+  }, [loadFieldAnnotations, item.result, item.annotation?.id]);
 
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
@@ -1738,7 +1751,7 @@ const HtxTextArea = observer(({ item }) => {
 
       {/* 字段备注弹出框 */}
       <Modal
-        title="字段备注"
+        title="Field Annotation"
         open={fieldAnnotationsModalVisible}
         onOk={handleSaveFieldAnnotation}
         onCancel={() => {
@@ -1746,12 +1759,12 @@ const HtxTextArea = observer(({ item }) => {
           setCurrentFieldKey(null);
           setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
         }}
-        okText="保存"
-        cancelText="取消"
+        okText="Save"
+        cancelText="Cancel"
         width={600}
       >
         <div style={{ marginBottom: 16 }}>
-          <div style={{ marginBottom: 8, fontWeight: "500" }}>错误类型（可多选）：</div>
+          <div style={{ marginBottom: 8, fontWeight: "500" }}>Error Types (Multiple Selection):</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {ERROR_TYPES.map(type => (
               <Tag.CheckableTag
@@ -1782,7 +1795,7 @@ const HtxTextArea = observer(({ item }) => {
         </div>
         
         <div>
-          <div style={{ marginBottom: 8, fontWeight: "500" }}>具体原因：</div>
+          <div style={{ marginBottom: 8, fontWeight: "500" }}>Reason:</div>
           <Input.TextArea
             value={currentFieldAnnotation.reason}
             onChange={(e) => {
@@ -1791,7 +1804,7 @@ const HtxTextArea = observer(({ item }) => {
                 reason: e.target.value
               }));
             }}
-            placeholder="请输入具体原因..."
+            placeholder="Please enter the reason..."
             rows={4}
           />
         </div>
