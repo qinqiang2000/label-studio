@@ -3,6 +3,8 @@ import Button from "antd/lib/button/index";
 import Form from "antd/lib/form/index";
 import Input from "antd/lib/input/index";
 import Tabs from "antd/lib/tabs";
+import Modal from "antd/lib/modal/index";
+import Tag from "antd/lib/tag/index";
 import { observer } from "mobx-react";
 import { destroy, isAlive, types } from "mobx-state-tree";
 import ReactSimpleCodeEditor from "react-simple-code-editor";
@@ -10,7 +12,7 @@ import Prism from "prismjs";
 import "prismjs/components/prism-json";
 import "prismjs/themes/prism.css";
 import Tooltip from "antd/lib/tooltip";
-import { InfoCircleOutlined } from "@ant-design/icons";
+import { InfoCircleOutlined, EditOutlined, CommentOutlined } from "@ant-design/icons";
 
 import InfoModal from "../../../components/Infomodal/Infomodal";
 import Registry from "../../../core/Registry";
@@ -45,6 +47,16 @@ const FALLBACK_REQUIRED_FIELDS = [
   "invoiceNumber", 
   "invoiceDate", 
   "currency"
+];
+
+// 错误类型配置
+const ERROR_TYPES = [
+  "图像质量问题",
+  "文字识别解析错误",
+  "规则没转化", 
+  "企业特殊要求",
+  "系统问题",
+  "其他"
 ];
 
 // Cache for evaluation configurations - per project ID
@@ -700,12 +712,104 @@ const HtxTextArea = observer(({ item }) => {
   const [allConfigs, setAllConfigs] = useState({}); // 所有评估配置
   const [activeTab, setActiveTab] = useState("kv"); // 添加tab状态
   
+  // 字段备注相关状态
+  const [fieldAnnotationsModalVisible, setFieldAnnotationsModalVisible] = useState(false);
+  const [currentFieldKey, setCurrentFieldKey] = useState(null);
+  const [currentFieldAnnotation, setCurrentFieldAnnotation] = useState({ errorTypes: [], reason: "" });
+  const [fieldAnnotations, setFieldAnnotations] = useState({}); // 存储所有字段备注
+  
   const onFocus = useCallback(
     (ev, model) => {
       item.setLastFocusedElement(ev.target, model);
     },
     [item],
   );
+
+  // 获取当前text数组的索引（最新的一个）
+  const getCurrentTextIndex = useCallback(() => {
+    if (item.regions && item.regions.length > 0) {
+      return item.regions.length - 1;
+    }
+    return 0;
+  }, [item.regions]);
+
+  // 从result中加载字段备注
+  const loadFieldAnnotations = useCallback(() => {
+    try {
+      const result = item.result;
+      if (result && result.value && result.value.field_annotations) {
+        const textIndex = getCurrentTextIndex();
+        const textKey = `text_index_${textIndex}`;
+        const annotations = result.value.field_annotations[textKey] || {};
+        setFieldAnnotations(annotations);
+      }
+    } catch (error) {
+      console.error('Error loading field annotations:', error);
+    }
+  }, [item.result, getCurrentTextIndex]);
+
+  // 保存字段备注到result
+  const saveFieldAnnotations = useCallback((annotations) => {
+    try {
+      const result = item.result;
+      if (result) {
+        const textIndex = getCurrentTextIndex();
+        const textKey = `text_index_${textIndex}`;
+        
+        // 初始化field_annotations结构
+        if (!result.value.field_annotations) {
+          result.value.field_annotations = {};
+        }
+        if (!result.value.field_annotations[textKey]) {
+          result.value.field_annotations[textKey] = {};
+        }
+        
+        // 保存当前字段的备注
+        result.value.field_annotations[textKey] = { ...annotations };
+        
+        // 触发result更新
+        item.updateResult();
+      }
+    } catch (error) {
+      console.error('Error saving field annotations:', error);
+    }
+  }, [item, getCurrentTextIndex]);
+
+  // 处理字段备注点击
+  const handleFieldAnnotationClick = useCallback((arrayIndex, fieldKey) => {
+    const annotationKey = `ticket_${arrayIndex}_${fieldKey}`;
+    const existingAnnotation = fieldAnnotations[annotationKey] || { errorTypes: [], reason: "" };
+    
+    setCurrentFieldKey(annotationKey);
+    setCurrentFieldAnnotation({ ...existingAnnotation });
+    setFieldAnnotationsModalVisible(true);
+  }, [fieldAnnotations]);
+
+  // 保存字段备注
+  const handleSaveFieldAnnotation = useCallback(() => {
+    const updatedAnnotations = {
+      ...fieldAnnotations,
+      [currentFieldKey]: { ...currentFieldAnnotation }
+    };
+    
+    // 如果备注为空，删除该字段的备注
+    if (currentFieldAnnotation.errorTypes.length === 0 && !currentFieldAnnotation.reason.trim()) {
+      delete updatedAnnotations[currentFieldKey];
+    }
+    
+    setFieldAnnotations(updatedAnnotations);
+    saveFieldAnnotations(updatedAnnotations);
+    setFieldAnnotationsModalVisible(false);
+    setCurrentFieldKey(null);
+    setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
+  }, [fieldAnnotations, currentFieldKey, currentFieldAnnotation, saveFieldAnnotations]);
+
+  // 检查字段是否有备注
+  const hasFieldAnnotation = useCallback((arrayIndex, fieldKey) => {
+    const annotationKey = `ticket_${arrayIndex}_${fieldKey}`;
+    const annotation = fieldAnnotations[annotationKey];
+    return annotation && (annotation.errorTypes.length > 0 || annotation.reason.trim());
+  }, [fieldAnnotations]);
 
 
   // Load evaluation configuration on component mount
@@ -780,6 +884,11 @@ const HtxTextArea = observer(({ item }) => {
 
     loadEvaluationConfig();
   }, [item?.annotation?.store?.projectId, item?.annotation?.store?.project?.id]);
+
+  // 加载字段备注
+  useEffect(() => {
+    loadFieldAnnotations();
+  }, [loadFieldAnnotations, item.result]);
 
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
@@ -1501,16 +1610,32 @@ const HtxTextArea = observer(({ item }) => {
                                     gap: "8px",
                                     alignItems: "start"
                                   }}>
-                                    <div style={{ 
-                                      fontWeight: "500", 
-                                      color: isMissingRequired ? "#d4380d" : "#666",
-                                      paddingTop: 4,
-                                      wordBreak: "break-word",
-                                      lineHeight: "1.3",
-                                      hyphens: "auto",
-                                      fontSize: 13
-                                    }}>
-                                      {key}:
+                                    <div 
+                                      style={{ 
+                                        fontWeight: "500", 
+                                        color: isMissingRequired ? "#d4380d" : "#666",
+                                        paddingTop: 4,
+                                        wordBreak: "break-word",
+                                        lineHeight: "1.3",
+                                        hyphens: "auto",
+                                        fontSize: 13,
+                                        cursor: "pointer",
+                                        position: "relative",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px"
+                                      }}
+                                      onClick={() => handleFieldAnnotationClick(arrayIndex, key)}
+                                    >
+                                      <span>{key}:</span>
+                                      {hasFieldAnnotation(arrayIndex, key) && (
+                                        <CommentOutlined 
+                                          style={{ 
+                                            color: "#1890ff", 
+                                            fontSize: "12px" 
+                                          }} 
+                                        />
+                                      )}
                                     </div>
                                     <div>
                                       <Input.TextArea
@@ -1610,6 +1735,67 @@ const HtxTextArea = observer(({ item }) => {
           ))}
         </div>
       )}
+
+      {/* 字段备注弹出框 */}
+      <Modal
+        title="字段备注"
+        open={fieldAnnotationsModalVisible}
+        onOk={handleSaveFieldAnnotation}
+        onCancel={() => {
+          setFieldAnnotationsModalVisible(false);
+          setCurrentFieldKey(null);
+          setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
+        }}
+        okText="保存"
+        cancelText="取消"
+        width={600}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8, fontWeight: "500" }}>错误类型（可多选）：</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {ERROR_TYPES.map(type => (
+              <Tag.CheckableTag
+                key={type}
+                checked={currentFieldAnnotation.errorTypes.includes(type)}
+                onChange={(checked) => {
+                  if (checked) {
+                    setCurrentFieldAnnotation(prev => ({
+                      ...prev,
+                      errorTypes: [...prev.errorTypes, type]
+                    }));
+                  } else {
+                    setCurrentFieldAnnotation(prev => ({
+                      ...prev,
+                      errorTypes: prev.errorTypes.filter(t => t !== type)
+                    }));
+                  }
+                }}
+                style={{
+                  borderRadius: "4px",
+                  padding: "4px 8px"
+                }}
+              >
+                {type}
+              </Tag.CheckableTag>
+            ))}
+          </div>
+        </div>
+        
+        <div>
+          <div style={{ marginBottom: 8, fontWeight: "500" }}>具体原因：</div>
+          <Input.TextArea
+            value={currentFieldAnnotation.reason}
+            onChange={(e) => {
+              setCurrentFieldAnnotation(prev => ({
+                ...prev,
+                reason: e.target.value
+              }));
+            }}
+            placeholder="请输入具体原因..."
+            rows={4}
+          />
+        </div>
+      </Modal>
     </div>
   ) : null;
 });
