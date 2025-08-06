@@ -100,8 +100,10 @@ def get_dynamic_fields_from_data(data_list: list, include_annotations: bool = Tr
     all_fields = base_fields.copy()
     for field in dynamic_fields:
         if include_annotations:
-            # 为Annotations工作表：包含备注列
-            all_fields.extend([field, f"{field}_err", f"{field}_note"])
+            # 为Annotations工作表：包含备注列，但排除序号字段的备注列
+            all_fields.append(field)
+            if field != "序号":  # 序号字段不添加备注列
+                all_fields.extend([f"{field}_err", f"{field}_note"])
         else:
             # 为Predictions工作表：只包含基础字段
             all_fields.append(field)
@@ -254,7 +256,11 @@ def export_to_excel(json_path: str, output_data: str):
                                 # 根据值类型设置单元格
                                 if isinstance(value, (int, float)):
                                     cell.value = value
-                                    cell.number_format = '0.00'  # 设置数字格式
+                                    # 序号字段显示为整数，其他数字字段显示为小数
+                                    if field_name == "序号":
+                                        cell.number_format = '0'  # 整数格式
+                                    else:
+                                        cell.number_format = '0.00'  # 小数格式
                                 elif isinstance(value, dict) or isinstance(value, list):
                                     # 格式化JSON对象，使其更易读
                                     cell.value = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
@@ -264,26 +270,30 @@ def export_to_excel(json_path: str, output_data: str):
                             
                             # 只有在include_annotations为True时才处理备注信息
                             if include_annotations:
-                                # 处理该字段的备注信息
-                                annotation_key = f"ticket_{ticket_index}_{field_name}"
-                                if annotation_key in field_annotations:
-                                    annotation = field_annotations[annotation_key]
+                                # 序号字段不处理备注列
+                                if field_name == "序号":
+                                    col_idx += 1  # 只移动到下一个字段
+                                else:
+                                    # 处理该字段的备注信息
+                                    annotation_key = f"ticket_{ticket_index}_{field_name}"
+                                    if annotation_key in field_annotations:
+                                        annotation = field_annotations[annotation_key]
+                                        
+                                        # 填入错误类型到_err列
+                                        if annotation.get("errorTypes"):
+                                            error_types = annotation["errorTypes"]
+                                            if isinstance(error_types, list):
+                                                error_value = "; ".join(error_types)
+                                            else:
+                                                error_value = str(error_types)
+                                            worksheet.cell(row=current_row, column=col_idx + 1, value=error_value)
+                                        
+                                        # 填入原因到_note列
+                                        if annotation.get("reason"):
+                                            worksheet.cell(row=current_row, column=col_idx + 2, value=annotation["reason"])
                                     
-                                    # 填入错误类型到_err列
-                                    if annotation.get("errorTypes"):
-                                        error_types = annotation["errorTypes"]
-                                        if isinstance(error_types, list):
-                                            error_value = "; ".join(error_types)
-                                        else:
-                                            error_value = str(error_types)
-                                        worksheet.cell(row=current_row, column=col_idx + 1, value=error_value)
-                                    
-                                    # 填入原因到_note列
-                                    if annotation.get("reason"):
-                                        worksheet.cell(row=current_row, column=col_idx + 2, value=annotation["reason"])
-                                
                                     # 移动到下一组字段（主字段 + _err + _note）
-                                col_idx += 3
+                                    col_idx += 3
                             else:
                                 # 不包含备注列时，只移动到下一个主字段
                                 col_idx += 1
