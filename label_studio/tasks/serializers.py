@@ -184,6 +184,44 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
         name += f' {user.email}, {user.id}'
         return name
 
+    def to_representation(self, instance):
+        """自定义输出序列化，将field_annotations重新包装到result.meta中"""
+        data = super().to_representation(instance)
+        
+        # 如果annotation有field_annotations数据，需要将其包装到result的meta中
+        if hasattr(instance, 'field_annotations') and instance.field_annotations:
+            result_data = data.get('result', [])
+            
+            if result_data and isinstance(result_data, list) and len(result_data) > 0:
+                # 将字段备注添加到第一个result的meta中
+                if not isinstance(result_data[0], dict):
+                    logger.warning("result[0] is not a dict, skipping field_annotations packaging")
+                else:
+                    if 'meta' not in result_data[0]:
+                        result_data[0]['meta'] = {}
+                    elif not isinstance(result_data[0]['meta'], dict):
+                        result_data[0]['meta'] = {}
+                    
+                    result_data[0]['meta']['field_annotations'] = instance.field_annotations
+                    logger.info(f"✅ [AnnotationSerializer] 将字段备注包装到result[0].meta: {instance.field_annotations}")
+            else:
+                # 如果没有result，创建一个专门用于存储字段备注的result
+                result_data.append({
+                    'id': f'field_annotations_{instance.id}',
+                    'from_name': '__field_annotations__',
+                    'to_name': '__field_annotations__',
+                    'type': 'field_annotations',
+                    'value': {},
+                    'meta': {
+                        'field_annotations': instance.field_annotations
+                    }
+                })
+                logger.info(f"✅ [AnnotationSerializer] 创建专门的字段备注result: {instance.field_annotations}")
+            
+            data['result'] = result_data
+        
+        return data
+
     class Meta:
         model = Annotation
         exclude = ['prediction', 'result_count']
@@ -692,6 +730,44 @@ class AnnotationDraftSerializer(ModelSerializer):
             name = name + ' ' + last_name
         name += (' ' if name else '') + f'{user.email}, {user.id}'
         return name
+
+    def to_representation(self, instance):
+        """自定义输出序列化，将field_annotations重新包装到result.meta中"""
+        data = super().to_representation(instance)
+        
+        # 如果draft有field_annotations数据，需要将其包装到result的meta中
+        if hasattr(instance, 'field_annotations') and instance.field_annotations:
+            result_data = data.get('result', [])
+            
+            if result_data and isinstance(result_data, list) and len(result_data) > 0:
+                # 将字段备注添加到第一个result的meta中
+                if not isinstance(result_data[0], dict):
+                    logger.warning("result[0] is not a dict, skipping field_annotations packaging")
+                else:
+                    if 'meta' not in result_data[0]:
+                        result_data[0]['meta'] = {}
+                    elif not isinstance(result_data[0]['meta'], dict):
+                        result_data[0]['meta'] = {}
+                    
+                    result_data[0]['meta']['field_annotations'] = instance.field_annotations
+                    logger.info(f"✅ [AnnotationDraftSerializer] 将字段备注包装到result[0].meta: {instance.field_annotations}")
+            else:
+                # 如果没有result，创建一个专门用于存储字段备注的result
+                result_data.append({
+                    'id': f'field_annotations_draft_{instance.id}',
+                    'from_name': '__field_annotations__',
+                    'to_name': '__field_annotations__',
+                    'type': 'field_annotations',
+                    'value': {},
+                    'meta': {
+                        'field_annotations': instance.field_annotations
+                    }
+                })
+                logger.info(f"✅ [AnnotationDraftSerializer] 创建专门的字段备注result: {instance.field_annotations}")
+            
+            data['result'] = result_data
+        
+        return data
 
     def update(self, instance, validated_data):
         """自定义更新方法，处理字段备注数据"""
