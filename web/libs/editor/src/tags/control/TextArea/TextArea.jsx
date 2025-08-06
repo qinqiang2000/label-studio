@@ -225,7 +225,6 @@ class EvaluationConfigAPI {
     try {
       return await EvaluationConfigAPI.fetchProjectConfig(projectId, forceRefresh);
     } catch (error) {
-      console.warn("Using fallback config, error:", error.message);
       const fallbackConfig = EvaluationConfigAPI.getFallbackConfig();
 
       // Cache the fallback too to avoid repeated failed requests (shorter duration)
@@ -296,8 +295,8 @@ function getRequiredFields(item) {
     .then((_config) => {
       // This will trigger a re-render with the correct fields
     })
-    .catch((error) => {
-      console.error("Failed to load evaluation config:", error);
+    .catch((_error) => {
+      // Silently handle error
     });
 
   const fallbackFields = cachedData?.config?.required_fields || FALLBACK_REQUIRED_FIELDS;
@@ -731,13 +730,10 @@ const HtxTextArea = observer(({ item }) => {
     const annotation = item.annotation;
     
     if (!annotation) {
-      console.log("📥 [Simplified] 无annotation，设置为空对象");
       setFieldAnnotations({});
       return;
     }
 
-    console.log("📥 [Simplified] 开始加载字段备注");
-    
     let fieldAnnotationsData = {};
 
     // 尝试从后端API获取字段备注数据
@@ -746,21 +742,16 @@ const HtxTextArea = observer(({ item }) => {
       const projectId = window.location.pathname.match(/projects\/(\d+)/)?.[1];
       
       if (draftId && draftId !== 0 && projectId) {
-        console.log("🔍 [Simplified] 从后端API获取字段备注，draft_id:", draftId);
-        
         const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`);
         if (response.ok) {
           const draftData = await response.json();
           if (draftData.field_annotations && Object.keys(draftData.field_annotations).length > 0) {
             fieldAnnotationsData = draftData.field_annotations;
-            console.log("📥 [Simplified] 从后端API读取到字段备注:", fieldAnnotationsData);
           }
-        } else {
-          console.log("⚠️ [Simplified] 后端API获取失败，尝试本地读取");
         }
       }
     } catch (error) {
-      console.log("⚠️ [Simplified] 后端API获取出错，尝试本地读取:", error);
+      // 静默处理错误，继续尝试本地读取
     }
 
     // 如果后端API没有数据，尝试从本地annotation对象读取
@@ -768,14 +759,10 @@ const HtxTextArea = observer(({ item }) => {
       // 优先从annotation.field_annotations读取
       if (annotation.field_annotations && Object.keys(annotation.field_annotations).length > 0) {
         fieldAnnotationsData = annotation.field_annotations;
-        console.log("📥 [Optimized] 从annotation.field_annotations读取:", fieldAnnotationsData);
       } 
       // 如果没有，尝试从result[0].meta.field_annotations读取（兼容旧数据）
       else if (annotation.result && annotation.result.length > 0 && annotation.result[0].meta && annotation.result[0].meta.field_annotations) {
         fieldAnnotationsData = annotation.result[0].meta.field_annotations;
-        console.log("📥 [Optimized] 从result[0].meta.field_annotations读取:", fieldAnnotationsData);
-      } else {
-        console.log("📥 [Optimized] 未找到字段备注数据，使用空对象");
       }
     }
 
@@ -809,16 +796,13 @@ const HtxTextArea = observer(({ item }) => {
     
     // 如果没有draft_id，预先创建一个
     if (!draftId || draftId === 0) {
-      console.log("🔧 [PreOptimized] 预创建draft以提升字段备注保存速度");
-      
       try {
         if (annotation.autosave) {
           await annotation.autosave();
           draftId = annotation.draftId;
-          console.log("✅ [PreOptimized] 预创建draft成功:", draftId);
         }
       } catch (error) {
-        console.warn("⚠️ [PreOptimized] 预创建draft失败:", error);
+        // 静默处理错误
       }
     }
     
@@ -830,7 +814,6 @@ const HtxTextArea = observer(({ item }) => {
     const annotation = item.annotation;
 
     if (!annotation) {
-      console.error("💾 [Simplified] 无annotation，无法保存");
       alert("无法保存字段备注：需要先创建标注");
       return;
     }
@@ -841,7 +824,6 @@ const HtxTextArea = observer(({ item }) => {
     // 如果没有选择错误类型但有备注内容，默认选择"其他"
     if (finalAnnotation.errorTypes.length === 0 && finalAnnotation.reason.trim()) {
       finalAnnotation.errorTypes = ["其他"];
-      console.log("🔧 [Auto] 自动选择错误类型：其他");
     }
 
     // 构建更新后的字段备注数据
@@ -854,9 +836,6 @@ const HtxTextArea = observer(({ item }) => {
     if (finalAnnotation.errorTypes.length === 0 && !finalAnnotation.reason.trim()) {
       delete updatedAnnotations[currentFieldKey];
     }
-
-    console.log("💾 [Simplified] 保存字段备注到annotation");
-    console.log("💾 [Simplified] 字段备注数据:", JSON.stringify(updatedAnnotations, null, 2));
 
     try {
       // 1. 开始保存状态
@@ -872,7 +851,6 @@ const HtxTextArea = observer(({ item }) => {
 
       // 4. 使用action更新annotation对象的field_annotations字段
       annotation.setFieldAnnotations(updatedAnnotations);
-      console.log("✅ [Optimized] 已通过action更新annotation.field_annotations:", annotation.field_annotations);
 
       // 5. 也更新到result[0].meta以保持兼容性
       if (annotation.result && annotation.result.length > 0) {
@@ -884,8 +862,6 @@ const HtxTextArea = observer(({ item }) => {
 
       // 6. 智能字段备注保存策略
       try {
-        console.log("🚀 [Optimized] 开始优化的字段备注保存流程");
-        
         // 获取CSRF token和project ID
         const csrfToken = document.cookie
           .split('; ')
@@ -898,8 +874,6 @@ const HtxTextArea = observer(({ item }) => {
         
         // 策略1：如果已有draft_id，直接保存字段备注
         if (draftId && draftId !== 0) {
-          console.log("🚀 [Optimized] 使用现有draft_id直接保存:", draftId);
-          
           const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`, {
             method: 'PATCH',
             headers: {
@@ -912,10 +886,7 @@ const HtxTextArea = observer(({ item }) => {
             })
           });
           
-          if (response.ok) {
-            console.log("✅ [Optimized] 字段备注保存成功 (直接模式)");
-          } else {
-            console.log("⚠️ [Optimized] 直接保存失败，尝试创建新draft");
+          if (!response.ok) {
             // 如果失败，可能是draft_id过期，尝试策略2
             draftId = null;
           }
@@ -923,15 +894,12 @@ const HtxTextArea = observer(({ item }) => {
         
         // 策略2：如果没有draft_id或直接保存失败，先创建draft再保存
         if (!draftId || draftId === 0) {
-          console.log("🔄 [Optimized] 需要先创建draft");
-          
           // 触发autosave创建draft
           if (annotation.autosave) {
             try {
               await annotation.autosave();
-              console.log("✅ [Optimized] autosave完成");
             } catch (error) {
-              console.warn("⚠️ [Optimized] autosave失败:", error.message);
+              // 静默处理错误
             }
           }
           
@@ -942,15 +910,12 @@ const HtxTextArea = observer(({ item }) => {
           while ((!annotation.draftId || annotation.draftId === 0) && attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
-            console.log(`🔄 [Optimized] 等待draftId设置... (${attempts}/${maxAttempts})`);
           }
           
           // 获取新的draft_id
           draftId = annotation.draftId;
           
           if (draftId && draftId !== 0) {
-            console.log("🔄 [Optimized] 使用新创建的draft_id:", draftId);
-            
             const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`, {
               method: 'PATCH',
               headers: {
@@ -963,25 +928,20 @@ const HtxTextArea = observer(({ item }) => {
               })
             });
             
-            if (response.ok) {
-              console.log("✅ [Optimized] 字段备注保存成功 (创建draft后)");
-            } else {
+            if (!response.ok) {
               const errorText = await response.text();
-              console.error("❌ [Optimized] 字段备注保存失败:", response.status, errorText);
+              // 静默处理错误
             }
-          } else {
-            console.error("❌ [Optimized] 等待超时，无法获取有效的draft_id");
           }
         }
         
       } catch (error) {
-        console.error("❌ [Optimized] 字段备注保存失败:", error);
+        // 静默处理错误
       }
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(null), 3000);
     } catch (error) {
-      console.error("❌ [Simplified] 字段备注保存失败:", error);
       setSaveSuccess(false);
       // 如果保存失败，恢复原来的状态
       setFieldAnnotations(fieldAnnotations);
@@ -1088,7 +1048,7 @@ const HtxTextArea = observer(({ item }) => {
         // 延迟预创建，避免影响页面加载速度
         setTimeout(() => {
           ensureDraftExists().catch(err => {
-            console.log("🔧 [PreOptimized] 后台预创建draft:", err.message);
+            // 静默处理错误
           });
         }, 2000); // 2秒后预创建
       }
@@ -1099,9 +1059,6 @@ const HtxTextArea = observer(({ item }) => {
 
   // 简化的字段备注加载
   useEffect(() => {
-    console.log("🔄 [Simplified] useEffect 触发，加载字段备注");
-    console.log("🔄 [Simplified] item.annotation:", item.annotation);
-
     if (item.annotation) {
       loadFieldAnnotations();
     } else {
@@ -1623,8 +1580,8 @@ const HtxTextArea = observer(({ item }) => {
         const config = await EvaluationConfigAPI.fetchProjectConfig(projectId, true);
         setRequiredFields(config.required_fields);
         setEvaluationConfig(config);
-      } catch (error) {
-        console.error("配置刷新失败:", error);
+      } catch (_error) {
+        // Silently handle error
       }
     }
   };
@@ -1648,8 +1605,8 @@ const HtxTextArea = observer(({ item }) => {
           item.setValue(updatedJson);
           validateJsonAndFields(updatedJson);
         }
-      } catch (error) {
-        console.error("Error updating KV value:", error);
+      } catch (_error) {
+        // Silently handle error
       }
     },
     [item, validateJsonAndFields],
