@@ -835,14 +835,23 @@ const HtxTextArea = observer(({ item }) => {
       return;
     }
 
+    // 处理错误类型：如果没有选择错误类型但有备注内容，自动选择"其他"
+    let finalAnnotation = { ...currentFieldAnnotation };
+    
+    // 如果没有选择错误类型但有备注内容，默认选择"其他"
+    if (finalAnnotation.errorTypes.length === 0 && finalAnnotation.reason.trim()) {
+      finalAnnotation.errorTypes = ["其他"];
+      console.log("🔧 [Auto] 自动选择错误类型：其他");
+    }
+
     // 构建更新后的字段备注数据
     const updatedAnnotations = {
       ...fieldAnnotations,
-      [currentFieldKey]: { ...currentFieldAnnotation },
+      [currentFieldKey]: finalAnnotation,
     };
 
     // 如果备注为空，删除该字段的备注
-    if (currentFieldAnnotation.errorTypes.length === 0 && !currentFieldAnnotation.reason.trim()) {
+    if (finalAnnotation.errorTypes.length === 0 && !finalAnnotation.reason.trim()) {
       delete updatedAnnotations[currentFieldKey];
     }
 
