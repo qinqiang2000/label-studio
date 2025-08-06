@@ -13,10 +13,14 @@ fields = ["project", "id", "filename", "page", "docType", "invoiceType", "nameOf
 
 def extract_valid_text(items_list):
     """
-    从items_list中提取有效的JSON文本和字段备注
+    从items_list中提取有效的JSON文本、字段备注和任务备注
     :param items_list: annotations或predictions列表
-    :return: (有效的JSON文本, 字段备注)，如果没有找到则返回("[]", {})
+    :return: (有效的JSON文本, 字段备注, 任务备注)，如果没有找到则返回("[]", {}, "")
     """
+    invoices_json_text = "[]"
+    field_annotations = {}
+    task_comment = ""
+    
     for item in items_list:
         # 跳过 was_cancelled 为 true 的 item
         if item.get("was_cancelled", False):
@@ -30,7 +34,10 @@ def extract_valid_text(items_list):
             for result_item in result_list:
                 if "value" in result_item:
                     value = result_item["value"]
-                    if "text" in value and value["text"]:
+                    from_name = result_item.get("from_name", "")
+                    
+                    # 处理 invoices_json 数据
+                    if from_name == "invoices_json" and "text" in value and value["text"]:
                         text_data = value["text"]
                         # 处理text字段，可能是字符串或列表
                         if isinstance(text_data, list):
@@ -40,12 +47,22 @@ def extract_valid_text(items_list):
                         
                         try:
                             json.loads(potential_text)
+                            invoices_json_text = potential_text
                             # 提取字段备注 - 从result的meta字段中获取
                             field_annotations = result_item.get("meta", {}).get("field_annotations", {})
-                            return potential_text, field_annotations  # 找到有效的 JSON 后返回
                         except (json.JSONDecodeError, TypeError):
                             continue  # 不是有效 JSON，继续下一个 result 元素
-    return "[]", {}
+                    
+                    # 处理 comment 数据
+                    elif from_name == "comment" and "text" in value and value["text"]:
+                        comment_data = value["text"]
+                        # 处理comment字段，可能是字符串或列表
+                        if isinstance(comment_data, list):
+                            task_comment = comment_data[0] if comment_data else ""  # 获取列表的第一个元素
+                        else:
+                            task_comment = comment_data  # 直接使用字符串
+    
+    return invoices_json_text, field_annotations, task_comment
 
 def get_dynamic_fields_from_data(data_list: list, include_annotations: bool = True) -> list:
     """
@@ -60,8 +77,8 @@ def get_dynamic_fields_from_data(data_list: list, include_annotations: bool = Tr
     for item in data_list:
         try:
             # 提取annotations和predictions中的text和字段备注
-            annotation_text, _ = extract_valid_text(item.get("annotations", []))
-            prediction_text, _ = extract_valid_text(item.get("predictions", []))
+            annotation_text, _, _ = extract_valid_text(item.get("annotations", []))
+            prediction_text, _, _ = extract_valid_text(item.get("predictions", []))
             
             for text in [annotation_text, prediction_text]:
                 if text and text != "[]":
@@ -89,15 +106,19 @@ def get_dynamic_fields_from_data(data_list: list, include_annotations: bool = Tr
             # 为Predictions工作表：只包含基础字段
             all_fields.append(field)
     
+    # 为Annotations工作表添加task_comment列
+    if include_annotations:
+        all_fields.append("task_comment")
+    
     return all_fields
 
 def extract_annotations_and_data(json_path: str) -> dict:
     """
-    读取label_studio导出的json数据，提取每个标注的id、filename、annotations和predictions中的text和字段备注
-    输出为包含(project, id, filename, annotation_text, annotation_field_annotations, prediction_text, prediction_field_annotations)元组的列表。
+    读取label_studio导出的json数据，提取每个标注的id、filename、annotations和predictions中的text、字段备注和任务备注
+    输出为包含(project, id, filename, annotation_text, annotation_field_annotations, annotation_task_comment, prediction_text, prediction_field_annotations, prediction_task_comment)元组的列表。
     如果任何一个为空，则打印err并跳过该项。
     :param json_path: json文件路径
-    :return: List[(project, id, filename, annotation_text, annotation_field_annotations, prediction_text, prediction_field_annotations)]
+    :return: List[(project, id, filename, annotation_text, annotation_field_annotations, annotation_task_comment, prediction_text, prediction_field_annotations, prediction_task_comment)]
     """
     results = []
     with open(json_path, "r", encoding="utf-8") as f:
@@ -108,9 +129,9 @@ def extract_annotations_and_data(json_path: str) -> dict:
             item_id = item.get("id", None)
             filename = item.get("data", {}).get("filename", None)
             
-            # 提取annotations和predictions中的text和字段备注
-            annotation_text, annotation_field_annotations = extract_valid_text(item.get("annotations", []))
-            prediction_text, prediction_field_annotations = extract_valid_text(item.get("predictions", []))
+            # 提取annotations和predictions中的text、字段备注和任务备注
+            annotation_text, annotation_field_annotations, annotation_task_comment = extract_valid_text(item.get("annotations", []))
+            prediction_text, prediction_field_annotations, prediction_task_comment = extract_valid_text(item.get("predictions", []))
             
             if not item_id or not filename:
                 print(
@@ -118,7 +139,7 @@ def extract_annotations_and_data(json_path: str) -> dict:
                 )
                 continue
             
-            results.append((project, item_id, filename, annotation_text, annotation_field_annotations, prediction_text, prediction_field_annotations))
+            results.append((project, item_id, filename, annotation_text, annotation_field_annotations, annotation_task_comment, prediction_text, prediction_field_annotations, prediction_task_comment))
     return results
 
 
@@ -159,9 +180,9 @@ def export_to_excel(json_path: str, output_data: str):
     annotation_row = 2  # 从第2行开始（第1行是表头）
     prediction_row = 2
     
-    def process_text_data(text, field_annotations, worksheet, start_row, project, item_id, filename, include_annotations=True):
+    def process_text_data(text, field_annotations, worksheet, start_row, project, item_id, filename, task_comment="", include_annotations=True):
         """
-        处理文本数据并写入工作表，将字段备注填入对应的_err和_note列
+        处理文本数据并写入工作表，将字段备注填入对应的_err和_note列，并填入任务备注
         :param text: JSON文本
         :param field_annotations: 字段备注数据
         :param worksheet: 工作表对象
@@ -169,6 +190,7 @@ def export_to_excel(json_path: str, output_data: str):
         :param project: 项目ID
         :param item_id: 项目ID
         :param filename: 文件名
+        :param task_comment: 任务备注
         :param include_annotations: 是否包含备注列
         :return: 下一行的行号
         """
@@ -181,6 +203,19 @@ def export_to_excel(json_path: str, output_data: str):
                     worksheet.cell(row=current_row, column=1, value=project)  # project列
                     worksheet.cell(row=current_row, column=2, value=item_id)  # id列
                     worksheet.cell(row=current_row, column=3, value=filename)  # filename列
+                    
+                    # 处理task_comment列（仅对Annotations工作表）
+                    if include_annotations and task_comment:
+                        # 找到task_comment列的位置
+                        current_fields = annotation_fields if include_annotations else prediction_fields
+                        task_comment_col_idx = None
+                        for idx, field in enumerate(current_fields, 1):
+                            if field == "task_comment":
+                                task_comment_col_idx = idx
+                                break
+                        if task_comment_col_idx:
+                            worksheet.cell(row=current_row, column=task_comment_col_idx, value=task_comment)
+                    
                     current_row += 1
                 else:
                     for ticket_index, item in enumerate(data):
@@ -207,6 +242,10 @@ def export_to_excel(json_path: str, output_data: str):
                         
                         # 处理每个动态字段及其备注列
                         for field_name in dynamic_field_names:
+                            # 跳过task_comment字段，它会在最后单独处理
+                            if field_name == "task_comment":
+                                continue
+                                
                             # 处理主字段
                             if field_name in item:
                                 value = item[field_name]
@@ -249,22 +288,39 @@ def export_to_excel(json_path: str, output_data: str):
                                 # 不包含备注列时，只移动到下一个主字段
                                 col_idx += 1
                         
+                        # 处理task_comment列（仅对Annotations工作表）
+                        if include_annotations and task_comment:
+                            worksheet.cell(row=current_row, column=col_idx, value=task_comment)
+                        
                         current_row += 1
         except json.JSONDecodeError:
             # 即使解析失败，也插入一行基本信息
             worksheet.cell(row=current_row, column=1, value=project)  # project列
             worksheet.cell(row=current_row, column=2, value=item_id)  # id列
             worksheet.cell(row=current_row, column=3, value=filename)  # filename列
+            
+            # 处理task_comment列（仅对Annotations工作表）
+            if include_annotations and task_comment:
+                # 找到task_comment列的位置
+                current_fields = annotation_fields if include_annotations else prediction_fields
+                task_comment_col_idx = None
+                for idx, field in enumerate(current_fields, 1):
+                    if field == "task_comment":
+                        task_comment_col_idx = idx
+                        break
+                if task_comment_col_idx:
+                    worksheet.cell(row=current_row, column=task_comment_col_idx, value=task_comment)
+            
             current_row += 1
             print(f"无法解析文本: {text}")
         return current_row
     
-    for project, item_id, filename, annotation_text, annotation_field_annotations, prediction_text, prediction_field_annotations in results:
+    for project, item_id, filename, annotation_text, annotation_field_annotations, annotation_task_comment, prediction_text, prediction_field_annotations, prediction_task_comment in results:
         # 处理 annotation_text (包含备注列)
-        annotation_row = process_text_data(annotation_text, annotation_field_annotations, ws_annotation, annotation_row, project, item_id, filename, include_annotations=True)
+        annotation_row = process_text_data(annotation_text, annotation_field_annotations, ws_annotation, annotation_row, project, item_id, filename, annotation_task_comment, include_annotations=True)
         
         # 处理 prediction_text (不包含备注列)
-        prediction_row = process_text_data(prediction_text, prediction_field_annotations, ws_prediction, prediction_row, project, item_id, filename, include_annotations=False)
+        prediction_row = process_text_data(prediction_text, prediction_field_annotations, ws_prediction, prediction_row, project, item_id, filename, prediction_task_comment, include_annotations=False)
     
     # 创建输出目录
     os.makedirs(output_data, exist_ok=True)
