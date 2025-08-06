@@ -31,27 +31,31 @@ def extract_valid_text(items_list):
                 if "value" in result_item:
                     value = result_item["value"]
                     if "text" in value and value["text"]:
-                        potential_text = value["text"][-1]
+                        text_data = value["text"]
+                        # 处理text字段，可能是字符串或列表
+                        if isinstance(text_data, list):
+                            potential_text = text_data[-1]  # 获取列表的最后一个元素
+                        else:
+                            potential_text = text_data  # 直接使用字符串
+                        
                         try:
                             json.loads(potential_text)
-                            # 提取字段备注
-                            field_annotations = value.get("field_annotations", {})
-                            # 获取最新text索引的备注
-                            text_index = len(value["text"]) - 1
-                            text_key = f"text_index_{text_index}"
-                            annotations = field_annotations.get(text_key, {})
-                            return potential_text, annotations  # 找到有效的 JSON 后返回
+                            # 提取字段备注 - 从result的meta字段中获取
+                            field_annotations = result_item.get("meta", {}).get("field_annotations", {})
+                            return potential_text, field_annotations  # 找到有效的 JSON 后返回
                         except (json.JSONDecodeError, TypeError):
                             continue  # 不是有效 JSON，继续下一个 result 元素
     return "[]", {}
 
-def get_dynamic_fields_from_data(data_list):
+def get_dynamic_fields_from_data(data_list: list, include_annotations: bool = True) -> list:
     """
-    根据数据内容动态生成字段映射
-    :param data_list: 解析后的数据列表
+    从数据中动态生成字段列表
+    :param data_list: 数据列表
+    :param include_annotations: 是否包含备注列(_err和_note)
     :return: 字段列表
     """
-    all_fields = ["project", "id", "filename", "page"]
+    base_fields = ["project", "id", "filename", "page"]
+    dynamic_fields = []
     
     for item in data_list:
         try:
@@ -68,15 +72,22 @@ def get_dynamic_fields_from_data(data_list):
                                 if isinstance(data_item, dict):
                                     # 只添加顶层字段
                                     for key in data_item.keys():
-                                        if key not in all_fields:
-                                            all_fields.append(key)
+                                        if key not in base_fields and key not in dynamic_fields:
+                                            dynamic_fields.append(key)
                     except json.JSONDecodeError:
                         continue
         except Exception:
             continue
     
-    # 在字段列表末尾添加备注相关字段
-    all_fields.extend(["error_types", "reason"])
+    # 构建最终字段列表
+    all_fields = base_fields.copy()
+    for field in dynamic_fields:
+        if include_annotations:
+            # 为Annotations工作表：包含备注列
+            all_fields.extend([field, f"{field}_err", f"{field}_note"])
+        else:
+            # 为Predictions工作表：只包含基础字段
+            all_fields.append(field)
     
     return all_fields
 
@@ -126,7 +137,8 @@ def export_to_excel(json_path: str, output_data: str):
         raw_data = json.load(f)
     
     # 动态生成字段映射
-    dynamic_fields = get_dynamic_fields_from_data(raw_data)
+    annotation_fields = get_dynamic_fields_from_data(raw_data, include_annotations=True)
+    prediction_fields = get_dynamic_fields_from_data(raw_data, include_annotations=False)
     
     # 创建工作簿
     wb = Workbook()
@@ -137,17 +149,19 @@ def export_to_excel(json_path: str, output_data: str):
     ws_prediction = wb.create_sheet(title="Predictions")
     
     # 添加表头
-    for ws in [ws_annotation, ws_prediction]:
-        for col_idx, field in enumerate(dynamic_fields, 1):
-            ws.cell(row=1, column=col_idx, value=field)
+    for col_idx, field in enumerate(annotation_fields, 1):
+        ws_annotation.cell(row=1, column=col_idx, value=field)
+    
+    for col_idx, field in enumerate(prediction_fields, 1):
+        ws_prediction.cell(row=1, column=col_idx, value=field)
     
     # 处理每个结果
     annotation_row = 2  # 从第2行开始（第1行是表头）
     prediction_row = 2
     
-    def process_text_data(text, field_annotations, worksheet, start_row, project, item_id, filename):
+    def process_text_data(text, field_annotations, worksheet, start_row, project, item_id, filename, include_annotations=True):
         """
-        处理文本数据并写入工作表
+        处理文本数据并写入工作表，将字段备注填入对应的_err和_note列
         :param text: JSON文本
         :param field_annotations: 字段备注数据
         :param worksheet: 工作表对象
@@ -155,6 +169,7 @@ def export_to_excel(json_path: str, output_data: str):
         :param project: 项目ID
         :param item_id: 项目ID
         :param filename: 文件名
+        :param include_annotations: 是否包含备注列
         :return: 下一行的行号
         """
         current_row = start_row
@@ -178,17 +193,23 @@ def export_to_excel(json_path: str, output_data: str):
                         if "page" not in item:
                             worksheet.cell(row=current_row, column=4, value=1)  # page列
                         
-                        # 收集所有字段的备注信息
-                        all_error_types = []
-                        all_reasons = []
+                        # 处理其他字段（跳过基础字段）
+                        col_idx = 5  # 从第5列开始（跳过project、id、filename、page）
                         
-                        # 处理其他字段
-                        for col_idx, field in enumerate(dynamic_fields[3:], 4):  # 从第4列开始（跳过project、id和filename）
-                            if field == "error_types" or field == "reason":
-                                continue  # 跳过备注字段，稍后统一处理
-                                
-                            if field in item:
-                                value = item[field]
+                        # 获取所有动态字段（不包括基础字段）
+                        base_fields = ["project", "id", "filename", "page"]
+                        # 根据工作表类型获取对应的字段列表
+                        current_fields = annotation_fields if include_annotations else prediction_fields
+                        dynamic_field_names = []
+                        for field in current_fields:
+                            if field not in base_fields and not field.endswith("_err") and not field.endswith("_note"):
+                                dynamic_field_names.append(field)
+                        
+                        # 处理每个动态字段及其备注列
+                        for field_name in dynamic_field_names:
+                            # 处理主字段
+                            if field_name in item:
+                                value = item[field_name]
                                 cell = worksheet.cell(row=current_row, column=col_idx)
                                 
                                 # 根据值类型设置单元格
@@ -201,27 +222,32 @@ def export_to_excel(json_path: str, output_data: str):
                                 else:
                                     # 确保字符串值正确处理，避免中文/日文乱码
                                     cell.value = str(value)
-                                
-                                # 检查该字段是否有备注
-                                annotation_key = f"ticket_{ticket_index}_{field}"
+                            
+                            # 只有在include_annotations为True时才处理备注信息
+                            if include_annotations:
+                                # 处理该字段的备注信息
+                                annotation_key = f"ticket_{ticket_index}_{field_name}"
                                 if annotation_key in field_annotations:
                                     annotation = field_annotations[annotation_key]
+                                    
+                                    # 填入错误类型到_err列
                                     if annotation.get("errorTypes"):
-                                        all_error_types.extend(annotation["errorTypes"])
+                                        error_types = annotation["errorTypes"]
+                                        if isinstance(error_types, list):
+                                            error_value = "; ".join(error_types)
+                                        else:
+                                            error_value = str(error_types)
+                                        worksheet.cell(row=current_row, column=col_idx + 1, value=error_value)
+                                    
+                                    # 填入原因到_note列
                                     if annotation.get("reason"):
-                                        all_reasons.append(f"{field}: {annotation['reason']}")
-                        
-                        # 填入汇总的备注信息
-                        error_types_col = len(dynamic_fields) - 1  # error_types列
-                        reason_col = len(dynamic_fields)  # reason列
-                        
-                        if all_error_types:
-                            # 去重并连接错误类型
-                            unique_error_types = list(set(all_error_types))
-                            worksheet.cell(row=current_row, column=error_types_col, value="; ".join(unique_error_types))
-                        
-                        if all_reasons:
-                            worksheet.cell(row=current_row, column=reason_col, value="; ".join(all_reasons))
+                                        worksheet.cell(row=current_row, column=col_idx + 2, value=annotation["reason"])
+                                
+                                    # 移动到下一组字段（主字段 + _err + _note）
+                                col_idx += 3
+                            else:
+                                # 不包含备注列时，只移动到下一个主字段
+                                col_idx += 1
                         
                         current_row += 1
         except json.JSONDecodeError:
@@ -234,11 +260,11 @@ def export_to_excel(json_path: str, output_data: str):
         return current_row
     
     for project, item_id, filename, annotation_text, annotation_field_annotations, prediction_text, prediction_field_annotations in results:
-        # 处理 annotation_text
-        annotation_row = process_text_data(annotation_text, annotation_field_annotations, ws_annotation, annotation_row, project, item_id, filename)
+        # 处理 annotation_text (包含备注列)
+        annotation_row = process_text_data(annotation_text, annotation_field_annotations, ws_annotation, annotation_row, project, item_id, filename, include_annotations=True)
         
-        # 处理 prediction_text
-        prediction_row = process_text_data(prediction_text, prediction_field_annotations, ws_prediction, prediction_row, project, item_id, filename)
+        # 处理 prediction_text (不包含备注列)
+        prediction_row = process_text_data(prediction_text, prediction_field_annotations, ws_prediction, prediction_row, project, item_id, filename, include_annotations=False)
     
     # 创建输出目录
     os.makedirs(output_data, exist_ok=True)
