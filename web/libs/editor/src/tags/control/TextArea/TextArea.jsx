@@ -142,6 +142,11 @@ class EvaluationConfigAPI {
     }
 
     const config = await response.json();
+    
+    // Debug logging for error_types
+    console.log('📊 API Response for project', projectId, ':', config);
+    console.log('📊 evaluation_settings:', config.evaluation_settings);
+    console.log('📊 error_types path check:', config.evaluation_settings?.error_types);
 
     const requiredFields = [...(config.required_fields || [])];
 
@@ -158,6 +163,7 @@ class EvaluationConfigAPI {
       config_key: config.config_key || "default",
       field_labels: config.field_labels || {},
       project_default_fields: config.project_default_fields || [],
+      error_types: config.evaluation_settings?.error_types || EvaluationConfigAPI.getFallbackConfig().error_types,
     };
 
     // Cache the result
@@ -176,6 +182,7 @@ class EvaluationConfigAPI {
       all_fields: FALLBACK_REQUIRED_FIELDS,
       validation_rules: {},
       config_key: "fallback",
+      error_types: ["图像质量问题", "文字识别解析错误", "规则没转化", "企业特殊要求", "系统问题", "其他"],
     };
   }
 
@@ -240,8 +247,74 @@ class EvaluationConfigAPI {
   }
 }
 
-// 错误类型配置
-const ERROR_TYPES = ["图像质量问题", "文字识别解析错误", "规则没转化", "企业特殊要求", "系统问题", "其他"];
+// Function to get error types from configuration
+function getErrorTypes(item) {
+  const annotation = item?.annotation;
+  if (!annotation) {
+    return EvaluationConfigAPI.getFallbackConfig().error_types;
+  }
+
+  const store = annotation.store;
+  if (!store) {
+    return EvaluationConfigAPI.getFallbackConfig().error_types;
+  }
+
+  // Try multiple ways to get project ID
+  let projectId = store.projectId || store.project?.id;
+
+  // Try to get from window object if not found
+  if (!projectId && window.APP_SETTINGS?.projectId) {
+    projectId = window.APP_SETTINGS.projectId;
+  }
+
+  // Try to get from URL if still not found
+  if (!projectId && window.location) {
+    const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
+    if (urlMatch) {
+      projectId = Number.parseInt(urlMatch[1]);
+    }
+  }
+
+  // Try to get from history state
+  if (!projectId && window.history?.state?.projectId) {
+    projectId = window.history.state.projectId;
+  }
+
+  if (!projectId) {
+    return EvaluationConfigAPI.getFallbackConfig().error_types;
+  }
+
+  // Check if we have cached config for this project
+  const cacheKey = String(projectId);
+  const cachedData = evaluationConfigCache.get(cacheKey);
+
+  if (cachedData && cachedData.expiry > Date.now()) {
+    console.log('📊 Using cached error_types for project', projectId, ':', cachedData.config.error_types);
+    return cachedData.config.error_types || EvaluationConfigAPI.getFallbackConfig().error_types;
+  }
+
+  // Async load config (won't block rendering, will update on next render)
+  EvaluationConfigAPI.getConfigWithFallback(projectId)
+    .then((config) => {
+      console.log('📊 Async loaded config for project', projectId, 'error_types:', config.error_types);
+      // Force a re-render by triggering a state update in the annotation store
+      if (store && store.trigger) {
+        store.trigger('evaluation-config-updated', config);
+      }
+      // Also try to trigger a global re-render if available
+      if (annotation && annotation.trigger) {
+        annotation.trigger('evaluation-config-updated', config);
+      }
+    })
+    .catch((error) => {
+      console.warn('📊 Failed to load config for project', projectId, ':', error);
+    });
+
+  // Return fallback while async loading happens
+  const fallbackErrorTypes = cachedData?.config?.error_types || EvaluationConfigAPI.getFallbackConfig().error_types;
+  console.log('📊 Returning fallback error_types for project', projectId, ':', fallbackErrorTypes);
+  return fallbackErrorTypes;
+}
 
 // Function to get required fields for highlighting
 // Note: Currently unused but kept for potential future use
@@ -292,8 +365,15 @@ function getRequiredFields(item) {
 
   // Async load config (won't block rendering, will update on next render)
   EvaluationConfigAPI.getConfigWithFallback(projectId)
-    .then((_config) => {
-      // This will trigger a re-render with the correct fields
+    .then((config) => {
+      // Force a re-render by triggering a state update in the annotation store
+      if (store && store.trigger) {
+        store.trigger('evaluation-config-updated', config);
+      }
+      // Also try to trigger a global re-render if available
+      if (annotation && annotation.trigger) {
+        annotation.trigger('evaluation-config-updated', config);
+      }
     })
     .catch((_error) => {
       // Silently handle error
@@ -725,10 +805,29 @@ const HtxTextArea = observer(({ item }) => {
     [item],
   );
 
+  // 获取错误类型配置
+  const [errorTypes, setErrorTypes] = useState(EvaluationConfigAPI.getFallbackConfig().error_types);
+
+  useEffect(() => {
+    const fetchErrorTypes = async () => {
+      try {
+        console.log('📊 Component fetching error types for item:', item?.name);
+        const dynamicErrorTypes = getErrorTypes(item);
+        console.log('📊 Component received error_types:', dynamicErrorTypes);
+        setErrorTypes(dynamicErrorTypes);
+      } catch (error) {
+        console.warn("Failed to fetch error types, using fallback:", error);
+        setErrorTypes(EvaluationConfigAPI.getFallbackConfig().error_types);
+      }
+    };
+
+    fetchErrorTypes();
+  }, [item]);
+
   // 简化的加载字段备注数据 - 直接从annotation对象读取
   const loadFieldAnnotations = useCallback(async () => {
     const annotation = item.annotation;
-    
+
     if (!annotation) {
       setFieldAnnotations({});
       return;
@@ -740,7 +839,7 @@ const HtxTextArea = observer(({ item }) => {
     try {
       const draftId = annotation.draftId;
       const projectId = window.location.pathname.match(/projects\/(\d+)/)?.[1];
-      
+
       if (draftId && draftId !== 0 && projectId) {
         const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`);
         if (response.ok) {
@@ -759,9 +858,14 @@ const HtxTextArea = observer(({ item }) => {
       // 优先从annotation.field_annotations读取
       if (annotation.field_annotations && Object.keys(annotation.field_annotations).length > 0) {
         fieldAnnotationsData = annotation.field_annotations;
-      } 
+      }
       // 如果没有，尝试从result[0].meta.field_annotations读取（兼容旧数据）
-      else if (annotation.result && annotation.result.length > 0 && annotation.result[0].meta && annotation.result[0].meta.field_annotations) {
+      else if (
+        annotation.result &&
+        annotation.result.length > 0 &&
+        annotation.result[0].meta &&
+        annotation.result[0].meta.field_annotations
+      ) {
         fieldAnnotationsData = annotation.result[0].meta.field_annotations;
       }
     }
@@ -791,9 +895,9 @@ const HtxTextArea = observer(({ item }) => {
   const ensureDraftExists = useCallback(async () => {
     const annotation = item.annotation;
     if (!annotation) return null;
-    
+
     let draftId = annotation.draftId;
-    
+
     // 如果没有draft_id，预先创建一个
     if (!draftId || draftId === 0) {
       try {
@@ -805,7 +909,7 @@ const HtxTextArea = observer(({ item }) => {
         // 静默处理错误
       }
     }
-    
+
     return draftId;
   }, [item.annotation]);
 
@@ -819,8 +923,8 @@ const HtxTextArea = observer(({ item }) => {
     }
 
     // 处理错误类型：如果没有选择错误类型但有备注内容，自动选择"其他"
-    let finalAnnotation = { ...currentFieldAnnotation };
-    
+    const finalAnnotation = { ...currentFieldAnnotation };
+
     // 如果没有选择错误类型但有备注内容，默认选择"其他"
     if (finalAnnotation.errorTypes.length === 0 && finalAnnotation.reason.trim()) {
       finalAnnotation.errorTypes = ["其他"];
@@ -864,34 +968,34 @@ const HtxTextArea = observer(({ item }) => {
       try {
         // 获取CSRF token和project ID
         const csrfToken = document.cookie
-          .split('; ')
-          .find(row => row.startsWith('csrftoken='))
-          ?.split('=')[1];
+          .split("; ")
+          .find((row) => row.startsWith("csrftoken="))
+          ?.split("=")[1];
         const projectId = window.location.pathname.match(/projects\/(\d+)/)?.[1];
-        
+
         // 获取当前的draft_id
         let draftId = annotation.draftId;
-        
+
         // 策略1：如果已有draft_id，直接保存字段备注
         if (draftId && draftId !== 0) {
           const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`, {
-            method: 'PATCH',
+            method: "PATCH",
             headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': csrfToken,
-              'X-Requested-With': 'XMLHttpRequest'
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrfToken,
+              "X-Requested-With": "XMLHttpRequest",
             },
             body: JSON.stringify({
-              field_annotations: updatedAnnotations
-            })
+              field_annotations: updatedAnnotations,
+            }),
           });
-          
+
           if (!response.ok) {
             // 如果失败，可能是draft_id过期，尝试策略2
             draftId = null;
           }
         }
-        
+
         // 策略2：如果没有draft_id或直接保存失败，先创建draft再保存
         if (!draftId || draftId === 0) {
           // 触发autosave创建draft
@@ -902,39 +1006,38 @@ const HtxTextArea = observer(({ item }) => {
               // 静默处理错误
             }
           }
-          
+
           // 等待draftId被设置，最多等待5秒
           let attempts = 0;
           const maxAttempts = 50; // 5秒，每100ms检查一次
-          
+
           while ((!annotation.draftId || annotation.draftId === 0) && attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
             attempts++;
           }
-          
+
           // 获取新的draft_id
           draftId = annotation.draftId;
-          
+
           if (draftId && draftId !== 0) {
             const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`, {
-              method: 'PATCH',
+              method: "PATCH",
               headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest'
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken,
+                "X-Requested-With": "XMLHttpRequest",
               },
               body: JSON.stringify({
-                field_annotations: updatedAnnotations
-              })
+                field_annotations: updatedAnnotations,
+              }),
             });
-            
+
             if (!response.ok) {
               const errorText = await response.text();
               // 静默处理错误
             }
           }
         }
-        
       } catch (error) {
         // 静默处理错误
       }
@@ -945,7 +1048,7 @@ const HtxTextArea = observer(({ item }) => {
       setSaveSuccess(false);
       // 如果保存失败，恢复原来的状态
       setFieldAnnotations(fieldAnnotations);
-      
+
       // 恢复annotation对象的field_annotations
       annotation.setFieldAnnotations(fieldAnnotations);
       if (annotation.result && annotation.result.length > 0 && annotation.result[0].meta) {
@@ -1023,6 +1126,11 @@ const HtxTextArea = observer(({ item }) => {
         if (config) {
           setRequiredFields(config.required_fields);
           setEvaluationConfig(config);
+          // Update error_types state when config is loaded
+          if (config.error_types) {
+            console.log('📊 Updating error_types from loaded config:', config.error_types);
+            setErrorTypes(config.error_types);
+          }
         } else {
           setRequiredFields(FALLBACK_REQUIRED_FIELDS);
         }
@@ -1047,13 +1155,13 @@ const HtxTextArea = observer(({ item }) => {
       if (item.annotation) {
         // 延迟预创建，避免影响页面加载速度
         setTimeout(() => {
-          ensureDraftExists().catch(err => {
+          ensureDraftExists().catch((err) => {
             // 静默处理错误
           });
         }, 2000); // 2秒后预创建
       }
     };
-    
+
     preOptimize();
   }, [item.annotation, ensureDraftExists]);
 
@@ -2015,7 +2123,7 @@ const HtxTextArea = observer(({ item }) => {
         <div style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 8, fontWeight: "500" }}>Error Types (Multiple Selection):</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {ERROR_TYPES.map((type) => (
+            {errorTypes.map((type) => (
               <Tag.CheckableTag
                 key={type}
                 checked={currentFieldAnnotation.errorTypes.includes(type)}

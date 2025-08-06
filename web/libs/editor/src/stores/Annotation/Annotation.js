@@ -1038,7 +1038,7 @@ const _Annotation = types
       // 将field_annotations添加到第一个result的meta中，如果没有result则创建一个空的
       if (self.field_annotations && Object.keys(self.field_annotations).length > 0) {
         console.log("🔄 [SerializeAnnotation] 包含字段备注到序列化数据:", self.field_annotations);
-        
+
         if (result.length > 0) {
           // 添加到第一个result的meta中
           if (!result[0].meta) {
@@ -1054,8 +1054,8 @@ const _Annotation = types
             type: "field_annotations",
             value: {},
             meta: {
-              field_annotations: self.field_annotations
-            }
+              field_annotations: self.field_annotations,
+            },
           });
         }
       }
@@ -1247,7 +1247,7 @@ const _Annotation = types
           if (obj.type === "field_annotations" && obj.from_name === "__field_annotations__") {
             return;
           }
-          
+
           self.deserializeSingleResult(
             obj,
             (id) => areas.get(id),
@@ -1480,7 +1480,7 @@ const _Annotation = types
     updateFieldAnnotation(fieldKey, annotation) {
       self.field_annotations = {
         ...self.field_annotations,
-        [fieldKey]: annotation
+        [fieldKey]: annotation,
       };
     },
   }));

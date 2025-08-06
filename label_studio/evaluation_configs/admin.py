@@ -8,7 +8,7 @@ import json
 
 @admin.register(EvaluationFieldConfig)
 class EvaluationFieldConfigAdmin(admin.ModelAdmin):
-    list_display = ('name', 'key', 'required_fields_display', 'optional_fields_display', 'is_active', 'is_system_default', 'created_at')
+    list_display = ('name', 'key', 'required_fields_display', 'optional_fields_display', 'error_types_display', 'is_active', 'is_system_default', 'created_at')
     list_filter = ('is_active', 'is_system_default', 'created_at')
     search_fields = ('name', 'key', 'description')
     readonly_fields = ('created_at', 'updated_at', 'created_by')
@@ -33,8 +33,26 @@ class EvaluationFieldConfigAdmin(admin.ModelAdmin):
         }),
         ('评估设置', {
             'fields': ('evaluation_settings',),
-            'classes': ('collapse',),
-            'description': '评估相关的设置（JSON格式）'
+            'description': '''评估相关的设置（JSON格式）
+
+错误类型配置示例:
+{
+  "error_types": [
+    "图像质量问题",
+    "文字识别解析错误", 
+    "规则没转化",
+    "企业特殊要求",
+    "系统问题",
+    "其他"
+  ]
+}
+
+其他配置示例:
+{
+  "error_types": ["自定义错误1", "自定义错误2"],
+  "validation_mode": "strict",
+  "auto_highlight": true
+}'''
         }),
         ('元数据', {
             'fields': ('created_at', 'updated_at', 'created_by'),
@@ -57,6 +75,21 @@ class EvaluationFieldConfigAdmin(admin.ModelAdmin):
             return mark_safe(fields_html)
         return '-'
     optional_fields_display.short_description = '可选字段'
+    
+    def error_types_display(self, obj):
+        """显示错误类型配置"""
+        error_types = obj.evaluation_settings.get('error_types', []) if obj.evaluation_settings else []
+        if error_types:
+            if len(error_types) <= 3:
+                types_html = ', '.join([f'<span style="background: #fff3cd; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{t}</span>' for t in error_types])
+                return mark_safe(types_html)
+            else:
+                first_two = error_types[:2]
+                types_html = ', '.join([f'<span style="background: #fff3cd; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{t}</span>' for t in first_two])
+                count_html = f'<span style="background: #d4edda; padding: 2px 6px; border-radius: 3px; font-size: 11px;">+{len(error_types)-2}个</span>'
+                return mark_safe(f"{types_html}, {count_html}")
+        return mark_safe('<span style="color: #6c757d; font-style: italic;">未配置</span>')
+    error_types_display.short_description = '错误类型'
     
     def save_model(self, request, obj, form, change):
         if not change:  # 新建时

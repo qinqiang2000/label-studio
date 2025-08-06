@@ -77,6 +77,7 @@ def get_project_config(request, project_id):
                 'field_labels': config.field_labels,
                 'field_types': config.field_types,
                 'validation_rules': project_config.effective_validation_rules,
+                'evaluation_settings': config.evaluation_settings,
                 'is_custom': bool(project_config.custom_required_fields or project_config.custom_optional_fields)
             })
             
@@ -109,6 +110,7 @@ def get_project_config(request, project_id):
                             'field_labels': config.field_labels,
                             'field_types': config.field_types,
                             'validation_rules': config.field_validation_rules,
+                            'evaluation_settings': config.evaluation_settings,
                             'is_default': False,
                             'is_custom': False,
                             # Include project's default_fields for reference but don't use for validation
@@ -144,6 +146,7 @@ def get_project_config(request, project_id):
                     'field_labels': default_config.field_labels,
                     'field_types': default_config.field_types,
                     'validation_rules': default_config.field_validation_rules,
+                    'evaluation_settings': default_config.evaluation_settings,
                     'is_default': True,
                     'is_custom': False
                 })
@@ -231,4 +234,4 @@ def get_preset_configurations(request):
         return Response(
             {'error': 'Failed to retrieve preset configurations'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        ) 
+        )
