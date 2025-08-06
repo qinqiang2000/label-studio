@@ -142,11 +142,6 @@ class EvaluationConfigAPI {
     }
 
     const config = await response.json();
-    
-    // Debug logging for error_types
-    console.log('📊 API Response for project', projectId, ':', config);
-    console.log('📊 evaluation_settings:', config.evaluation_settings);
-    console.log('📊 error_types path check:', config.evaluation_settings?.error_types);
 
     const requiredFields = [...(config.required_fields || [])];
 
@@ -289,21 +284,19 @@ function getErrorTypes(item) {
   const cachedData = evaluationConfigCache.get(cacheKey);
 
   if (cachedData && cachedData.expiry > Date.now()) {
-    console.log('📊 Using cached error_types for project', projectId, ':', cachedData.config.error_types);
     return cachedData.config.error_types || EvaluationConfigAPI.getFallbackConfig().error_types;
   }
 
   // Async load config (won't block rendering, will update on next render)
   EvaluationConfigAPI.getConfigWithFallback(projectId)
     .then((config) => {
-      console.log('📊 Async loaded config for project', projectId, 'error_types:', config.error_types);
       // Force a re-render by triggering a state update in the annotation store
       if (store && store.trigger) {
-        store.trigger('evaluation-config-updated', config);
+        store.trigger("evaluation-config-updated", config);
       }
       // Also try to trigger a global re-render if available
       if (annotation && annotation.trigger) {
-        annotation.trigger('evaluation-config-updated', config);
+        annotation.trigger("evaluation-config-updated", config);
       }
     })
     .catch((error) => {
@@ -312,7 +305,6 @@ function getErrorTypes(item) {
 
   // Return fallback while async loading happens
   const fallbackErrorTypes = cachedData?.config?.error_types || EvaluationConfigAPI.getFallbackConfig().error_types;
-  console.log('📊 Returning fallback error_types for project', projectId, ':', fallbackErrorTypes);
   return fallbackErrorTypes;
 }
 
@@ -368,11 +360,11 @@ function getRequiredFields(item) {
     .then((config) => {
       // Force a re-render by triggering a state update in the annotation store
       if (store && store.trigger) {
-        store.trigger('evaluation-config-updated', config);
+        store.trigger("evaluation-config-updated", config);
       }
       // Also try to trigger a global re-render if available
       if (annotation && annotation.trigger) {
-        annotation.trigger('evaluation-config-updated', config);
+        annotation.trigger("evaluation-config-updated", config);
       }
     })
     .catch((_error) => {
@@ -811,9 +803,7 @@ const HtxTextArea = observer(({ item }) => {
   useEffect(() => {
     const fetchErrorTypes = async () => {
       try {
-        console.log('📊 Component fetching error types for item:', item?.name);
         const dynamicErrorTypes = getErrorTypes(item);
-        console.log('📊 Component received error_types:', dynamicErrorTypes);
         setErrorTypes(dynamicErrorTypes);
       } catch (error) {
         console.warn("Failed to fetch error types, using fallback:", error);
@@ -1128,7 +1118,6 @@ const HtxTextArea = observer(({ item }) => {
           setEvaluationConfig(config);
           // Update error_types state when config is loaded
           if (config.error_types) {
-            console.log('📊 Updating error_types from loaded config:', config.error_types);
             setErrorTypes(config.error_types);
           }
         } else {
