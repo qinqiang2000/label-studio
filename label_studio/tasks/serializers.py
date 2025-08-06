@@ -99,9 +99,30 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
     completed_by = serializers.PrimaryKeyRelatedField(required=False, queryset=User.objects.all())
     unique_id = serializers.CharField(required=False, write_only=True)
 
-    def create(self, *args, **kwargs):
+    def create(self, validated_data):
+        """自定义创建方法，处理字段备注数据"""
+        logger = logging.getLogger(__name__)
+        
+        # 从result数据中提取field_annotations
+        result_data = validated_data.get('result', [])
+        field_annotations = {}
+        
+        if result_data and isinstance(result_data, list):
+            for result_item in result_data:
+                if isinstance(result_item, dict):
+                    # 检查result[i].meta.field_annotations
+                    if 'meta' in result_item and isinstance(result_item['meta'], dict):
+                        if 'field_annotations' in result_item['meta']:
+                            field_annotations.update(result_item['meta']['field_annotations'])
+                            logger.info(f"🔍 [AnnotationSerializer] 创建时从result[{result_data.index(result_item)}].meta中提取到field_annotations: {result_item['meta']['field_annotations']}")
+        
+        # 如果找到了字段备注数据，保存到validated_data中
+        if field_annotations:
+            validated_data['field_annotations'] = field_annotations
+            logger.info(f"✅ [AnnotationSerializer] 创建时准备将字段备注保存到annotation: {field_annotations}")
+        
         try:
-            return super().create(*args, **kwargs)
+            return super().create(validated_data)
         except IntegrityError as e:
             errors = [
                 'UNIQUE constraint failed: task_completion.unique_id',
@@ -110,6 +131,31 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
             if any([error in str(e) for error in errors]):
                 raise AnnotationDuplicateError()
             raise
+    
+    def update(self, instance, validated_data):
+        """自定义更新方法，处理字段备注数据"""
+        logger = logging.getLogger(__name__)
+        
+        # 从result数据中提取field_annotations
+        result_data = validated_data.get('result', [])
+        field_annotations = {}
+        
+        if result_data and isinstance(result_data, list):
+            for result_item in result_data:
+                if isinstance(result_item, dict):
+                    # 检查result[i].meta.field_annotations
+                    if 'meta' in result_item and isinstance(result_item['meta'], dict):
+                        if 'field_annotations' in result_item['meta']:
+                            field_annotations.update(result_item['meta']['field_annotations'])
+                            logger.info(f"🔍 [AnnotationSerializer] 从result[{result_data.index(result_item)}].meta中提取到field_annotations: {result_item['meta']['field_annotations']}")
+        
+        # 如果找到了字段备注数据，保存到validated_data中
+        if field_annotations:
+            validated_data['field_annotations'] = field_annotations
+            logger.info(f"✅ [AnnotationSerializer] 准备将字段备注保存到annotation: {field_annotations}")
+        
+        # 调用父类的update方法
+        return super().update(instance, validated_data)
 
     def validate_result(self, value):
         data = value
@@ -646,6 +692,44 @@ class AnnotationDraftSerializer(ModelSerializer):
             name = name + ' ' + last_name
         name += (' ' if name else '') + f'{user.email}, {user.id}'
         return name
+
+    def update(self, instance, validated_data):
+        """自定义更新方法，处理字段备注数据"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 检查result数据中是否包含字段备注
+        result_data = validated_data.get('result', [])
+        field_annotations = {}
+        
+        # 从请求数据中直接获取field_annotations
+        if 'field_annotations' in validated_data:
+            field_annotations = validated_data['field_annotations']
+            logger.info(f"🔍 从请求数据中获取到field_annotations: {field_annotations}")
+        else:
+            # 从result数据中提取field_annotations
+            if result_data and isinstance(result_data, list) and len(result_data) > 0:
+                first_result = result_data[0]
+                if isinstance(first_result, dict):
+                    # 检查result[0].field_annotations
+                    if 'field_annotations' in first_result:
+                        field_annotations = first_result['field_annotations']
+                        logger.info(f"🔍 从result[0]中获取到field_annotations: {field_annotations}")
+                    # 检查result[0].meta.field_annotations
+                    elif 'meta' in first_result and isinstance(first_result['meta'], dict):
+                        if 'field_annotations' in first_result['meta']:
+                            field_annotations = first_result['meta']['field_annotations']
+                            logger.info(f"🔍 从result[0].meta中获取到field_annotations: {field_annotations}")
+        
+        # 如果找到了字段备注数据，保存到实例中
+        if field_annotations:
+            validated_data['field_annotations'] = field_annotations
+            logger.info(f"✅ 准备将字段备注保存到数据库: {field_annotations}")
+        else:
+            logger.info("⚠️ 未找到字段备注数据")
+        
+        # 调用父类的update方法
+        return super().update(instance, validated_data)
 
     class Meta:
         model = AnnotationDraft

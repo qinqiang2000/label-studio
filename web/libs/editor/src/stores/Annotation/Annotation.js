@@ -158,6 +158,9 @@ const _Annotation = types
       comments: [],
     }),
 
+    // 字段备注数据
+    field_annotations: types.optional(types.frozen(), {}),
+
     ...(isFF(FF_DEV_3391) ? { root: Types.allModelsTypes() } : {}),
   })
   .views((self) => ({
@@ -1026,6 +1029,32 @@ const _Annotation = types
 
       document.body.style.cursor = "default";
 
+      // 包含字段备注数据到序列化结果中
+      // 将field_annotations添加到第一个result的meta中，如果没有result则创建一个空的
+      if (self.field_annotations && Object.keys(self.field_annotations).length > 0) {
+        console.log("🔄 [SerializeAnnotation] 包含字段备注到序列化数据:", self.field_annotations);
+        
+        if (result.length > 0) {
+          // 添加到第一个result的meta中
+          if (!result[0].meta) {
+            result[0].meta = {};
+          }
+          result[0].meta.field_annotations = self.field_annotations;
+        } else {
+          // 如果没有result，创建一个专门用于存储field_annotations的result
+          result.push({
+            id: guidGenerator(),
+            from_name: "__field_annotations__",
+            to_name: "__field_annotations__",
+            type: "field_annotations",
+            value: {},
+            meta: {
+              field_annotations: self.field_annotations
+            }
+          });
+        }
+      }
+
       return result;
     },
 
@@ -1410,6 +1439,18 @@ const _Annotation = types
     resetReady() {
       self.objects.forEach((object) => object.setReady && object.setReady(false));
       self.areas.forEach((area) => area.setReady && area.setReady(false));
+    },
+
+    // 字段备注更新actions
+    setFieldAnnotations(annotations) {
+      self.field_annotations = annotations || {};
+    },
+
+    updateFieldAnnotation(fieldKey, annotation) {
+      self.field_annotations = {
+        ...self.field_annotations,
+        [fieldKey]: annotation
+      };
     },
   }));
 

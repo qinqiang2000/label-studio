@@ -702,6 +702,12 @@ class Annotation(AnnotationMixin, models.Model):
         null=True,
         help_text='Annotation was created in bulk mode',
     )
+    field_annotations = JSONField(
+        _('field annotations'),
+        null=True,
+        default=dict,
+        help_text='Field-level annotations and comments for form fields',
+    )
 
     class Meta:
         db_table = 'task_completion'
@@ -865,6 +871,12 @@ class AnnotationDraft(models.Model):
         blank=True,
         db_index=True,
         help_text="Original draft ID that was at the import step or NULL if this draft wasn't imported",
+    )
+    field_annotations = JSONField(
+        _('field annotations'),
+        null=True,
+        default=dict,
+        help_text='Field-level annotations and comments for form fields',
     )
 
     created_at = models.DateTimeField(_('created at'), auto_now_add=True, help_text='Creation time')

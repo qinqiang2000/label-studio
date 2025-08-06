@@ -33,6 +33,8 @@ import "./TextAreaRegionView";
 import "./TextArea.scss";
 import { cn } from "../../../utils/bem";
 
+// Note: TextArea component imported but used in child components
+// biome-ignore lint/correctness/noUnusedVariables: Used in child components
 const { TextArea } = Input;
 
 // Dynamic evaluation configuration - loaded from API
@@ -47,9 +49,6 @@ const FALLBACK_REQUIRED_FIELDS = [
   "invoiceDate",
   "currency",
 ];
-
-// 错误类型配置
-const ERROR_TYPES = ["图像质量问题", "文字识别解析错误", "规则没转化", "企业特殊要求", "系统问题", "其他"];
 
 // Cache for evaluation configurations - per project ID
 const evaluationConfigCache = new Map();
@@ -75,7 +74,7 @@ class EvaluationConfigAPI {
       try {
         const token = getToken();
         if (token) return token;
-      } catch (e) {
+      } catch (_e) {
         // Continue to next source
       }
     }
@@ -99,9 +98,9 @@ class EvaluationConfigAPI {
       "Content-Type": "application/json",
     };
 
-    const token = this.getAuthToken();
+    const token = EvaluationConfigAPI.getAuthToken();
     if (token) {
-      headers["Authorization"] = `Token ${token}`;
+      headers.Authorization = `Token ${token}`;
     }
 
     return headers;
@@ -122,7 +121,7 @@ class EvaluationConfigAPI {
 
     // Force refresh if requested
     if (forceRefresh) {
-      this.clearCache(projectId);
+      EvaluationConfigAPI.clearCache(projectId);
     }
 
     // Return cached data if still valid and not forcing refresh
@@ -130,49 +129,44 @@ class EvaluationConfigAPI {
     if (!forceRefresh && cachedData && cachedData.expiry > now) {
       return cachedData.config;
     }
+    // Use the unified API endpoint pattern
+    const apiUrl = `/api/frontend/evaluation-configs/project/${projectId}/`;
+    const headers = EvaluationConfigAPI.createHeaders();
+    const response = await fetch(apiUrl, {
+      headers: headers,
+    });
 
-    try {
-      // Use the unified API endpoint pattern
-      const apiUrl = `/api/frontend/evaluation-configs/project/${projectId}/`;
-      const headers = this.createHeaders();
-      const response = await fetch(apiUrl, {
-        headers: headers,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
-      }
-
-      const config = await response.json();
-
-      const requiredFields = [...(config.required_fields || [])];
-
-      // Always include 序号 if not present
-      if (!requiredFields.includes("序号")) {
-        requiredFields.unshift("序号");
-      }
-
-      const configData = {
-        required_fields: requiredFields,
-        optional_fields: config.optional_fields || [],
-        all_fields: config.all_fields || [],
-        validation_rules: config.validation_rules || {},
-        config_key: config.config_key || "default",
-        field_labels: config.field_labels || {},
-        project_default_fields: config.project_default_fields || [],
-      };
-
-      // Cache the result
-      evaluationConfigCache.set(cacheKey, {
-        config: configData,
-        expiry: now + this.CACHE_DURATION,
-      });
-
-      return configData;
-    } catch (error) {
-      throw error;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
     }
+
+    const config = await response.json();
+
+    const requiredFields = [...(config.required_fields || [])];
+
+    // Always include 序号 if not present
+    if (!requiredFields.includes("序号")) {
+      requiredFields.unshift("序号");
+    }
+
+    const configData = {
+      required_fields: requiredFields,
+      optional_fields: config.optional_fields || [],
+      all_fields: config.all_fields || [],
+      validation_rules: config.validation_rules || {},
+      config_key: config.config_key || "default",
+      field_labels: config.field_labels || {},
+      project_default_fields: config.project_default_fields || [],
+    };
+
+    // Cache the result
+    evaluationConfigCache.set(cacheKey, {
+      config: configData,
+      expiry: now + EvaluationConfigAPI.CACHE_DURATION,
+    });
+
+    return configData;
   }
 
   static getFallbackConfig() {
@@ -189,7 +183,7 @@ class EvaluationConfigAPI {
     try {
       const apiUrl = "/api/frontend/evaluation-configs/active/";
 
-      const headers = this.createHeaders();
+      const headers = EvaluationConfigAPI.createHeaders();
       const response = await fetch(apiUrl, { headers });
 
       if (!response.ok) {
@@ -222,24 +216,24 @@ class EvaluationConfigAPI {
       }
 
       return configsByKey;
-    } catch (error) {
+    } catch (_error) {
       return {};
     }
   }
 
   static async getConfigWithFallback(projectId, forceRefresh = false) {
     try {
-      return await this.fetchProjectConfig(projectId, forceRefresh);
+      return await EvaluationConfigAPI.fetchProjectConfig(projectId, forceRefresh);
     } catch (error) {
       console.warn("Using fallback config, error:", error.message);
-      const fallbackConfig = this.getFallbackConfig();
+      const fallbackConfig = EvaluationConfigAPI.getFallbackConfig();
 
       // Cache the fallback too to avoid repeated failed requests (shorter duration)
       const now = Date.now();
       const cacheKey = String(projectId);
       evaluationConfigCache.set(cacheKey, {
         config: fallbackConfig,
-        expiry: now + this.CACHE_DURATION / 2, // Shorter cache for fallback
+        expiry: now + EvaluationConfigAPI.CACHE_DURATION / 2, // Shorter cache for fallback
       });
 
       return fallbackConfig;
@@ -247,228 +241,12 @@ class EvaluationConfigAPI {
   }
 }
 
-// Field Annotation API utility class
-class FieldAnnotationAPI {
-  // 临时存储未提交annotation的字段备注
-  static tempFieldAnnotations = new Map();
-  
-  static async saveFieldAnnotations(annotationId, fieldAnnotations) {
-    try {
-      console.log("🔄 [API] 开始保存字段备注到服务器");
-      console.log("🔄 [API] annotationId:", annotationId);
-      console.log("🔄 [API] fieldAnnotations:", JSON.stringify(fieldAnnotations, null, 2));
-      
-      // 对于临时ID，先存储在前端，等待annotation提交后再保存
-      if (this.isTemporaryAnnotationId(annotationId)) {
-        console.log("🔄 [API] 临时ID，保存到前端缓存:", annotationId);
-        this.tempFieldAnnotations.set(annotationId, fieldAnnotations);
-        return { success: true, data: { field_annotations: fieldAnnotations } };
-      }
-      
-      // 有效数字ID，直接保存到后端
-      if (!this.isValidAnnotationId(annotationId)) {
-        throw new Error(`无效的annotation ID: ${annotationId}`);
-      }
-      
-      const apiUrl = `/api/annotations/${annotationId}/field-annotations/`;
-      const headers = EvaluationConfigAPI.createHeaders();
-      
-      const response = await fetch(apiUrl, {
-        method: 'PUT',
-        headers: headers,
-        body: JSON.stringify({ field_annotations: fieldAnnotations })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log("✅ [API] 字段备注保存成功:", result);
-      return { success: true, data: result };
-    } catch (error) {
-      console.error("❌ [API] 字段备注保存失败:", error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  static async loadFieldAnnotations(annotationId) {
-    try {
-      console.log("🔄 [API] 开始从服务器加载字段备注");
-      console.log("🔄 [API] annotationId:", annotationId);
-      
-      // 对于临时ID，从前端缓存加载
-      if (this.isTemporaryAnnotationId(annotationId)) {
-        console.log("🔄 [API] 临时ID，从前端缓存加载:", annotationId);
-        const cached = this.tempFieldAnnotations.get(annotationId) || {};
-        console.log("✅ [API] 从缓存加载字段备注:", cached);
-        return { success: true, data: cached };
-      }
-      
-      // 有效数字ID，从后端加载
-      if (!this.isValidAnnotationId(annotationId)) {
-        console.log("ℹ️ [API] 无效annotation ID，返回空数据");
-        return { success: true, data: {} };
-      }
-      
-      const apiUrl = `/api/annotations/${annotationId}/field-annotations/`;
-      const headers = EvaluationConfigAPI.createHeaders();
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: headers
-      });
-
-      if (!response.ok) {
-        // 如果是404，说明还没有字段备注数据，返回空对象
-        if (response.status === 404) {
-          console.log("ℹ️ [API] 尚无字段备注数据");
-          return { success: true, data: {} };
-        }
-        
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log("✅ [API] 字段备注加载成功:", result);
-      return { success: true, data: result.field_annotations || {} };
-    } catch (error) {
-      console.error("❌ [API] 字段备注加载失败:", error);
-      return { success: false, error: error.message, data: {} };
-    }
-  }
-  
-  // 当annotation从临时ID变为数字ID时，迁移字段备注
-  static async migrateFieldAnnotations(oldId, newId) {
-    if (!this.isTemporaryAnnotationId(oldId) || !this.isValidAnnotationId(newId)) {
-      return;
-    }
-    
-    const tempData = this.tempFieldAnnotations.get(oldId);
-    if (!tempData || Object.keys(tempData).length === 0) {
-      return;
-    }
-    
-    console.log("🔄 [API] 迁移字段备注从临时ID到数字ID:", oldId, "->", newId);
-    
-    try {
-      // 保存到后端
-      const result = await this.saveFieldAnnotations(newId, tempData);
-      if (result.success) {
-        // 清除临时存储
-        this.tempFieldAnnotations.delete(oldId);
-        console.log("✅ [API] 字段备注迁移成功");
-      }
-    } catch (error) {
-      console.error("❌ [API] 字段备注迁移失败:", error);
-    }
-  }
-
-  // 检查annotation ID是否为有效的数字ID
-  static isValidAnnotationId(annotationId) {
-    if (!annotationId) return false;
-    
-    // 检查是否为数字或可转换为数字的字符串
-    const numericId = Number(annotationId);
-    return !isNaN(numericId) && numericId > 0 && Number.isInteger(numericId);
-  }
-  
-  // 检查annotation ID是否为临时字符串ID（如"3EB5k"）
-  static isTemporaryAnnotationId(annotationId) {
-    if (!annotationId) return false;
-    
-    // 临时ID通常是5位字符串，包含字母和数字
-    return typeof annotationId === 'string' && 
-           annotationId.length >= 4 && 
-           annotationId.length <= 8 && 
-           /^[A-Za-z0-9]+$/.test(annotationId) &&
-           !this.isValidAnnotationId(annotationId);
-  }
-
-  // 等待annotation获得有效ID
-  static async ensureValidAnnotationId(annotation, store) {
-    const currentId = annotation?.pk || annotation?.id;
-    
-    if (this.isValidAnnotationId(currentId)) {
-      return currentId;
-    }
-
-    console.log("🔄 [API] annotation ID无效，尝试保存annotation获取有效ID");
-    
-    // 触发annotation保存来获得有效ID
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error("保存annotation超时"));
-      }, 15000); // 15秒超时
-
-      let isResolved = false;
-      
-      const cleanup = () => {
-        clearTimeout(timeout);
-        if (observer) {
-          observer.dispose?.();
-        }
-      };
-
-      const resolveOnce = (id) => {
-        if (!isResolved) {
-          isResolved = true;
-          cleanup();
-          console.log("✅ [API] 获得有效annotation ID:", id);
-          resolve(id);
-        }
-      };
-
-      let observer = null;
-
-      try {
-        // 监听 annotation pk 属性变化
-        if (annotation && typeof annotation.observe === 'function') {
-          observer = annotation.observe('pk', (change) => {
-            const newId = change.newValue;
-            if (this.isValidAnnotationId(newId)) {
-              resolveOnce(newId);
-            }
-          });
-        }
-
-        // 如果annotation是新的，调用submitAnnotation
-        if (!annotation.exists) {
-          console.log("🔄 [API] 调用submitAnnotation创建新annotation");
-          store.submitAnnotation();
-        } else {
-          console.log("🔄 [API] 调用updateAnnotation更新annotation");
-          store.updateAnnotation();
-        }
-
-        // 作为备用方案，仍保留轮询检查（但间隔更长）
-        const backupCheck = () => {
-          if (isResolved) return;
-          
-          const updatedId = annotation?.pk || annotation?.id;
-          if (this.isValidAnnotationId(updatedId)) {
-            resolveOnce(updatedId);
-          } else {
-            // 每秒检查一次作为备用
-            setTimeout(backupCheck, 1000);
-          }
-        };
-
-        // 延迟启动备用检查
-        setTimeout(backupCheck, 2000);
-
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
-    });
-  }
-}
+// 错误类型配置
+const ERROR_TYPES = ["图像质量问题", "文字识别解析错误", "规则没转化", "企业特殊要求", "系统问题", "其他"];
 
 // Function to get required fields for highlighting
+// Note: Currently unused but kept for potential future use
+// biome-ignore lint/correctness/noUnusedVariables: <explanation>
 function getRequiredFields(item) {
   const annotation = item?.annotation;
   if (!annotation) {
@@ -515,7 +293,7 @@ function getRequiredFields(item) {
 
   // Async load config (won't block rendering, will update on next render)
   EvaluationConfigAPI.getConfigWithFallback(projectId)
-    .then((config) => {
+    .then((_config) => {
       // This will trigger a re-render with the correct fields
     })
     .catch((error) => {
@@ -533,12 +311,11 @@ function getRequiredFieldsForDocument(docType, defaultRequiredFields, allConfigs
     const docTypeLower = docType.toLowerCase();
     if (docTypeLower === "other" || docTypeLower === "unknown") {
       return []; // 不设置任何必填字段
-    } else {
-      // 如果找到了对应文档类型的配置，使用它
-      const docConfig = allConfigs[docType];
-      if (docConfig && docConfig.required_fields) {
-        return docConfig.required_fields;
-      }
+    }
+    // 如果找到了对应文档类型的配置，使用它
+    const docConfig = allConfigs[docType];
+    if (docConfig && docConfig.required_fields) {
+      return docConfig.required_fields;
     }
   }
 
@@ -556,7 +333,7 @@ function highlightWithDynamicRequiredFields(code, allConfigs = {}, fallbackField
 
     if (Array.isArray(parsed)) {
       // 为每个文档根据其docType应用相应的高亮
-      parsed.forEach((doc, index) => {
+      parsed.forEach((doc, _index) => {
         const docType = doc.docType;
         const requiredFields = allConfigs[docType]?.required_fields || fallbackFields;
 
@@ -584,7 +361,7 @@ function highlightWithDynamicRequiredFields(code, allConfigs = {}, fallbackField
       // 如果不是数组，回退到原来的逻辑
       return highlightWithRequiredFields(code, fallbackFields);
     }
-  } catch (e) {
+  } catch (_e) {
     // JSON解析失败，回退到原来的逻辑
     return highlightWithRequiredFields(code, fallbackFields);
   }
@@ -737,7 +514,7 @@ const Model = types
       return value.some((val) => val.toLowerCase() === text);
     },
   }))
-  .actions((self) => (isFF(FF_LEAD_TIME) ? {} : { countTime: () => {} }))
+  .actions((_self) => (isFF(FF_LEAD_TIME) ? {} : { countTime: () => {} }))
   .actions((self) => {
     let lastActiveElement = null;
     let lastActiveElementModel = null;
@@ -863,13 +640,6 @@ const Model = types
         result.setValue(newValue);
       },
 
-      beforeSend() {
-        if (self._value && self._value.length) {
-          self.addText(self._value);
-          self._value = "";
-        }
-      },
-
       // add unsubmitted text when user switches region
       submitChanges() {
         self.beforeSend();
@@ -944,10 +714,10 @@ const HtxTextArea = observer(({ item }) => {
   const [currentFieldKey, setCurrentFieldKey] = useState(null);
   const [currentFieldAnnotation, setCurrentFieldAnnotation] = useState({ errorTypes: [], reason: "" });
   const [fieldAnnotations, setFieldAnnotations] = useState({}); // 存储所有字段备注
-  
+
   // 保存状态相关
-  const [isSavingFieldAnnotation, setIsSavingFieldAnnotation] = useState(false);
-  const [savingMessage, setSavingMessage] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(null); // null, true, false
+  const [isSaving, setIsSaving] = useState(false); // 用于显示正在保存的指示器
 
   const onFocus = useCallback(
     (ev, model) => {
@@ -956,46 +726,64 @@ const HtxTextArea = observer(({ item }) => {
     [item],
   );
 
-  // 从API加载字段备注数据
+  // 简化的加载字段备注数据 - 直接从annotation对象读取
   const loadFieldAnnotations = useCallback(async () => {
     const annotation = item.annotation;
+    
     if (!annotation) {
-      console.log("📥 [API] 无annotation，设置为空对象");
+      console.log("📥 [Simplified] 无annotation，设置为空对象");
       setFieldAnnotations({});
       return;
     }
 
-    // 获取annotation ID
-    const currentId = annotation.pk || annotation.id;
-    if (!currentId) {
-      console.log("📥 [API] annotation无ID，设置为空对象");
-      setFieldAnnotations({});
-      return;
+    console.log("📥 [Simplified] 开始加载字段备注");
+    
+    let fieldAnnotationsData = {};
+
+    // 尝试从后端API获取字段备注数据
+    try {
+      const draftId = annotation.draftId;
+      const projectId = window.location.pathname.match(/projects\/(\d+)/)?.[1];
+      
+      if (draftId && draftId !== 0 && projectId) {
+        console.log("🔍 [Simplified] 从后端API获取字段备注，draft_id:", draftId);
+        
+        const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`);
+        if (response.ok) {
+          const draftData = await response.json();
+          if (draftData.field_annotations && Object.keys(draftData.field_annotations).length > 0) {
+            fieldAnnotationsData = draftData.field_annotations;
+            console.log("📥 [Simplified] 从后端API读取到字段备注:", fieldAnnotationsData);
+          }
+        } else {
+          console.log("⚠️ [Simplified] 后端API获取失败，尝试本地读取");
+        }
+      }
+    } catch (error) {
+      console.log("⚠️ [Simplified] 后端API获取出错，尝试本地读取:", error);
     }
 
-    // 检查ID类型并决定是否加载
-    if (FieldAnnotationAPI.isValidAnnotationId(currentId)) {
-      console.log("📥 [API] 加载字段备注，有效数字ID:", currentId);
-    } else if (FieldAnnotationAPI.isTemporaryAnnotationId(currentId)) {
-      console.log("📥 [API] 加载字段备注，临时ID:", currentId);
-    } else {
-      console.log("📥 [API] 无效annotation ID，设置为空对象");
-      setFieldAnnotations({});
-      return;
+    // 如果后端API没有数据，尝试从本地annotation对象读取
+    if (Object.keys(fieldAnnotationsData).length === 0) {
+      // 优先从annotation.field_annotations读取
+      if (annotation.field_annotations && Object.keys(annotation.field_annotations).length > 0) {
+        fieldAnnotationsData = annotation.field_annotations;
+        console.log("📥 [Optimized] 从annotation.field_annotations读取:", fieldAnnotationsData);
+      } 
+      // 如果没有，尝试从result[0].meta.field_annotations读取（兼容旧数据）
+      else if (annotation.result && annotation.result.length > 0 && annotation.result[0].meta && annotation.result[0].meta.field_annotations) {
+        fieldAnnotationsData = annotation.result[0].meta.field_annotations;
+        console.log("📥 [Optimized] 从result[0].meta.field_annotations读取:", fieldAnnotationsData);
+      } else {
+        console.log("📥 [Optimized] 未找到字段备注数据，使用空对象");
+      }
     }
 
-    const result = await FieldAnnotationAPI.loadFieldAnnotations(currentId);
-    if (result.success) {
-      setFieldAnnotations(result.data || {});
-      console.log("📥 [API] 字段备注加载成功:", result.data);
-    } else {
-      console.error("📥 [API] 加载字段备注失败:", result.error);
-      setFieldAnnotations({});
-    }
-  }, [item.annotation?.pk, item.annotation?.id]);
+    setFieldAnnotations(fieldAnnotationsData);
+  }, [item.annotation]);
 
   // 本地更新字段备注状态（仅用于UI显示）
-  const updateLocalFieldAnnotations = useCallback((annotations) => {
+  const _updateLocalFieldAnnotations = useCallback((annotations) => {
     setFieldAnnotations(annotations);
   }, []);
 
@@ -1012,70 +800,185 @@ const HtxTextArea = observer(({ item }) => {
     [fieldAnnotations],
   );
 
-  // 保存字段备注到服务器
+  // 预创建draft的优化策略
+  const ensureDraftExists = useCallback(async () => {
+    const annotation = item.annotation;
+    if (!annotation) return null;
+    
+    let draftId = annotation.draftId;
+    
+    // 如果没有draft_id，预先创建一个
+    if (!draftId || draftId === 0) {
+      console.log("🔧 [PreOptimized] 预创建draft以提升字段备注保存速度");
+      
+      try {
+        if (annotation.autosave) {
+          await annotation.autosave();
+          draftId = annotation.draftId;
+          console.log("✅ [PreOptimized] 预创建draft成功:", draftId);
+        }
+      } catch (error) {
+        console.warn("⚠️ [PreOptimized] 预创建draft失败:", error);
+      }
+    }
+    
+    return draftId;
+  }, [item.annotation]);
+
+  // 快速字段备注保存（跳过大部分等待）
   const handleSaveFieldAnnotation = useCallback(async () => {
     const annotation = item.annotation;
-    const store = annotation?.store;
-    
-    if (!annotation || !store) {
-      console.error("💾 [API] 无annotation或store，无法保存");
-      alert("无法保存字段备注：标注环境未就绪");
+
+    if (!annotation) {
+      console.error("💾 [Simplified] 无annotation，无法保存");
+      alert("无法保存字段备注：需要先创建标注");
       return;
     }
 
+    // 构建更新后的字段备注数据
+    const updatedAnnotations = {
+      ...fieldAnnotations,
+      [currentFieldKey]: { ...currentFieldAnnotation },
+    };
+
+    // 如果备注为空，删除该字段的备注
+    if (currentFieldAnnotation.errorTypes.length === 0 && !currentFieldAnnotation.reason.trim()) {
+      delete updatedAnnotations[currentFieldKey];
+    }
+
+    console.log("💾 [Simplified] 保存字段备注到annotation");
+    console.log("💾 [Simplified] 字段备注数据:", JSON.stringify(updatedAnnotations, null, 2));
+
     try {
-      setIsSavingFieldAnnotation(true);
-      setSavingMessage("正在准备保存字段备注...");
-      console.log("💾 [API] 开始保存字段备注流程");
-      
-      const currentId = annotation.pk || annotation.id;
-      
-      // 构建更新后的字段备注数据
-      const updatedAnnotations = {
-        ...fieldAnnotations,
-        [currentFieldKey]: { ...currentFieldAnnotation },
-      };
+      // 1. 开始保存状态
+      setIsSaving(true);
 
-      // 如果备注为空，删除该字段的备注
-      if (currentFieldAnnotation.errorTypes.length === 0 && !currentFieldAnnotation.reason.trim()) {
-        delete updatedAnnotations[currentFieldKey];
+      // 2. 立即更新UI状态（乐观更新）
+      setFieldAnnotations(updatedAnnotations);
+
+      // 3. 立即关闭弹窗提供即时反馈
+      setFieldAnnotationsModalVisible(false);
+      setCurrentFieldKey(null);
+      setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
+
+      // 4. 使用action更新annotation对象的field_annotations字段
+      annotation.setFieldAnnotations(updatedAnnotations);
+      console.log("✅ [Optimized] 已通过action更新annotation.field_annotations:", annotation.field_annotations);
+
+      // 5. 也更新到result[0].meta以保持兼容性
+      if (annotation.result && annotation.result.length > 0) {
+        if (!annotation.result[0].meta) {
+          annotation.result[0].meta = {};
+        }
+        annotation.result[0].meta.field_annotations = updatedAnnotations;
       }
 
-      console.log("💾 [API] 即将保存字段备注，annotation ID:", currentId);
-      console.log("💾 [API] 字段备注数据:", JSON.stringify(updatedAnnotations, null, 2));
-
-      // 直接调用API保存（API内部会处理临时ID的缓存）
-      setSavingMessage("正在保存字段备注...");
-      const result = await FieldAnnotationAPI.saveFieldAnnotations(currentId, updatedAnnotations);
-      
-      if (result.success) {
-        // 保存成功，更新本地UI状态
-        setFieldAnnotations(updatedAnnotations);
-        setSavingMessage("保存成功！");
-        console.log("✅ [API] 字段备注保存成功");
+      // 6. 智能字段备注保存策略
+      try {
+        console.log("🚀 [Optimized] 开始优化的字段备注保存流程");
         
-        // 短暂显示成功消息后关闭弹窗
-        setTimeout(() => {
-          setFieldAnnotationsModalVisible(false);
-          setCurrentFieldKey(null);
-          setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
-          setIsSavingFieldAnnotation(false);
-          setSavingMessage("");
-        }, 800);
-      } else {
-        // 保存失败，显示错误信息
-        setIsSavingFieldAnnotation(false);
-        setSavingMessage("");
-        console.error("❌ [API] 字段备注保存失败:", result.error);
-        alert(`保存失败: ${result.error}`);
-        return; // 保存失败时不关闭弹窗
+        // 获取CSRF token和project ID
+        const csrfToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('csrftoken='))
+          ?.split('=')[1];
+        const projectId = window.location.pathname.match(/projects\/(\d+)/)?.[1];
+        
+        // 获取当前的draft_id
+        let draftId = annotation.draftId;
+        
+        // 策略1：如果已有draft_id，直接保存字段备注
+        if (draftId && draftId !== 0) {
+          console.log("🚀 [Optimized] 使用现有draft_id直接保存:", draftId);
+          
+          const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrfToken,
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+              field_annotations: updatedAnnotations
+            })
+          });
+          
+          if (response.ok) {
+            console.log("✅ [Optimized] 字段备注保存成功 (直接模式)");
+          } else {
+            console.log("⚠️ [Optimized] 直接保存失败，尝试创建新draft");
+            // 如果失败，可能是draft_id过期，尝试策略2
+            draftId = null;
+          }
+        }
+        
+        // 策略2：如果没有draft_id或直接保存失败，先创建draft再保存
+        if (!draftId || draftId === 0) {
+          console.log("🔄 [Optimized] 需要先创建draft");
+          
+          // 并行执行：触发autosave创建draft
+          const autosavePromise = annotation.autosave ? annotation.autosave() : Promise.resolve();
+          
+          // 等待autosave完成（但不阻塞太久）
+          try {
+            await Promise.race([
+              autosavePromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('autosave timeout')), 3000))
+            ]);
+            console.log("✅ [Optimized] autosave完成");
+          } catch (error) {
+            console.warn("⚠️ [Optimized] autosave超时或失败，继续尝试:", error.message);
+          }
+          
+          // 获取新的draft_id
+          draftId = annotation.draftId;
+          
+          if (draftId && draftId !== 0) {
+            console.log("🔄 [Optimized] 使用新创建的draft_id:", draftId);
+            
+            const response = await fetch(`/api/drafts/${draftId}?project=${projectId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+              },
+              body: JSON.stringify({
+                field_annotations: updatedAnnotations
+              })
+            });
+            
+            if (response.ok) {
+              console.log("✅ [Optimized] 字段备注保存成功 (创建draft后)");
+            } else {
+              const errorText = await response.text();
+              console.error("❌ [Optimized] 字段备注保存失败:", response.status, errorText);
+            }
+          } else {
+            console.error("❌ [Optimized] 无法获取有效的draft_id");
+          }
+        }
+        
+      } catch (error) {
+        console.error("❌ [Optimized] 字段备注保存失败:", error);
       }
-      
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(null), 3000);
     } catch (error) {
-      setIsSavingFieldAnnotation(false);
-      setSavingMessage("");
-      console.error("❌ [API] 字段备注保存过程出错:", error);
-      alert(`保存失败: ${error.message}`);
+      console.error("❌ [Simplified] 字段备注保存失败:", error);
+      setSaveSuccess(false);
+      // 如果保存失败，恢复原来的状态
+      setFieldAnnotations(fieldAnnotations);
+      
+      // 恢复annotation对象的field_annotations
+      annotation.setFieldAnnotations(fieldAnnotations);
+      if (annotation.result && annotation.result.length > 0 && annotation.result[0].meta) {
+        annotation.result[0].meta.field_annotations = fieldAnnotations;
+      }
+    } finally {
+      // 7. 结束保存状态
+      setIsSaving(false);
     }
   }, [fieldAnnotations, currentFieldKey, currentFieldAnnotation, item.annotation]);
 
@@ -1154,7 +1057,7 @@ const HtxTextArea = observer(({ item }) => {
         } else {
           setAllConfigs({});
         }
-      } catch (error) {
+      } catch (_error) {
         setRequiredFields(FALLBACK_REQUIRED_FIELDS);
       }
     };
@@ -1162,38 +1065,34 @@ const HtxTextArea = observer(({ item }) => {
     loadEvaluationConfig();
   }, [item?.annotation?.store?.projectId, item?.annotation?.store?.project?.id]);
 
-  // 从API加载字段备注
+  // 预优化：在组件加载时预先确保draft存在
   useEffect(() => {
-    console.log("🔄 [API] useEffect 触发，加载字段备注");
-    console.log("🔄 [API] item.annotation?.id:", item.annotation?.id);
+    // 在用户开始操作前预先创建draft，提升后续保存速度
+    const preOptimize = async () => {
+      if (item.annotation) {
+        // 延迟预创建，避免影响页面加载速度
+        setTimeout(() => {
+          ensureDraftExists().catch(err => {
+            console.log("🔧 [PreOptimized] 后台预创建draft:", err.message);
+          });
+        }, 2000); // 2秒后预创建
+      }
+    };
     
-    if (item.annotation?.id) {
+    preOptimize();
+  }, [item.annotation, ensureDraftExists]);
+
+  // 简化的字段备注加载
+  useEffect(() => {
+    console.log("🔄 [Simplified] useEffect 触发，加载字段备注");
+    console.log("🔄 [Simplified] item.annotation:", item.annotation);
+
+    if (item.annotation) {
       loadFieldAnnotations();
     } else {
       setFieldAnnotations({});
     }
-  }, [loadFieldAnnotations, item.annotation?.id]);
-
-  // 监听annotation ID变化，处理从临时ID到数字ID的迁移
-  useEffect(() => {
-    const annotation = item.annotation;
-    if (!annotation) return;
-    
-    const currentId = annotation.pk || annotation.id;
-    
-    // 如果当前ID是数字ID，检查是否有需要迁移的临时数据
-    if (FieldAnnotationAPI.isValidAnnotationId(currentId)) {
-      // 检查是否存在需要迁移的临时数据
-      FieldAnnotationAPI.tempFieldAnnotations.forEach(async (tempData, tempId) => {
-        if (FieldAnnotationAPI.isTemporaryAnnotationId(tempId)) {
-          console.log("🔄 [API] 检测到annotation获得数字ID，准备迁移字段备注");
-          await FieldAnnotationAPI.migrateFieldAnnotations(tempId, currentId);
-          // 重新加载字段备注以显示迁移后的数据
-          loadFieldAnnotations();
-        }
-      });
-    }
-  }, [item.annotation?.pk, loadFieldAnnotations]);
+  }, [loadFieldAnnotations, item.annotation]);
 
   // 新增：自动填充按钮逻辑
   const [autoFillLoading, setAutoFillLoading] = useState(false);
@@ -1420,7 +1319,7 @@ const HtxTextArea = observer(({ item }) => {
               let needsUpdate = false;
               const updatedArray = parsed.map((item, index) => {
                 const serialNumber = index + 1;
-                if (!item.hasOwnProperty("序号") || item["序号"] !== serialNumber) {
+                if (!Object.hasOwn(item, "序号") || item.序号 !== serialNumber) {
                   needsUpdate = true;
                   // 创建新对象，序号在前
                   const newItem = { 序号: serialNumber };
@@ -1554,12 +1453,12 @@ const HtxTextArea = observer(({ item }) => {
                 fieldsToCheck.forEach((field) => {
                   // 对于docType字段，检查原始数据是否包含
                   if (field === "docType") {
-                    if (!originalDoc.hasOwnProperty("docType")) {
+                    if (!Object.hasOwn(originalDoc, "docType")) {
                       missing.push(field);
                     }
                   } else {
                     // 其他字段检查当前数据
-                    if (!x.hasOwnProperty(field)) {
+                    if (!Object.hasOwn(x, field)) {
                       missing.push(field);
                     }
                   }
@@ -1749,13 +1648,13 @@ const HtxTextArea = observer(({ item }) => {
         return parsed;
       }
       return [];
-    } catch (error) {
+    } catch (_error) {
       return [];
     }
   }, [item._value]);
 
   return item.displaymode === PER_REGION_MODES.TAG ? (
-    <div className={textareaClassName} style={visibleStyle} ref={item.elementRef}>
+    <div className={textareaClassName} style={{ ...visibleStyle, position: "relative" }} ref={item.elementRef}>
       {/* 调试按钮 - 开发环境可见 */}
       {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && (
         <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
@@ -1799,6 +1698,42 @@ const HtxTextArea = observer(({ item }) => {
           </Button>
         </div>
       )}
+
+      {/* 全局保存状态指示器 - 非阻塞，位于右上角 */}
+      {(isSaving || saveSuccess !== null) && (
+        <div
+          style={{
+            position: "absolute",
+            top: "8px",
+            right: "8px",
+            padding: "4px 8px",
+            borderRadius: "4px",
+            fontSize: "12px",
+            backgroundColor: isSaving ? "#f0f9ff" : saveSuccess ? "#f6ffed" : "#fff2e8",
+            color: isSaving ? "#1890ff" : saveSuccess ? "#52c41a" : "#fa541c",
+            border: `1px solid ${isSaving ? "#91d5ff" : saveSuccess ? "#b7eb8f" : "#ffbb96"}`,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            zIndex: 1000,
+          }}
+        >
+          {isSaving && (
+            <div
+              style={{
+                width: "8px",
+                height: "8px",
+                border: "1px solid #1890ff",
+                borderTop: "1px solid transparent",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+          )}
+          {isSaving ? "保存中..." : saveSuccess ? "✓ 已保存" : "⚠ 保存失败"}
+        </div>
+      )}
+
       {pageStats && <div style={{ color: "blue", marginBottom: 4, fontWeight: "normal" }}>{pageStats}</div>}
       {jsonError && <div style={{ color: "red", marginBottom: 4, fontWeight: "bold" }}>{jsonError}</div>}
       {jsonFieldError && (
@@ -1967,7 +1902,7 @@ const HtxTextArea = observer(({ item }) => {
                                                 if (newValue.startsWith("{") || newValue.startsWith("[")) {
                                                   newValue = JSON.parse(newValue);
                                                 }
-                                              } catch (error) {
+                                              } catch (_error) {
                                                 // 如果不是有效JSON，保持字符串
                                               }
                                               handleKVValueChange(arrayIndex, key, newValue);
@@ -2063,43 +1998,48 @@ const HtxTextArea = observer(({ item }) => {
         open={fieldAnnotationsModalVisible}
         onOk={handleSaveFieldAnnotation}
         onCancel={() => {
-          if (!isSavingFieldAnnotation) {
-            setFieldAnnotationsModalVisible(false);
-            setCurrentFieldKey(null);
-            setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
-          }
+          setFieldAnnotationsModalVisible(false);
+          setCurrentFieldKey(null);
+          setCurrentFieldAnnotation({ errorTypes: [], reason: "" });
+          setSaveSuccess(null); // 清除保存状态
         }}
-        okText={isSavingFieldAnnotation ? "保存中..." : "Save"}
+        okText="Save"
         cancelText="Cancel"
         width={600}
-        confirmLoading={isSavingFieldAnnotation}
-        closable={!isSavingFieldAnnotation}
-        maskClosable={!isSavingFieldAnnotation}
+        confirmLoading={false}
+        closable={true}
+        maskClosable={true}
       >
-        {/* 保存状态提示 */}
-        {isSavingFieldAnnotation && (
-          <div style={{ 
-            marginBottom: 16, 
-            padding: "8px 12px", 
-            backgroundColor: "#f0f9ff", 
-            border: "1px solid #bae6fd", 
-            borderRadius: 4,
-            color: "#0369a1"
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{
-                width: "16px",
-                height: "16px",
-                border: "2px solid #0369a1",
-                borderTop: "2px solid transparent",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite"
-              }} />
-              <span>{savingMessage}</span>
-            </div>
+        {/* 保存状态提示 - 非阻塞式 */}
+        {saveSuccess === true && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: "8px 12px",
+              backgroundColor: "#f6ffed",
+              border: "1px solid #b7eb8f",
+              borderRadius: 4,
+              color: "#389e0d",
+            }}
+          >
+            ✅ 字段备注已保存
           </div>
         )}
-        
+        {saveSuccess === false && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: "8px 12px",
+              backgroundColor: "#fff2e8",
+              border: "1px solid #ffbb96",
+              borderRadius: 4,
+              color: "#d4380d",
+            }}
+          >
+            ⚠️ 字段备注保存失败，请检查网络连接
+          </div>
+        )}
+
         <div style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 8, fontWeight: "500" }}>Error Types (Multiple Selection):</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -2108,18 +2048,16 @@ const HtxTextArea = observer(({ item }) => {
                 key={type}
                 checked={currentFieldAnnotation.errorTypes.includes(type)}
                 onChange={(checked) => {
-                  if (!isSavingFieldAnnotation) {
-                    if (checked) {
-                      setCurrentFieldAnnotation((prev) => ({
-                        ...prev,
-                        errorTypes: [...prev.errorTypes, type],
-                      }));
-                    } else {
-                      setCurrentFieldAnnotation((prev) => ({
-                        ...prev,
-                        errorTypes: prev.errorTypes.filter((t) => t !== type),
-                      }));
-                    }
+                  if (checked) {
+                    setCurrentFieldAnnotation((prev) => ({
+                      ...prev,
+                      errorTypes: [...prev.errorTypes, type],
+                    }));
+                  } else {
+                    setCurrentFieldAnnotation((prev) => ({
+                      ...prev,
+                      errorTypes: prev.errorTypes.filter((t) => t !== type),
+                    }));
                   }
                 }}
                 style={{
@@ -2138,21 +2076,19 @@ const HtxTextArea = observer(({ item }) => {
           <Input.TextArea
             value={currentFieldAnnotation.reason}
             onChange={(e) => {
-              if (!isSavingFieldAnnotation) {
-                setCurrentFieldAnnotation((prev) => ({
-                  ...prev,
-                  reason: e.target.value,
-                }));
-              }
+              setCurrentFieldAnnotation((prev) => ({
+                ...prev,
+                reason: e.target.value,
+              }));
             }}
             placeholder="Please enter the reason..."
             rows={4}
-            disabled={isSavingFieldAnnotation}
+            disabled={false}
           />
         </div>
-        
+
         {/* 添加旋转动画的CSS */}
-        <style jsx>{`
+        <style>{`
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }

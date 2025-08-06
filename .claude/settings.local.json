@@ -35,7 +35,9 @@
       "Bash(yarn build)",
       "mcp__playwright__browser_install",
       "Bash(awk:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(yarn ls:*)",
+      "mcp__playwright__browser_network_requests"
     ],
     "deny": []
   }
