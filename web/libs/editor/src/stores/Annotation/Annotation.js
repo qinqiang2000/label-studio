@@ -816,7 +816,12 @@ const _Annotation = types
       self.draftSelected = selected;
     },
 
-    onDraftSaved() {
+    onDraftSaved(res) {
+      // 如果响应中包含draftId，设置它
+      if (res && res.id) {
+        self.setDraftId(res.id);
+        console.log("✅ [DraftSaved] 设置draftId:", res.id);
+      }
       self.setDraftSaved(Utils.UDate.currentISODate());
       self.setDraftSaving(false);
     },
@@ -1216,7 +1221,33 @@ const _Annotation = types
 
         self._initialAnnotationObj = objAnnotation;
 
+        // 从反序列化数据中恢复字段备注
+        let recoveredFieldAnnotations = {};
         objAnnotation.forEach((obj) => {
+          // 检查meta中是否包含字段备注
+          if (obj.meta && obj.meta.field_annotations) {
+            recoveredFieldAnnotations = { ...recoveredFieldAnnotations, ...obj.meta.field_annotations };
+            console.log("🔄 [DeserializeResults] 恢复字段备注:", obj.meta.field_annotations);
+          }
+          // 检查专门存储字段备注的result
+          if (obj.type === "field_annotations" && obj.meta && obj.meta.field_annotations) {
+            recoveredFieldAnnotations = { ...recoveredFieldAnnotations, ...obj.meta.field_annotations };
+            console.log("🔄 [DeserializeResults] 恢复专门字段备注:", obj.meta.field_annotations);
+          }
+        });
+
+        // 使用action设置恢复的字段备注
+        if (Object.keys(recoveredFieldAnnotations).length > 0) {
+          self.setFieldAnnotations(recoveredFieldAnnotations);
+          console.log("✅ [DeserializeResults] 字段备注已恢复:", recoveredFieldAnnotations);
+        }
+
+        objAnnotation.forEach((obj) => {
+          // 跳过专门用于存储字段备注的虚拟result，不需要创建区域
+          if (obj.type === "field_annotations" && obj.from_name === "__field_annotations__") {
+            return;
+          }
+          
           self.deserializeSingleResult(
             obj,
             (id) => areas.get(id),

@@ -925,18 +925,24 @@ const HtxTextArea = observer(({ item }) => {
         if (!draftId || draftId === 0) {
           console.log("🔄 [Optimized] 需要先创建draft");
           
-          // 并行执行：触发autosave创建draft
-          const autosavePromise = annotation.autosave ? annotation.autosave() : Promise.resolve();
+          // 触发autosave创建draft
+          if (annotation.autosave) {
+            try {
+              await annotation.autosave();
+              console.log("✅ [Optimized] autosave完成");
+            } catch (error) {
+              console.warn("⚠️ [Optimized] autosave失败:", error.message);
+            }
+          }
           
-          // 等待autosave完成（但不阻塞太久）
-          try {
-            await Promise.race([
-              autosavePromise,
-              new Promise((_, reject) => setTimeout(() => reject(new Error('autosave timeout')), 3000))
-            ]);
-            console.log("✅ [Optimized] autosave完成");
-          } catch (error) {
-            console.warn("⚠️ [Optimized] autosave超时或失败，继续尝试:", error.message);
+          // 等待draftId被设置，最多等待5秒
+          let attempts = 0;
+          const maxAttempts = 50; // 5秒，每100ms检查一次
+          
+          while ((!annotation.draftId || annotation.draftId === 0) && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+            console.log(`🔄 [Optimized] 等待draftId设置... (${attempts}/${maxAttempts})`);
           }
           
           // 获取新的draft_id
@@ -964,7 +970,7 @@ const HtxTextArea = observer(({ item }) => {
               console.error("❌ [Optimized] 字段备注保存失败:", response.status, errorText);
             }
           } else {
-            console.error("❌ [Optimized] 无法获取有效的draft_id");
+            console.error("❌ [Optimized] 等待超时，无法获取有效的draft_id");
           }
         }
         
