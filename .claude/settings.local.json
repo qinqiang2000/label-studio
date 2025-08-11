@@ -37,7 +37,8 @@
       "Bash(awk:*)",
       "Bash(curl:*)",
       "Bash(yarn ls:*)",
-      "mcp__playwright__browser_network_requests"
+      "mcp__playwright__browser_network_requests",
+      "WebFetch(domain:docs.djangoproject.com)"
     ],
     "deny": []
   }

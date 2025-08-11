@@ -5,6 +5,7 @@ import Input from "antd/lib/input/index";
 import Tabs from "antd/lib/tabs";
 import Modal from "antd/lib/modal/index";
 import Tag from "antd/lib/tag/index";
+import Select from "antd/lib/select/index";
 import { observer } from "mobx-react";
 import { destroy, isAlive, types } from "mobx-state-tree";
 import ReactSimpleCodeEditor from "react-simple-code-editor";
@@ -1722,6 +1723,53 @@ const HtxTextArea = observer(({ item }) => {
     }
   }, [item._value]);
 
+  // 获取可用字段选项（排除已显示的字段）
+  const getAvailableFieldOptions = useCallback((arrayIndex = 0) => {
+    try {
+      const parsed = JSON.parse(item._value || "[]");
+      const currentItem = parsed[arrayIndex] || {};
+      const currentKeys = Object.keys(currentItem);
+      
+      // 从评估配置中获取所有可用字段
+      const allAvailableFields = evaluationConfig?.all_fields || 
+                                evaluationConfig?.optional_fields || 
+                                (evaluationConfig?.required_fields || []).concat(evaluationConfig?.optional_fields || []) ||
+                                [];
+      
+      // 排除已显示的字段
+      return allAvailableFields
+        .filter(field => !currentKeys.includes(field))
+        .map(field => ({ value: field, label: field }));
+    } catch (_error) {
+      return [];
+    }
+  }, [item._value, evaluationConfig]);
+
+  // 添加新字段的函数
+  const handleAddNewKey = useCallback((arrayIndex, selectedField) => {
+    if (!selectedField) return;
+    
+    try {
+      const parsed = JSON.parse(item._value || "[]");
+      if (Array.isArray(parsed) && parsed[arrayIndex]) {
+        // 创建新的对象来添加字段
+        const updatedItem = { ...parsed[arrayIndex] };
+        updatedItem[selectedField] = "";
+
+        // 更新数组
+        const updatedArray = [...parsed];
+        updatedArray[arrayIndex] = updatedItem;
+
+        // 更新JSON值
+        const updatedJson = JSON.stringify(updatedArray, null, 2);
+        item.setValue(updatedJson);
+        validateJsonAndFields(updatedJson);
+      }
+    } catch (_error) {
+      // Silently handle error
+    }
+  }, [item, validateJsonAndFields]);
+
   return item.displaymode === PER_REGION_MODES.TAG ? (
     <div className={textareaClassName} style={{ ...visibleStyle, position: "relative" }} ref={item.elementRef}>
       {/* 调试按钮 - 开发环境可见 */}
@@ -1993,6 +2041,34 @@ const HtxTextArea = observer(({ item }) => {
                                     </div>
                                   );
                                 })}
+                                
+                                {/* 添加新字段UI */}
+                                {!item.isReadOnly() && (
+                                  <div
+                                    style={{
+                                      marginTop: 12,
+                                      padding: "8px 0",
+                                      borderTop: "1px dashed #d9d9d9",
+                                      display: "flex",
+                                      alignItems: "center",
+                                    }}
+                                  >
+                                    <Select
+                                      placeholder="选择要添加的字段"
+                                      style={{ width: 200 }}
+                                      options={getAvailableFieldOptions(arrayIndex)}
+                                      onChange={(selectedField) => handleAddNewKey(arrayIndex, selectedField)}
+                                      value={null}
+                                      size="small"
+                                      disabled={getAvailableFieldOptions(arrayIndex).length === 0}
+                                    />
+                                    {getAvailableFieldOptions(arrayIndex).length === 0 && (
+                                      <span style={{ marginLeft: 8, color: '#999', fontSize: '12px' }}>
+                                        所有字段已添加
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
