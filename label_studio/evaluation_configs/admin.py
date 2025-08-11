@@ -1,4 +1,5 @@
 from django.contrib import admin
+from core.admin import superuser_admin_site
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
@@ -6,7 +7,6 @@ from .models import EvaluationFieldConfig, ProjectEvaluationConfig
 import json
 
 
-@admin.register(EvaluationFieldConfig)
 class EvaluationFieldConfigAdmin(admin.ModelAdmin):
     list_display = ('name', 'key', 'required_fields_display', 'optional_fields_display', 'error_types_display', 'is_active', 'is_system_default', 'created_at')
     list_filter = ('is_active', 'is_system_default', 'created_at')
@@ -101,7 +101,6 @@ class EvaluationFieldConfigAdmin(admin.ModelAdmin):
         verbose_name_plural = '评估字段配置'
 
 
-@admin.register(ProjectEvaluationConfig)
 class ProjectEvaluationConfigAdmin(admin.ModelAdmin):
     list_display = ('project', 'evaluation_config', 'effective_required_fields_display', 'created_at')
     list_filter = ('evaluation_config', 'created_at')
@@ -138,4 +137,13 @@ class ProjectEvaluationConfigAdmin(admin.ModelAdmin):
     
     class Meta:
         verbose_name = '项目评估配置'
-        verbose_name_plural = '项目评估配置' 
+        verbose_name_plural = '项目评估配置'
+
+
+# 注册到自定义的超级用户专用 admin site
+superuser_admin_site.register(EvaluationFieldConfig, EvaluationFieldConfigAdmin)
+superuser_admin_site.register(ProjectEvaluationConfig, ProjectEvaluationConfigAdmin)
+
+# 保留默认 admin.site 的注册（以防其他地方有依赖）
+admin.site.register(EvaluationFieldConfig, EvaluationFieldConfigAdmin)
+admin.site.register(ProjectEvaluationConfig, ProjectEvaluationConfigAdmin) 

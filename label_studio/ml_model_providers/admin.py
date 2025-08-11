@@ -1,9 +1,9 @@
 from django.contrib import admin
+from core.admin import superuser_admin_site
 
 from .models import ModelProviderConnection
 
 
-@admin.register(ModelProviderConnection)
 class ModelProviderConnectionAdmin(admin.ModelAdmin):
     list_display = (
         'provider',
@@ -59,3 +59,10 @@ class ModelProviderConnectionAdmin(admin.ModelAdmin):
         ),
         ('Timestamps', {'fields': ('created_at', 'updated_at')}),
     )
+
+
+# 注册到自定义的超级用户专用 admin site
+superuser_admin_site.register(ModelProviderConnection, ModelProviderConnectionAdmin)
+
+# 保留默认 admin.site 的注册（以防其他地方有依赖）
+admin.site.register(ModelProviderConnection, ModelProviderConnectionAdmin)

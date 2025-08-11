@@ -90,12 +90,12 @@ class Command(BaseCommand):
         users = User.objects.all().order_by('email')
         
         self.stdout.write('\n=== 用户admin权限状态 ===')
-        self.stdout.write('-' * 80)
+        self.stdout.write('-' * 90)
         self.stdout.write(f'{"邮箱":<30} {"用户名":<15} {"激活":<6} {"员工":<6} {"超级用户":<8} {"可登录admin":<12}')
-        self.stdout.write('-' * 80)
+        self.stdout.write('-' * 90)
         
         for user in users:
-            can_login_admin = user.is_staff and user.is_active
+            can_login_admin = user.is_staff and user.is_active and user.is_superuser
             self.stdout.write(
                 f'{user.email:<30} '
                 f'{user.username or "无":<15} '
@@ -130,7 +130,7 @@ class Command(BaseCommand):
     
     def show_user_status(self, user):
         """显示用户详细状态"""
-        can_login_admin = user.is_staff and user.is_active
+        can_login_admin = user.is_staff and user.is_active and user.is_superuser
         
         self.stdout.write(f'\n用户详情: {user.email}')
         self.stdout.write('=' * 50)
@@ -144,10 +144,15 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING('\n⚠️  该用户无法登录admin界面')
             )
+            reasons = []
             if not user.is_active:
-                self.stdout.write('   原因: 账号未激活')
+                reasons.append('账号未激活')
             if not user.is_staff:
-                self.stdout.write('   原因: 没有员工权限')
+                reasons.append('没有员工权限')
+            if not user.is_superuser:
+                reasons.append('不是超级用户')
+            for reason in reasons:
+                self.stdout.write(f'   原因: {reason}')
         else:
             self.stdout.write(
                 self.style.SUCCESS('\n✓ 该用户可以登录admin界面')

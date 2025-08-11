@@ -21,6 +21,7 @@ from core.utils.static_serve import serve
 from django.conf import settings
 from django.conf.urls import include
 from django.contrib import admin
+from .admin import superuser_admin_site
 from django.urls import path, re_path
 from django.views.generic.base import RedirectView
 from drf_yasg import openapi
@@ -107,7 +108,7 @@ urlpatterns = [
         RedirectView.as_view(url='/static/docs/public/guide/introduction.html', permanent=False),
         name='docs-redirect',
     ),
-    path('admin/', admin.site.urls),
+    path('admin/', superuser_admin_site.urls),
     path('django-rq/', include('django_rq.urls')),
     path('feature-flags/', views.feature_flags, name='feature_flags'),
     path('heidi-tips/', views.heidi_tips, name='heidi_tips'),

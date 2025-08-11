@@ -1,9 +1,9 @@
 from django.contrib import admin
+from core.admin import superuser_admin_site
 
 from .models import ModelInterface, ModelRun, ThirdPartyModelVersion
 
 
-@admin.register(ModelInterface)
 class ModelInterfaceAdmin(admin.ModelAdmin):
     list_display = (
         'title',
@@ -28,7 +28,6 @@ class ModelInterfaceAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(ThirdPartyModelVersion)
 class ThirdPartyModelVersionAdmin(admin.ModelAdmin):
     list_display = (
         'title',
@@ -52,7 +51,6 @@ class ThirdPartyModelVersionAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(ModelRun)
 class ModelRunAdmin(admin.ModelAdmin):
     list_display = (
         'id',
@@ -119,3 +117,14 @@ class ModelRunAdmin(admin.ModelAdmin):
         self.message_user(request, f'Deleted predictions for {queryset.count()} model runs.')
 
     delete_model_run_predictions.short_description = 'Delete predictions for selected model runs'
+
+
+# 注册到自定义的超级用户专用 admin site
+superuser_admin_site.register(ModelInterface, ModelInterfaceAdmin)
+superuser_admin_site.register(ThirdPartyModelVersion, ThirdPartyModelVersionAdmin)
+superuser_admin_site.register(ModelRun, ModelRunAdmin)
+
+# 保留默认 admin.site 的注册（以防其他地方有依赖）
+admin.site.register(ModelInterface, ModelInterfaceAdmin)
+admin.site.register(ThirdPartyModelVersion, ThirdPartyModelVersionAdmin)
+admin.site.register(ModelRun, ModelRunAdmin)

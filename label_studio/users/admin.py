@@ -2,6 +2,7 @@
 """
 from core.models import AsyncMigrationStatus
 from django.contrib import admin
+from core.admin import superuser_admin_site
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import Group
 from django.urls import path
@@ -323,6 +324,22 @@ class RolePermissionAdmin(admin.ModelAdmin):
     bulk_add_page_operation_permissions.short_description = '添加页面操作权限包'
 
 
+# 注册到自定义的超级用户专用 admin site
+superuser_admin_site.register(User, UserAdminShort)
+superuser_admin_site.register(Role, RoleAdmin)
+superuser_admin_site.register(Permission, PermissionAdmin)
+superuser_admin_site.register(RolePermission, RolePermissionAdmin)
+superuser_admin_site.register(Project)
+superuser_admin_site.register(MLBackend)
+superuser_admin_site.register(MLBackendTrainJob)
+superuser_admin_site.register(Task)
+superuser_admin_site.register(Annotation)
+superuser_admin_site.register(Prediction)
+superuser_admin_site.register(Organization)
+superuser_admin_site.register(OrganizationMember, OrganizationMemberAdmin)
+superuser_admin_site.register(AsyncMigrationStatus, AsyncMigrationStatusAdmin)
+
+# 保留默认 admin.site 的注册（以防其他地方有依赖）
 admin.site.register(User, UserAdminShort)
 admin.site.register(Role, RoleAdmin)
 admin.site.register(Permission, PermissionAdmin)
@@ -337,10 +354,13 @@ admin.site.register(Organization)
 admin.site.register(OrganizationMember, OrganizationMemberAdmin)
 admin.site.register(AsyncMigrationStatus, AsyncMigrationStatusAdmin)
 
-# remove unused django groups
-admin.site.unregister(Group)
+# remove unused django groups from both admin sites
+try:
+    admin.site.unregister(Group)
+except admin.sites.NotRegistered:
+    pass
 
-# 自定义admin站点设置
-admin.site.site_header = 'Label Studio 管理后台'
-admin.site.site_title = 'Label Studio Admin'
-admin.site.index_title = '欢迎使用 Label Studio 管理后台'
+try:
+    superuser_admin_site.unregister(Group)
+except admin.sites.NotRegistered:
+    pass
