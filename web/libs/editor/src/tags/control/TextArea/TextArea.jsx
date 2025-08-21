@@ -301,7 +301,7 @@ function getErrorTypes(item) {
       }
     })
     .catch((error) => {
-      console.warn('📊 Failed to load config for project', projectId, ':', error);
+      console.warn("📊 Failed to load config for project", projectId, ":", error);
     });
 
   // Return fallback while async loading happens
@@ -1724,51 +1724,58 @@ const HtxTextArea = observer(({ item }) => {
   }, [item._value]);
 
   // 获取可用字段选项（排除已显示的字段）
-  const getAvailableFieldOptions = useCallback((arrayIndex = 0) => {
-    try {
-      const parsed = JSON.parse(item._value || "[]");
-      const currentItem = parsed[arrayIndex] || {};
-      const currentKeys = Object.keys(currentItem);
-      
-      // 从评估配置中获取所有可用字段
-      const allAvailableFields = evaluationConfig?.all_fields || 
-                                evaluationConfig?.optional_fields || 
-                                (evaluationConfig?.required_fields || []).concat(evaluationConfig?.optional_fields || []) ||
-                                [];
-      
-      // 排除已显示的字段
-      return allAvailableFields
-        .filter(field => !currentKeys.includes(field))
-        .map(field => ({ value: field, label: field }));
-    } catch (_error) {
-      return [];
-    }
-  }, [item._value, evaluationConfig]);
+  const getAvailableFieldOptions = useCallback(
+    (arrayIndex = 0) => {
+      try {
+        const parsed = JSON.parse(item._value || "[]");
+        const currentItem = parsed[arrayIndex] || {};
+        const currentKeys = Object.keys(currentItem);
+
+        // 从评估配置中获取所有可用字段
+        const allAvailableFields =
+          evaluationConfig?.all_fields ||
+          evaluationConfig?.optional_fields ||
+          (evaluationConfig?.required_fields || []).concat(evaluationConfig?.optional_fields || []) ||
+          [];
+
+        // 排除已显示的字段
+        return allAvailableFields
+          .filter((field) => !currentKeys.includes(field))
+          .map((field) => ({ value: field, label: field }));
+      } catch (_error) {
+        return [];
+      }
+    },
+    [item._value, evaluationConfig],
+  );
 
   // 添加新字段的函数
-  const handleAddNewKey = useCallback((arrayIndex, selectedField) => {
-    if (!selectedField) return;
-    
-    try {
-      const parsed = JSON.parse(item._value || "[]");
-      if (Array.isArray(parsed) && parsed[arrayIndex]) {
-        // 创建新的对象来添加字段
-        const updatedItem = { ...parsed[arrayIndex] };
-        updatedItem[selectedField] = "";
+  const handleAddNewKey = useCallback(
+    (arrayIndex, selectedField) => {
+      if (!selectedField) return;
 
-        // 更新数组
-        const updatedArray = [...parsed];
-        updatedArray[arrayIndex] = updatedItem;
+      try {
+        const parsed = JSON.parse(item._value || "[]");
+        if (Array.isArray(parsed) && parsed[arrayIndex]) {
+          // 创建新的对象来添加字段
+          const updatedItem = { ...parsed[arrayIndex] };
+          updatedItem[selectedField] = "";
 
-        // 更新JSON值
-        const updatedJson = JSON.stringify(updatedArray, null, 2);
-        item.setValue(updatedJson);
-        validateJsonAndFields(updatedJson);
+          // 更新数组
+          const updatedArray = [...parsed];
+          updatedArray[arrayIndex] = updatedItem;
+
+          // 更新JSON值
+          const updatedJson = JSON.stringify(updatedArray, null, 2);
+          item.setValue(updatedJson);
+          validateJsonAndFields(updatedJson);
+        }
+      } catch (_error) {
+        // Silently handle error
       }
-    } catch (_error) {
-      // Silently handle error
-    }
-  }, [item, validateJsonAndFields]);
+    },
+    [item, validateJsonAndFields],
+  );
 
   return item.displaymode === PER_REGION_MODES.TAG ? (
     <div className={textareaClassName} style={{ ...visibleStyle, position: "relative" }} ref={item.elementRef}>
@@ -2041,7 +2048,7 @@ const HtxTextArea = observer(({ item }) => {
                                     </div>
                                   );
                                 })}
-                                
+
                                 {/* 添加新字段UI */}
                                 {!item.isReadOnly() && (
                                   <div
@@ -2063,7 +2070,7 @@ const HtxTextArea = observer(({ item }) => {
                                       disabled={getAvailableFieldOptions(arrayIndex).length === 0}
                                     />
                                     {getAvailableFieldOptions(arrayIndex).length === 0 && (
-                                      <span style={{ marginLeft: 8, color: '#999', fontSize: '12px' }}>
+                                      <span style={{ marginLeft: 8, color: "#999", fontSize: "12px" }}>
                                         所有字段已添加
                                       </span>
                                     )}

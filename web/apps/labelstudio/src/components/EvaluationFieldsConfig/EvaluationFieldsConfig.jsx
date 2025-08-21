@@ -14,6 +14,10 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
   const [documentTypeConfigs, setDocumentTypeConfigs] = useState({});
   const [isLoadingConfigs, setIsLoadingConfigs] = useState(true);
 
+  // 新增状态：项目级评估字段自定义
+  const [customEvaluationFields, setCustomEvaluationFields] = useState([]);
+  const [isFieldCustomizationMode, setIsFieldCustomizationMode] = useState(false);
+
   // 从后端API获取文档类型配置
   useEffect(() => {
     const fetchDocumentTypeConfigs = async () => {
@@ -189,12 +193,21 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
     if (config.matching_strategy) {
       setMatchingStrategy(config.matching_strategy);
     }
+
+    // 加载项目级评估字段配置
+    if (config.evaluation_fields) {
+      setCustomEvaluationFields(config.evaluation_fields);
+      setIsFieldCustomizationMode(true);
+    }
   }, [project, isLoadingConfigs]);
 
-  // 当文档类型变化时，如果不是自定义类型，清空自定义字段
+  // 当文档类型变化时的处理逻辑
   useEffect(() => {
     if (documentType !== "custom") {
       setCustomFields("");
+      // 重置字段自定义模式
+      setIsFieldCustomizationMode(false);
+      setCustomEvaluationFields([]);
     }
   }, [documentType]);
 
@@ -206,21 +219,58 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
         .map((f) => f.trim())
         .filter(Boolean);
     }
+
+    // 如果是字段自定义模式，返回自定义评估字段
+    if (isFieldCustomizationMode) {
+      return customEvaluationFields;
+    }
+
     return documentTypeConfigs[documentType]?.fields || [];
-  }, [documentType, customFields, documentTypeConfigs]);
+  }, [documentType, customFields, documentTypeConfigs, isFieldCustomizationMode, customEvaluationFields]);
+
+  // 评估字段管理函数
+  const initializeCustomFields = useCallback(() => {
+    const templateFields = documentTypeConfigs[documentType]?.fields || [];
+    // 将模板字段作为评估字段初始化
+    setCustomEvaluationFields([...templateFields]);
+    setIsFieldCustomizationMode(true);
+  }, [documentType, documentTypeConfigs]);
+
+  const addEvaluationField = useCallback(
+    (fieldName) => {
+      if (!fieldName.trim()) return;
+
+      const trimmedField = fieldName.trim();
+      if (!customEvaluationFields.includes(trimmedField)) {
+        setCustomEvaluationFields((prev) => [...prev, trimmedField]);
+      }
+    },
+    [customEvaluationFields],
+  );
+
+  const removeEvaluationField = useCallback((fieldName) => {
+    setCustomEvaluationFields((prev) => prev.filter((f) => f !== fieldName));
+  }, []);
+
+  const resetToTemplate = useCallback(() => {
+    setIsFieldCustomizationMode(false);
+    setCustomEvaluationFields([]);
+  }, []);
 
   // 保存配置
   const handleSave = useCallback(async () => {
     const fields = getCurrentFields();
-    const config = {
-      document_type: documentType,
-      default_fields: fields,
-      matching_strategy: matchingStrategy,
-      last_updated: new Date().toISOString(),
-    };
 
     try {
-      // 调用API保存配置
+      // 仅使用项目PATCH接口，不修改全局EvaluationFieldConfig
+      const config = {
+        document_type: documentType,
+        default_fields: fields, // 兼容现有逻辑
+        evaluation_fields: fields, // 新增：专用于评估模块的字段
+        matching_strategy: matchingStrategy,
+        last_updated: new Date().toISOString(),
+      };
+
       const response = await fetch(`/api/projects/${project.id}/`, {
         method: "PATCH",
         headers: {
@@ -293,13 +343,31 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
             <Elem name="item">
               <Elem name="label">当前配置字段:</Elem>
               <Elem name="current-fields">
-                {(
-                  documentTypeConfigs[currentConfig.document_type || "invoice"]?.fields ||
-                  documentTypeConfigs.invoice?.fields ||
-                  []
-                ).join(", ") || "无"}
+                {(() => {
+                  // 优先显示自定义评估字段
+                  if (currentConfig.evaluation_fields) {
+                    return currentConfig.evaluation_fields.join(", ") || "无";
+                  }
+
+                  // 否则显示模板字段
+                  return (
+                    (
+                      documentTypeConfigs[currentConfig.document_type || "invoice"]?.fields ||
+                      documentTypeConfigs.invoice?.fields ||
+                      []
+                    ).join(", ") || "无"
+                  );
+                })()}
               </Elem>
             </Elem>
+
+            {/* 显示自定义评估字段 */}
+            {currentConfig.evaluation_fields && (
+              <Elem name="item">
+                <Elem name="label">自定义评估字段:</Elem>
+                <Elem name="value">{currentConfig.evaluation_fields.join(", ")}</Elem>
+              </Elem>
+            )}
           </Elem>
           <Elem name="edit-button">
             <Button look="primary" onClick={() => setIsEditing(true)}>
@@ -345,14 +413,62 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
                 </Elem>
               </Elem>
             ) : (
-              <Elem name="predefined-fields">
-                <Elem name="fields-label">预定义字段:</Elem>
-                <Elem name="fields-list">
-                  {documentTypeConfigs[documentType]?.fields.map((field, index) => (
-                    <Elem key={field} name="field-tag">
-                      {field}
+              <Elem name="template-fields-section">
+                {/* 模板字段自定义选项 */}
+                <Elem name="customization-options">
+                  {!isFieldCustomizationMode ? (
+                    <Elem name="template-mode">
+                      <Elem name="predefined-fields">
+                        <Elem name="fields-label">预定义字段:</Elem>
+                        <Elem name="fields-list">
+                          {documentTypeConfigs[documentType]?.fields.map((field, index) => (
+                            <Elem key={field} name="field-tag">
+                              {field}
+                            </Elem>
+                          ))}
+                        </Elem>
+                      </Elem>
+                      <Button look="secondary" onClick={initializeCustomFields} style={{ marginTop: "10px" }}>
+                        自定义此模板的字段
+                      </Button>
                     </Elem>
-                  ))}
+                  ) : (
+                    <Elem name="custom-mode">
+                      <Elem name="customization-header">
+                        <Elem name="title">基于 {documentTypeConfigs[documentType]?.label} 模板自定义评估字段</Elem>
+                        <Button look="secondary" size="small" onClick={resetToTemplate}>
+                          重置为模板
+                        </Button>
+                      </Elem>
+
+                      {/* 评估字段编辑 */}
+                      <Elem name="field-group">
+                        <Elem name="field-group-header">
+                          <Elem name="field-group-title">评估字段</Elem>
+                          <Button
+                            look="secondary"
+                            size="small"
+                            onClick={() => {
+                              const fieldName = prompt("请输入新的评估字段名:");
+                              if (fieldName) addEvaluationField(fieldName);
+                            }}
+                          >
+                            + 添加字段
+                          </Button>
+                        </Elem>
+                        <Elem name="fields-list editable">
+                          {customEvaluationFields.map((field) => (
+                            <Elem key={field} name="field-tag editable">
+                              <span>{field}</span>
+                              <button onClick={() => removeEvaluationField(field)} className="remove-field">
+                                ×
+                              </button>
+                            </Elem>
+                          ))}
+                        </Elem>
+                      </Elem>
+                    </Elem>
+                  )}
                 </Elem>
               </Elem>
             )}
@@ -388,6 +504,15 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
                     setCustomFields(config.default_fields.join(", "));
                   } else {
                     setCustomFields("");
+                  }
+
+                  // 重置评估字段自定义状态
+                  if (config.evaluation_fields) {
+                    setCustomEvaluationFields(config.evaluation_fields);
+                    setIsFieldCustomizationMode(true);
+                  } else {
+                    setCustomEvaluationFields([]);
+                    setIsFieldCustomizationMode(false);
                   }
                 }}
               >

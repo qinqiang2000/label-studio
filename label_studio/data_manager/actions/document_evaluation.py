@@ -77,6 +77,39 @@ def get_project_evaluation_config(project):
         # Check if project has evaluation_field_config configured
         if hasattr(project, 'evaluation_field_config') and project.evaluation_field_config:
             project_eval_config = project.evaluation_field_config
+            
+            # 优先使用项目自定义的evaluation_fields
+            if 'evaluation_fields' in project_eval_config:
+                custom_fields = project_eval_config['evaluation_fields']
+                document_type = project_eval_config.get('document_type', 'invoice')
+                
+                try:
+                    # Get the template configuration for reference
+                    config = EvaluationFieldConfig.objects.get(
+                        key=document_type, 
+                        is_active=True
+                    )
+                except EvaluationFieldConfig.DoesNotExist:
+                    # Use a minimal default config if template not found
+                    config = type('Config', (), {
+                        'name': document_type.title(),
+                        'key': document_type,
+                        'field_validation_rules': {},
+                    })()
+                
+                logger.info(f"Using project custom evaluation_fields for project {project.id}: {custom_fields}")
+                
+                # Create a temporary ProjectEvaluationConfig with custom fields
+                return type('ProjectEvaluationConfig', (), {
+                    'project': project,
+                    'evaluation_config': config,
+                    'effective_required_fields': custom_fields,  # 使用项目自定义字段
+                    'effective_optional_fields': [],
+                    'effective_all_fields': custom_fields,
+                    'effective_validation_rules': getattr(config, 'field_validation_rules', {}),
+                })()
+            
+            # 如果没有evaluation_fields，检查document_type配置
             document_type = project_eval_config.get('document_type')
             
             if document_type:

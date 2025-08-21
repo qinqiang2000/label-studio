@@ -50,6 +50,10 @@ def get_evaluation_fields_for_project(project):
     if not config:
         return DEFAULT_FIELD_CONFIGS['invoice']
     
+    # 优先使用专门的evaluation_fields配置（不影响标注模块）
+    if 'evaluation_fields' in config:
+        return config['evaluation_fields']
+    
     if 'default_fields' in config:
         return config['default_fields']
     

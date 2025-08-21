@@ -172,6 +172,97 @@
     font-family: monospace;
     font-weight: 500;
     border: 1px solid #d1d5db;
+    
+    &.editable {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #e5f3ff;
+      color: #1e40af;
+      border-color: #bfdbfe;
+
+      .remove-field {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 2px;
+        font-size: 12px;
+        line-height: 1;
+        color: #dc2626;
+        font-weight: bold;
+        
+        &:hover {
+          background: rgba(220, 38, 38, 0.1);
+        }
+      }
+    }
+  }
+
+  // 新增：字段自定义相关样式
+  &__template-fields-section {
+    .customization-options {
+      margin: 16px 0;
+    }
+
+    .template-mode {
+      .predefined-fields {
+        margin: 16px 0;
+        padding: 16px;
+        background: #f9fafb;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
+      }
+    }
+
+    .custom-mode {
+      .customization-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 6px;
+        
+        .title {
+          font-weight: 500;
+          color: #374151;
+        }
+      }
+
+      .field-group {
+        margin-bottom: 24px;
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+      .field-group-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .field-group-title {
+        font-weight: 500;
+        color: #374151;
+        font-size: 14px;
+      }
+
+      .fields-list.editable {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        min-height: 40px;
+        padding: 12px;
+        border: 1px dashed #d1d5db;
+        border-radius: 6px;
+        background: #fafafa;
+      }
+    }
   }
 
   &__preview {
