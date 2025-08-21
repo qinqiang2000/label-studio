@@ -257,6 +257,34 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
     setCustomEvaluationFields([]);
   }, []);
 
+  // 获取可用字段选项（排除已添加的字段）
+  const getAvailableFieldOptions = useCallback(() => {
+    // 获取当前文档类型的模板字段
+    const templateFields = documentTypeConfigs[documentType]?.fields || [];
+
+    // 定义常用的额外字段，补充模板字段
+    const commonFields = [
+      "序号", "docType", "invoiceNumber", "invoiceDate", "totalAmount", "currency",
+      "billToName", "billFromName", "totalTaxAmount", "sellerName", "buyerName", 
+      "taxRate", "netAmount", "description", "paymentMethod", "dueDate",
+      "tradeId", "recieptNum", "logNum", "tradeDate", "amount",
+      "paymentName", "paymentBank", "paymentAccount", 
+      "payeeName", "payeeBank", "payeeAccount"
+    ];
+
+    // 合并所有可用字段，去重
+    const allFields = [...new Set([...templateFields, ...commonFields])];
+
+    // 过滤掉已经在 customEvaluationFields 中存在的字段
+    const availableFields = allFields.filter((field) => !customEvaluationFields.includes(field));
+
+    // 返回适合 Select 组件的格式
+    return availableFields.map((field) => ({
+      value: field,
+      label: field,
+    }));
+  }, [documentType, documentTypeConfigs, customEvaluationFields]);
+
   // 保存配置
   const handleSave = useCallback(async () => {
     const fields = getCurrentFields();
@@ -441,16 +469,32 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
                       {/* 评估字段编辑 */}
                       <Elem name="field-group">
                         <Elem name="field-group-header">
-                          <Button
-                            look="secondary"
-                            size="small"
-                            onClick={() => {
-                              const fieldName = prompt("请输入新的评估字段名:");
-                              if (fieldName) addEvaluationField(fieldName);
-                            }}
-                          >
-                            + 添加字段
-                          </Button>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <Select
+                              placeholder="选择要添加的字段"
+                              options={getAvailableFieldOptions()}
+                              onChange={(selectedField) => {
+                                if (selectedField) addEvaluationField(selectedField);
+                              }}
+                              value={null}
+                              className="add-field-select"
+                              style={{ width: 180 }}
+                              disabled={getAvailableFieldOptions().length === 0}
+                            />
+                            <Button
+                              look="secondary"
+                              size="small"
+                              onClick={() => {
+                                const fieldName = prompt("请输入自定义字段名:");
+                                if (fieldName) addEvaluationField(fieldName);
+                              }}
+                            >
+                              自定义字段
+                            </Button>
+                            {getAvailableFieldOptions().length === 0 && (
+                              <span style={{ color: "#999", fontSize: "12px" }}>所有预定义字段已添加</span>
+                            )}
+                          </div>
                           <Button look="secondary" size="small" onClick={resetToTemplate}>
                             重置为模板
                           </Button>
