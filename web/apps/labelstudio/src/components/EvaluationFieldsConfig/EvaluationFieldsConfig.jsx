@@ -17,6 +17,9 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
   // 新增状态：项目级评估字段自定义
   const [customEvaluationFields, setCustomEvaluationFields] = useState([]);
   const [isFieldCustomizationMode, setIsFieldCustomizationMode] = useState(false);
+  
+  // 添加状态来存储从API获取的字段配置（与TextArea.jsx保持一致）
+  const [apiEvaluationConfig, setApiEvaluationConfig] = useState(null);
 
   // 从后端API获取文档类型配置
   useEffect(() => {
@@ -179,6 +182,24 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
     fetchDocumentTypeConfigs();
   }, []);
 
+  // 获取API字段配置的预设数据
+  useEffect(() => {
+    const loadApiPresets = async () => {
+      try {
+        // 使用预设配置API，这与你提供的数据结构一致
+        const response = await fetch(`/api/frontend/evaluation-configs/presets/`);
+        if (response.ok) {
+          const presets = await response.json();
+          setApiEvaluationConfig(presets);
+        }
+      } catch (error) {
+        console.warn('Failed to load API presets:', error);
+      }
+    };
+
+    loadApiPresets();
+  }, []);
+
   // 从项目配置中加载当前设置
   useEffect(() => {
     if (isLoadingConfigs) return; // 等待配置加载完成
@@ -259,31 +280,33 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
 
   // 获取可用字段选项（排除已添加的字段）
   const getAvailableFieldOptions = useCallback(() => {
-    // 获取当前文档类型的模板字段
-    const templateFields = documentTypeConfigs[documentType]?.fields || [];
+    // 根据当前选择的文档类型获取对应的字段
+    let availableFields = [];
 
-    // 定义常用的额外字段，补充模板字段
-    const commonFields = [
-      "序号", "docType", "invoiceNumber", "invoiceDate", "totalAmount", "currency",
-      "billToName", "billFromName", "totalTaxAmount", "sellerName", "buyerName", 
-      "taxRate", "netAmount", "description", "paymentMethod", "dueDate",
-      "tradeId", "recieptNum", "logNum", "tradeDate", "amount",
-      "paymentName", "paymentBank", "paymentAccount", 
-      "payeeName", "payeeBank", "payeeAccount"
-    ];
+    // 1. 优先从 API 预设配置中获取当前文档类型的字段
+    if (apiEvaluationConfig && apiEvaluationConfig[documentType]) {
+      const presetConfig = apiEvaluationConfig[documentType];
+      availableFields = presetConfig.fields || [];
+    }
+    // 2. 如果 API 没有数据，则从本地 documentTypeConfigs 获取
+    else if (documentTypeConfigs[documentType]?.fields) {
+      availableFields = [...documentTypeConfigs[documentType].fields];
+    }
 
-    // 合并所有可用字段，去重
-    const allFields = [...new Set([...templateFields, ...commonFields])];
+    // 3. 确保序号字段始终可用
+    if (!availableFields.includes("序号")) {
+      availableFields = ["序号", ...availableFields];
+    }
 
     // 过滤掉已经在 customEvaluationFields 中存在的字段
-    const availableFields = allFields.filter((field) => !customEvaluationFields.includes(field));
+    const filteredFields = availableFields.filter((field) => !customEvaluationFields.includes(field));
 
     // 返回适合 Select 组件的格式
-    return availableFields.map((field) => ({
+    return filteredFields.map((field) => ({
       value: field,
       label: field,
     }));
-  }, [documentType, documentTypeConfigs, customEvaluationFields]);
+  }, [documentType, documentTypeConfigs, customEvaluationFields, apiEvaluationConfig]);
 
   // 保存配置
   const handleSave = useCallback(async () => {
