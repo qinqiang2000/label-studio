@@ -18,6 +18,12 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
   const [customEvaluationFields, setCustomEvaluationFields] = useState([]);
   const [isFieldCustomizationMode, setIsFieldCustomizationMode] = useState(false);
   
+  // 调试状态变化
+  useEffect(() => {
+    console.log("[EvaluationFieldsConfig] isFieldCustomizationMode changed:", isFieldCustomizationMode);
+    console.log("[EvaluationFieldsConfig] customEvaluationFields changed:", customEvaluationFields);
+  }, [isFieldCustomizationMode, customEvaluationFields]);
+  
   // 添加状态来存储从API获取的字段配置（与TextArea.jsx保持一致）
   const [apiEvaluationConfig, setApiEvaluationConfig] = useState(null);
 
@@ -205,6 +211,9 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
     if (isLoadingConfigs) return; // 等待配置加载完成
 
     const config = project?.evaluation_field_config || {};
+    console.log("[EvaluationFieldsConfig] Loading project config:", config);
+    console.log("[EvaluationFieldsConfig] Project:", project);
+    
     if (config.document_type) {
       setDocumentType(config.document_type);
     }
@@ -217,8 +226,11 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
 
     // 加载项目级评估字段配置
     if (config.evaluation_fields) {
+      console.log("[EvaluationFieldsConfig] Found evaluation_fields in config:", config.evaluation_fields);
       setCustomEvaluationFields(config.evaluation_fields);
       setIsFieldCustomizationMode(true);
+    } else {
+      console.log("[EvaluationFieldsConfig] No evaluation_fields found in config");
     }
   }, [project, isLoadingConfigs]);
 
@@ -252,9 +264,14 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
   // 评估字段管理函数
   const initializeCustomFields = useCallback(() => {
     const templateFields = documentTypeConfigs[documentType]?.fields || [];
+    console.log("[EvaluationFieldsConfig] Initializing custom fields with template:", templateFields);
+    console.log("[EvaluationFieldsConfig] Document type:", documentType);
+    console.log("[EvaluationFieldsConfig] Document type configs:", documentTypeConfigs);
+    
     // 将模板字段作为评估字段初始化
     setCustomEvaluationFields([...templateFields]);
     setIsFieldCustomizationMode(true);
+    console.log("[EvaluationFieldsConfig] Field customization mode activated");
   }, [documentType, documentTypeConfigs]);
 
   const addEvaluationField = useCallback(
@@ -472,14 +489,22 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
                       <Elem name="predefined-fields">
                         <Elem name="fields-label">预定义字段:</Elem>
                         <Elem name="fields-list">
-                          {documentTypeConfigs[documentType]?.fields.map((field, index) => (
+                          {documentTypeConfigs[documentType]?.fields?.map((field, index) => (
                             <Elem key={field} name="field-tag">
                               {field}
                             </Elem>
-                          ))}
+                          )) || <span>无预定义字段</span>}
                         </Elem>
                       </Elem>
-                      <Button look="secondary" onClick={initializeCustomFields} style={{ marginTop: "10px" }}>
+                      <Button 
+                        look="secondary" 
+                        onClick={() => {
+                          console.log("[EvaluationFieldsConfig] Button clicked - isFieldCustomizationMode:", isFieldCustomizationMode);
+                          console.log("[EvaluationFieldsConfig] Available fields:", documentTypeConfigs[documentType]?.fields);
+                          initializeCustomFields();
+                        }} 
+                        style={{ marginTop: "10px" }}
+                      >
                         自定义此模板的字段
                       </Button>
                     </Elem>
