@@ -163,6 +163,14 @@
     gap: 8px;
   }
 
+  // Ensure header row for field actions has proper spacing like WorkspaceCard footer buttons
+  &__field-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
   &__field-tag {
     background: #e5e7eb;
     color: #374151;
@@ -241,9 +249,10 @@
 
       .field-group-header {
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        gap: 8px;
         margin-bottom: 12px;
+        justify-content: flex-start;
       }
 
       .field-group-title {

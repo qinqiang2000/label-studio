@@ -436,15 +436,11 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
                     <Elem name="custom-mode">
                       <Elem name="customization-header">
                         <Elem name="title">基于 {documentTypeConfigs[documentType]?.label} 模板自定义评估字段</Elem>
-                        <Button look="secondary" size="small" onClick={resetToTemplate}>
-                          重置为模板
-                        </Button>
                       </Elem>
 
                       {/* 评估字段编辑 */}
                       <Elem name="field-group">
                         <Elem name="field-group-header">
-                          <Elem name="field-group-title">评估字段</Elem>
                           <Button
                             look="secondary"
                             size="small"
@@ -454,6 +450,9 @@ export const EvaluationFieldsConfig = ({ project, onUpdate }) => {
                             }}
                           >
                             + 添加字段
+                          </Button>
+                          <Button look="secondary" size="small" onClick={resetToTemplate}>
+                            重置为模板
                           </Button>
                         </Elem>
                         <Elem name="fields-list editable">
