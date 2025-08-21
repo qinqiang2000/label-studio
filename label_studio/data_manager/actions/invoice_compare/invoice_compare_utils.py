@@ -334,14 +334,14 @@ class InvoiceComparer:
         
         return set(words)
     
-    def compare_name_fields(self, name1: Any, name2: Any, overlap_threshold: float = 0.5) -> bool:
+    def compare_name_fields(self, name1: Any, name2: Any, overlap_threshold: float = 0.7) -> bool:
         """
         比较两个Name字段，使用重叠度匹配
         
         Args:
             name1: 标准Name字段值
             name2: 预测Name字段值  
-            overlap_threshold: 重叠阈值，默认0.5（50%）
+            overlap_threshold: 重叠阈值，默认0.7（70%）
             
         Returns:
             bool: 是否匹配（重叠度达到阈值）
@@ -368,8 +368,15 @@ class InvoiceComparer:
         return overlap_ratio >= overlap_threshold
     
     def is_name_field(self, field_name: str) -> bool:
-        """判断字段是否为Name字段（不区分大小写）"""
-        return 'name' in field_name.lower()
+        """判断字段是否为Name字段（不区分大小写）
+        排除标识符类字段，避免误判
+        """
+        field_lower = field_name.lower()
+        # 排除标识符类字段
+        identifier_keywords = ['number', 'id', 'code', 'identification', 'identifier']
+        if any(keyword in field_lower for keyword in identifier_keywords):
+            return False
+        return 'name' in field_lower
     
     def is_amount_field(self, field_name: str) -> bool:
         """判断字段是否为金额字段（不区分大小写）"""
@@ -392,6 +399,16 @@ class InvoiceComparer:
         array_keywords = ['page', 'pages', 'items', 'list', 'array', 'tags']
         return any(keyword in field_lower for keyword in array_keywords)
     
+    def is_identifier_field(self, field_name: str) -> bool:
+        """判断字段是否为标识符字段（不区分大小写）
+        如税务识别号、身份证号、订单号等需要精确匹配的字段
+        """
+        field_lower = field_name.lower()
+        # 标识符关键词
+        identifier_keywords = ['number', 'id', 'code', 'identification', 'identifier', 
+                              'serial', 'reference', 'ref', 'no', 'num']
+        return any(keyword in field_lower for keyword in identifier_keywords)
+    
     def get_key_fields_for_comparison(self) -> List[str]:
         """
         根据当前的匹配策略确定主键字段
@@ -413,7 +430,10 @@ class InvoiceComparer:
         for field in self.core_fields:
             value = invoice.get(field)
             
-            if self.is_name_field(field):
+            if self.is_identifier_field(field):
+                # 标识符字段保持原始值，在比较时使用精确比较
+                normalized[field] = value
+            elif self.is_name_field(field):
                 # Name字段保持原始值，在比较时使用特殊逻辑
                 normalized[field] = value
             elif self.is_amount_field(field):
@@ -443,7 +463,12 @@ class InvoiceComparer:
         Returns:
             bool: 是否相等
         """
-        if self.is_name_field(field_name):
+        if self.is_identifier_field(field_name):
+            # 标识符字段使用精确字符串比较（区分大小写）
+            str1 = str(value1).strip() if value1 is not None else ""
+            str2 = str(value2).strip() if value2 is not None else ""
+            return str1 == str2
+        elif self.is_name_field(field_name):
             # Name字段使用特殊比较逻辑
             return self.compare_name_fields(value1, value2, self.name_overlap_threshold)
         elif self.is_amount_field(field_name):
@@ -477,7 +502,11 @@ class InvoiceComparer:
         
         diff_fields = []
         for field in self.core_fields:
-            if self.is_name_field(field):
+            if self.is_identifier_field(field):
+                # 标识符字段使用精确比较
+                if not self.field_values_equal(norm1.get(field), norm2.get(field), field):
+                    diff_fields.append(field)
+            elif self.is_name_field(field):
                 # Name字段使用特殊比较逻辑
                 if not self.compare_name_fields(norm1.get(field), norm2.get(field), self.name_overlap_threshold):
                     diff_fields.append(field)
