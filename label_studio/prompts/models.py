@@ -40,6 +40,12 @@ class Prompt(models.Model):
         blank=True, 
         help_text="Temperature for AI model response (0.0-2.0). Controls randomness: lower is more deterministic."
     )
+    thinking_budget = models.IntegerField(
+        null=True,
+        blank=True,
+        default=0,
+        help_text="Thinking budget for AI model (0 or positive integer). Controls deep thinking computation."
+    )
     response_schema = models.JSONField(
         null=True, 
         blank=True, 
@@ -85,6 +91,11 @@ class Prompt(models.Model):
             if self.temperature < 0.0 or self.temperature > 2.0:
                 raise ValidationError("Temperature must be between 0.0 and 2.0")
         
+        # Validate thinking_budget range
+        if self.thinking_budget is not None:
+            if self.thinking_budget < 0:
+                raise ValidationError("Thinking budget must be 0 or a positive integer")
+        
         # Validate response_schema is valid JSON
         if self.response_schema is not None:
             try:
@@ -122,6 +133,10 @@ class Prompt(models.Model):
         
         if self.temperature is not None:
             runtime_config['temperature'] = self.temperature
+            
+        if self.thinking_budget is not None and self.thinking_budget > 0:
+            # Send thinking_budget as integer value - ML backend will create ThinkingConfig
+            runtime_config['thinking_budget'] = self.thinking_budget
             
         if self.response_schema is not None:
             runtime_config['response_schema'] = self.response_schema

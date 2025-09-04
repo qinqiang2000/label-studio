@@ -46,7 +46,7 @@ class PromptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Prompt
         fields = [
-            'id', 'name', 'content', 'temperature', 'response_schema', 
+            'id', 'name', 'content', 'temperature', 'thinking_budget', 'response_schema', 
             'created_at', 'updated_at', 'created_by', 
             'workspace', 'workspace_id',  # Legacy fields
             'workspaces', 'workspace_ids'  # New multi-workspace fields
@@ -98,6 +98,12 @@ class PromptSerializer(serializers.ModelSerializer):
         if value is not None:
             if value < 0.0 or value > 2.0:
                 raise serializers.ValidationError("Temperature must be between 0.0 and 2.0")
+        return value
+    
+    def validate_thinking_budget(self, value):
+        """Validate thinking_budget is non-negative"""
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Thinking budget must be 0 or a positive integer")
         return value
     
     def validate_response_schema(self, value):

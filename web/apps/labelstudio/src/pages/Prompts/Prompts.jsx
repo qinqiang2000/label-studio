@@ -12,7 +12,7 @@ const Block = cn("prompts-page");
 
 // 可折叠JSON编辑器组件
 const CollapsibleJsonEditor = ({ value, onChange, placeholder, disabled, error }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false); // 默认展开
+  const [isCollapsed, setIsCollapsed] = useState(true); // 默认收起
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [jsonError, setJsonError] = useState(null);
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -441,6 +441,7 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
     name: prompt?.name || "",
     content: prompt?.content || "",
     temperature: prompt?.temperature || "",
+    thinking_budget: prompt?.thinking_budget || "",
     response_schema: prompt?.response_schema ? JSON.stringify(prompt.response_schema, null, 2) : "",
     // Legacy single workspace support (for backward compatibility)
     workspace: prompt?.workspace?.id || prompt?.workspace_id || "",
@@ -458,6 +459,14 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
       const temp = Number.parseFloat(formData.temperature);
       if (isNaN(temp) || temp < 0.0 || temp > 2.0) {
         newErrors.temperature = "Temperature must be a number between 0.0 and 2.0";
+      }
+    }
+
+    // Validate thinking_budget
+    if (formData.thinking_budget !== "") {
+      const budget = Number.parseInt(formData.thinking_budget);
+      if (isNaN(budget) || budget < 0) {
+        newErrors.thinking_budget = "Thinking budget must be 0 or a positive integer";
       }
     }
 
@@ -490,6 +499,11 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
     // Add temperature if provided
     if (formData.temperature !== "") {
       submitData.temperature = Number.parseFloat(formData.temperature);
+    }
+
+    // Add thinking_budget if provided
+    if (formData.thinking_budget !== "") {
+      submitData.thinking_budget = Number.parseInt(formData.thinking_budget);
     }
 
     // Add response_schema if provided
@@ -571,27 +585,50 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
         />
       </div>
 
-      <div className={Block.elem("form-field")}>
-        <label htmlFor="temperature">
-          Temperature
-          <small style={{ color: "#666", fontWeight: "normal" }}> (Optional: 0.0-2.0, controls randomness)</small>
-        </label>
-        <input
-          id="temperature"
-          type="number"
-          step="0.1"
-          min="0.0"
-          max="2.0"
-          value={formData.temperature}
-          onChange={handleChange("temperature")}
-          disabled={isLoading}
-          placeholder="e.g., 0.2"
-        />
-        {errors.temperature && (
-          <div className={Block.elem("field-error")} style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-            {errors.temperature}
-          </div>
-        )}
+      <div className={Block.elem("form-field")} style={{ display: "flex", gap: "16px" }}>
+        <div style={{ flex: 1 }}>
+          <label htmlFor="temperature">
+            Temperature
+            <small style={{ color: "#666", fontWeight: "normal" }}> (Optional: 0.0-2.0, controls randomness)</small>
+          </label>
+          <input
+            id="temperature"
+            type="number"
+            step="0.1"
+            min="0.0"
+            max="2.0"
+            value={formData.temperature}
+            onChange={handleChange("temperature")}
+            disabled={isLoading}
+            placeholder="e.g., 0.2"
+          />
+          {errors.temperature && (
+            <div className={Block.elem("field-error")} style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+              {errors.temperature}
+            </div>
+          )}
+        </div>
+        <div style={{ flex: 1 }}>
+          <label htmlFor="thinking_budget">
+            Thinking Budget
+            <small style={{ color: "#666", fontWeight: "normal" }}> (Optional: 0 or positive integer, controls deep thinking)</small>
+          </label>
+          <input
+            id="thinking_budget"
+            type="number"
+            step="1"
+            min="0"
+            value={formData.thinking_budget}
+            onChange={handleChange("thinking_budget")}
+            disabled={isLoading}
+            placeholder="e.g., 0"
+          />
+          {errors.thinking_budget && (
+            <div className={Block.elem("field-error")} style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+              {errors.thinking_budget}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className={Block.elem("form-field")}>
@@ -721,7 +758,9 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
         <pre className={Block.elem("card-prompt")}>{prompt.content}</pre>
 
         {/* Display runtime config if available */}
-        {(prompt.temperature !== null && prompt.temperature !== undefined) || prompt.response_schema ? (
+        {(prompt.temperature !== null && prompt.temperature !== undefined) || 
+         (prompt.thinking_budget !== null && prompt.thinking_budget !== undefined) || 
+         prompt.response_schema ? (
           <div
             className={Block.elem("card-config")}
             style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #eee" }}
@@ -732,6 +771,11 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
             {prompt.temperature !== null && prompt.temperature !== undefined && (
               <div style={{ fontSize: "12px", marginBottom: "4px" }}>
                 <strong>Temperature:</strong> {prompt.temperature}
+              </div>
+            )}
+            {prompt.thinking_budget !== null && prompt.thinking_budget !== undefined && (
+              <div style={{ fontSize: "12px", marginBottom: "4px" }}>
+                <strong>Thinking Budget:</strong> {prompt.thinking_budget}
               </div>
             )}
             {prompt.response_schema && (
