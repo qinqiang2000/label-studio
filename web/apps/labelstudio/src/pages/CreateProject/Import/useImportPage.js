@@ -59,13 +59,12 @@ export const useImportPage = (project, sample, onImportComplete) => {
 
           const userChoice = window.confirm(
             `🔄 Import Conflict Detected\n` +
-            `Found ${conflictResult.conflict_count} duplicate task ID(s): ${conflictIds}${moreCount}\n\n` +
-            `✅ MERGE (OK):\n` +
-            `   • Updates existing tasks\n` +
+            `   • Found ${conflictResult.conflict_count} duplicate task ID(s): ${conflictIds}${moreCount}\n\n` +
+            `✅ MERGE (OK): Updates existing tasks\n` +
             `   • Same prediction/annotation ID → Updates record\n` +
-            `   • New prediction/annotation ID → Creates new record\n• Note: Duplicates blocked by (task+model version+prompt name) constraint` +
-            `🆕 CREATE NEW (Cancel):\n` +
-            `   • Imports as new tasks with auto-generated IDs\n` 
+            `   • New prediction/annotation ID → Creates new record\n` +
+            `   • Note: Duplicates blocked by (task+model version+prompt name) constraint\n\n` +
+            `🆕 CREATE NEW (Cancel): Imports as new tasks` 
           );
 
           const strategy = userChoice ? "merge" : "create_new";
