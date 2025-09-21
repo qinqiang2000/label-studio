@@ -188,8 +188,6 @@ export const ImportPage = ({
     }
     if (action.ids) {
       const ids = unique([...state.ids, ...action.ids]);
-
-      onFileListUpdate?.(ids);
       return { ...state, ids };
     }
     return state;
@@ -197,6 +195,13 @@ export const ImportPage = ({
 
   const [files, dispatch] = useReducer(processFiles, { uploaded: [], uploading: [], ids: [] });
   const showList = Boolean(files.uploaded?.length || files.uploading?.length || sample);
+
+  // Handle file list updates as a side effect
+  useEffect(() => {
+    if (files.ids.length > 0) {
+      onFileListUpdate?.(files.ids);
+    }
+  }, [files.ids, onFileListUpdate]);
 
   const loadFilesList = useCallback(
     async (file_upload_ids) => {

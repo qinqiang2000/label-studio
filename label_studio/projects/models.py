@@ -1456,6 +1456,7 @@ class ProjectImport(models.Model):
     preannotated_from_fields = models.JSONField(null=True, blank=True)
     commit_to_project = models.BooleanField(default=False)
     return_task_ids = models.BooleanField(default=False)
+    merge_strategy = models.CharField(max_length=64, default='create_new', help_text='Strategy for handling existing tasks: create_new, merge')
     status = models.CharField(max_length=64, choices=Status.choices, default=Status.CREATED)
     url = models.CharField(max_length=2048, null=True, blank=True)
     traceback = models.TextField(null=True, blank=True)

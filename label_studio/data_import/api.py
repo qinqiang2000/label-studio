@@ -39,6 +39,7 @@ from label_studio.core.utils.common import load_func
 from .functions import (
     async_import_background,
     async_reimport_background,
+    check_task_conflicts,
     reformat_predictions,
     set_import_background_failure,
     set_reimport_background_failure,
@@ -247,13 +248,21 @@ class ImportAPI(generics.CreateAPIView):
             project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=project_id)
         else:
             project = None
-        return {'project': project, 'user': self.request.user}
+
+        # Add merge strategy to context
+        merge_strategy = self.request.query_params.get('merge_strategy', 'create_new')
+
+        return {'project': project, 'user': self.request.user, 'merge_strategy': merge_strategy}
 
     def post(self, *args, **kwargs):
         return super(ImportAPI, self).post(*args, **kwargs)
 
-    def _save(self, tasks):
-        serializer = self.get_serializer(data=tasks, many=True)
+    def _save(self, tasks, merge_strategy='create_new'):
+        # Update context with merge strategy
+        context = self.get_serializer_context()
+        context['merge_strategy'] = merge_strategy
+
+        serializer = self.get_serializer(data=tasks, many=True, context=context)
         serializer.is_valid(raise_exception=True)
         task_instances = serializer.save(project_id=self.kwargs['pk'])
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
@@ -262,7 +271,7 @@ class ImportAPI(generics.CreateAPIView):
         )
         return task_instances, serializer
 
-    def sync_import(self, request, project, preannotated_from_fields, commit_to_project, return_task_ids):
+    def sync_import(self, request, project, preannotated_from_fields, commit_to_project, return_task_ids, merge_strategy='create_new'):
         start = time.time()
         tasks = None
         # upload files from request, and parse all tasks
@@ -275,7 +284,7 @@ class ImportAPI(generics.CreateAPIView):
 
         if commit_to_project:
             # Immediately create project tasks and update project states and counters
-            tasks, serializer = self._save(parsed_data)
+            tasks, serializer = self._save(parsed_data, merge_strategy)
             task_count = len(tasks)
             annotation_count = len(serializer.db_annotations)
             prediction_count = len(serializer.db_predictions)
@@ -323,13 +332,14 @@ class ImportAPI(generics.CreateAPIView):
         return Response(response, status=status.HTTP_201_CREATED)
 
     @timeit
-    def async_import(self, request, project, preannotated_from_fields, commit_to_project, return_task_ids):
+    def async_import(self, request, project, preannotated_from_fields, commit_to_project, return_task_ids, merge_strategy='create_new'):
 
         project_import = ProjectImport.objects.create(
             project=project,
             preannotated_from_fields=preannotated_from_fields,
             commit_to_project=commit_to_project,
             return_task_ids=return_task_ids,
+            merge_strategy=merge_strategy,
         )
 
         if len(request.FILES):
@@ -377,14 +387,121 @@ class ImportAPI(generics.CreateAPIView):
         commit_to_project = bool_from_request(request.query_params, 'commit_to_project', True)
         return_task_ids = bool_from_request(request.query_params, 'return_task_ids', False)
         preannotated_from_fields = list_of_strings_from_request(request.query_params, 'preannotated_from_fields', None)
+        merge_strategy = request.query_params.get('merge_strategy', 'create_new')
 
         # check project permissions
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
 
         if settings.VERSION_EDITION != 'Community':
-            return self.async_import(request, project, preannotated_from_fields, commit_to_project, return_task_ids)
+            return self.async_import(request, project, preannotated_from_fields, commit_to_project, return_task_ids, merge_strategy)
         else:
-            return self.sync_import(request, project, preannotated_from_fields, commit_to_project, return_task_ids)
+            return self.sync_import(request, project, preannotated_from_fields, commit_to_project, return_task_ids, merge_strategy)
+
+
+@method_decorator(
+    name='post',
+    decorator=swagger_auto_schema(
+        tags=['Import'],
+        x_fern_sdk_group_name='projects',
+        x_fern_sdk_method_name='check_import_conflicts',
+        x_fern_audiences=['public'],
+        operation_summary='Check for import conflicts',
+        operation_description="""
+            Check if importing tasks would conflict with existing tasks in the project.
+            This endpoint allows you to preview conflicts before committing to import.
+        """,
+        manual_parameters=[
+            openapi.Parameter(
+                name='id',
+                type=openapi.TYPE_INTEGER,
+                in_=openapi.IN_PATH,
+                description='A unique integer value identifying this project.',
+            ),
+        ],
+        request_body=openapi.Schema(
+            title='tasks',
+            description='List of tasks to check for conflicts',
+            type=openapi.TYPE_ARRAY,
+            items=openapi.Schema(type=openapi.TYPE_OBJECT),
+        ),
+        responses={
+            200: openapi.Response(
+                description='Conflict check results',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'conflicts': openapi.Schema(
+                            title='conflicts',
+                            description='List of conflicting task IDs',
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(type=openapi.TYPE_INTEGER)
+                        ),
+                        'conflict_count': openapi.Schema(
+                            title='conflict_count',
+                            description='Number of conflicting tasks',
+                            type=openapi.TYPE_INTEGER
+                        ),
+                        'new_task_count': openapi.Schema(
+                            title='new_task_count',
+                            description='Number of new tasks',
+                            type=openapi.TYPE_INTEGER
+                        ),
+                    },
+                ),
+            ),
+        },
+    ),
+)
+class ImportConflictCheckAPI(generics.CreateAPIView):
+    permission_required = all_permissions.projects_view
+    permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES + [ProjectImportPermission]
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
+    queryset = Task.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # check project permissions
+        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
+
+        # Get task data from request
+        task_data_list = None
+
+        # Handle direct JSON task data
+        if isinstance(request.data, list):
+            task_data_list = request.data
+        elif isinstance(request.data, dict):
+            # Handle file upload IDs (like reimport)
+            if 'file_upload_ids' in request.data:
+                file_upload_ids = request.data.get('file_upload_ids', [])
+                files_as_tasks_list = request.data.get('files_as_tasks_list', True)
+
+                if file_upload_ids:
+                    # Load tasks from uploaded files using file upload IDs
+                    tasks, found_formats, data_columns = FileUpload.load_tasks_from_uploaded_files(
+                        project, file_upload_ids, files_as_tasks_list=files_as_tasks_list
+                    )
+                    task_data_list = tasks
+            # Handle wrapped task data
+            elif 'tasks' in request.data:
+                task_data_list = request.data['tasks']
+
+        # Try to load tasks from files if provided directly
+        if task_data_list is None and len(request.FILES):
+            parsed_data, file_upload_ids, could_be_tasks_list, found_formats, data_columns = load_tasks(request, project)
+            task_data_list = parsed_data
+
+        # If still no task data found, raise error
+        if task_data_list is None:
+            raise ValidationError('No task data provided. Send tasks as JSON array, upload files, or provide file_upload_ids.')
+
+        # Check for conflicts
+        conflict_info = check_task_conflicts(project, task_data_list)
+
+        return Response({
+            'conflicts': conflict_info['conflicts'],
+            'conflict_count': len(conflict_info['conflicts']),
+            'new_task_count': len(conflict_info['new_tasks']),
+            'conflict_details': conflict_info['conflict_details']
+        }, status=status.HTTP_200_OK)
 
 
 # Import
@@ -434,15 +551,20 @@ class TasksBulkCreateAPI(ImportAPI):
 class ReImportAPI(ImportAPI):
     permission_required = all_permissions.projects_change
 
-    def sync_reimport(self, project, file_upload_ids, files_as_tasks_list):
+    def sync_reimport(self, project, file_upload_ids, files_as_tasks_list, merge_strategy='create_new'):
         start = time.time()
         tasks, found_formats, data_columns = FileUpload.load_tasks_from_uploaded_files(
             project, file_upload_ids, files_as_tasks_list=files_as_tasks_list
         )
 
         with transaction.atomic():
-            project.remove_tasks_by_file_uploads(file_upload_ids)
-            tasks, serializer = self._save(tasks)
+            if merge_strategy == 'create_new':
+                # Original behavior: remove old tasks and create new ones
+                project.remove_tasks_by_file_uploads(file_upload_ids)
+                tasks, serializer = self._save(tasks)
+            else:
+                # Merge strategy: keep existing tasks and merge with new data
+                tasks, serializer = self._save(tasks, merge_strategy=merge_strategy)
         duration = time.time() - start
 
         task_count = len(tasks)
@@ -503,6 +625,7 @@ class ReImportAPI(ImportAPI):
     def create(self, request, *args, **kwargs):
         files_as_tasks_list = bool_from_request(request.data, 'files_as_tasks_list', True)
         file_upload_ids = self.request.data.get('file_upload_ids')
+        merge_strategy = self.request.data.get('merge_strategy', 'create_new')
 
         # check project permissions
         project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs['pk'])
@@ -529,7 +652,7 @@ class ReImportAPI(ImportAPI):
                 project, file_upload_ids, files_as_tasks_list, request.user.active_organization_id
             )
         else:
-            return self.sync_reimport(project, file_upload_ids, files_as_tasks_list)
+            return self.sync_reimport(project, file_upload_ids, files_as_tasks_list, merge_strategy)
 
     @swagger_auto_schema(
         auto_schema=None,

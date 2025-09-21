@@ -25,6 +25,14 @@ from users.serializers import UserSerializer
 
 logger = logging.getLogger(__name__)
 
+# Import functions for task merging - import here to avoid circular imports
+def _import_merge_functions():
+    try:
+        from data_import.functions import check_task_conflicts, merge_task_data
+        return check_task_conflicts, merge_task_data
+    except ImportError:
+        return None, None
+
 
 class PredictionQuerySerializer(serializers.Serializer):
     task = serializers.IntegerField(required=False, help_text='Task ID to filter predictions')
@@ -431,6 +439,123 @@ class BaseTaskSerializerBulk(serializers.ListSerializer):
 
             obj.pop('user', None)
 
+    def handle_task_merging(self, validated_tasks):
+        """
+        Handle task merging when merge_strategy is 'merge'
+
+        Returns:
+            tuple: (tasks_to_create, tasks_to_update)
+        """
+        check_task_conflicts, merge_task_data = _import_merge_functions()
+        if not check_task_conflicts:
+            logger.warning("Task merging functions not available, falling back to create new tasks")
+            return validated_tasks, []
+
+        # Check for conflicts
+        conflict_info = check_task_conflicts(self.project, validated_tasks)
+
+        if not conflict_info['conflicts']:
+            # No conflicts, proceed with normal creation
+            return validated_tasks, []
+
+        tasks_to_create = conflict_info['new_tasks']
+        tasks_to_update = []
+
+        # Handle conflicting tasks - merge them
+        for conflicting_task_data in conflict_info['conflicting_tasks']:
+            task_id = conflicting_task_data['id']
+            try:
+                existing_task = Task.objects.get(id=task_id, project=self.project)
+                merged_task_data = merge_task_data(existing_task, conflicting_task_data)
+                tasks_to_update.append((existing_task, merged_task_data))
+            except Task.DoesNotExist:
+                logger.warning(f"Task with id {task_id} not found, adding as new task")
+                tasks_to_create.append(conflicting_task_data)
+
+        logger.info(f"Task merge: {len(tasks_to_create)} new tasks, {len(tasks_to_update)} tasks to update")
+        return tasks_to_create, tasks_to_update
+
+    def update_existing_task(self, existing_task, merged_task_data, members_email_to_id, members_ids, default_user):
+        """
+        Update an existing task with merged data
+
+        Args:
+            existing_task: Task model instance
+            merged_task_data: Dict with merged task data
+            members_email_to_id: Email to ID mapping
+            members_ids: Set of member IDs
+            default_user: Default user for annotations
+        """
+        # Update task data and meta
+        existing_task.data = merged_task_data.get('data', existing_task.data)
+        existing_task.meta = merged_task_data.get('meta', existing_task.meta)
+
+        # Handle predictions - merge with existing ones
+        predictions = merged_task_data.get('predictions', [])
+        existing_predictions = {p.id: p for p in existing_task.predictions.all()}
+
+        for pred_data in predictions:
+            pred_id = pred_data.get('id')
+            if pred_id and pred_id in existing_predictions:
+                # Update existing prediction
+                existing_pred = existing_predictions[pred_id]
+                existing_pred.result = pred_data.get('result', existing_pred.result)
+                existing_pred.score = pred_data.get('score', existing_pred.score)
+                existing_pred.model_version = pred_data.get('model_version', existing_pred.model_version)
+                existing_pred.prompt_name = pred_data.get('prompt_name', existing_pred.prompt_name)
+                existing_pred.save()
+            else:
+                # Create new prediction (remove imported ID to avoid conflicts)
+                pred_data_copy = pred_data.copy()
+                pred_data_copy.pop('id', None)
+                Prediction.objects.create(
+                    task=existing_task,
+                    project=existing_task.project,
+                    result=pred_data_copy.get('result', {}),
+                    score=pred_data_copy.get('score'),
+                    model_version=pred_data_copy.get('model_version', 'undefined'),
+                    prompt_name=pred_data_copy.get('prompt_name', ''),
+                )
+
+        # Handle annotations - merge with existing ones
+        annotations = merged_task_data.get('annotations', [])
+        existing_annotations = {a.id: a for a in existing_task.annotations.all()}
+
+        for ann_data in annotations:
+            ann_id = ann_data.get('id')
+            if ann_id and ann_id in existing_annotations:
+                # Update existing annotation
+                existing_ann = existing_annotations[ann_id]
+                existing_ann.result = ann_data.get('result', existing_ann.result)
+                existing_ann.was_cancelled = ann_data.get('was_cancelled', existing_ann.was_cancelled)
+                existing_ann.ground_truth = ann_data.get('ground_truth', existing_ann.ground_truth)
+                # Handle completed_by update
+                self._insert_valid_completed_by([ann_data], members_email_to_id, members_ids, default_user)
+                if 'completed_by' in ann_data:
+                    existing_ann.completed_by_id = ann_data['completed_by']
+                existing_ann.save()
+            else:
+                # Create new annotation (remove imported ID to avoid conflicts)
+                ann_data_copy = ann_data.copy()
+                ann_data_copy.pop('id', None)
+                # Handle completed_by
+                self._insert_valid_completed_by([ann_data_copy], members_email_to_id, members_ids, default_user)
+                Annotation.objects.create(
+                    task=existing_task,
+                    project=existing_task.project,
+                    completed_by_id=ann_data_copy.get('completed_by', default_user.id),
+                    result=ann_data_copy.get('result', []),
+                    was_cancelled=ann_data_copy.get('was_cancelled', False),
+                    ground_truth=ann_data_copy.get('ground_truth', False),
+                )
+
+        # Update task counters
+        existing_task.total_predictions = len(predictions)
+        existing_task.total_annotations = len(annotations)
+        existing_task.save()
+
+        logger.info(f"Updated task {existing_task.id} with {len(predictions)} predictions and {len(annotations)} annotations")
+
     @retry_database_locked()
     def create(self, validated_data):
         """Create Tasks, Annotations, etc in bulk"""
@@ -440,11 +565,25 @@ class BaseTaskSerializerBulk(serializers.ListSerializer):
         default_user = user or self.project.created_by
         ff_user = self.project.organization.created_by
 
+        # Check if merge strategy is enabled
+        merge_strategy = self.context.get('merge_strategy', 'create_new')
+
         # get members from project, we need them to restore annotation.completed_by etc
         organization = self.project.organization
         members_email_to_id = dict(organization.members.values_list('user__email', 'user__id'))
         members_ids = set(members_email_to_id.values())
         logger.debug(f'{len(members_email_to_id)} members found in organization {organization}')
+
+        # Handle task merging if requested
+        if merge_strategy == 'merge':
+            tasks_to_create, tasks_to_update = self.handle_task_merging(validated_tasks)
+
+            # Process updates first
+            for existing_task, merged_task_data in tasks_to_update:
+                self.update_existing_task(existing_task, merged_task_data, members_email_to_id, members_ids, default_user)
+
+            # Update validated_tasks to only include new tasks
+            validated_tasks = tasks_to_create
 
         # to be sure we add tasks with annotations at the same time
         with transaction.atomic():

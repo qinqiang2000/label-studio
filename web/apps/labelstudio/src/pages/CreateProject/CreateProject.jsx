@@ -180,7 +180,7 @@ export const CreateProject = ({ onClose }) => {
     setError(null);
   }, [name]);
 
-  const { columns, uploading, uploadDisabled, finishUpload, pageProps, uploadSample } = useImportPage(project, sample);
+  const { columns, uploading, uploadDisabled, finishUpload, pageProps, uploadSample } = useImportPage(project, sample, null);
 
   const rootClass = cn("create-project");
   const tabClass = rootClass.elem("tab");

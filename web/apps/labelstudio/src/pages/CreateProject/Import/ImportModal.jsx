@@ -21,8 +21,6 @@ export const Inner = () => {
   const [sample, setSample] = useState(null);
   const api = useAPI();
 
-  const { uploading, uploadDisabled, finishUpload, fileIds, pageProps, uploadSample } = useImportPage(project);
-
   const backToDM = useCallback(() => {
     const path = location.pathname.replace(ImportModal.path, "");
     const search = location.search;
@@ -30,6 +28,21 @@ export const Inner = () => {
 
     return refresh(pathname);
   }, [location, history]);
+
+  const onImportComplete = useCallback((result) => {
+    if (result) {
+      backToDM();
+    }
+  }, [backToDM]);
+
+  const {
+    uploading,
+    uploadDisabled,
+    finishUpload,
+    fileIds,
+    pageProps,
+    uploadSample,
+  } = useImportPage(project, sample, onImportComplete);
 
   const onCancel = useCallback(async () => {
     setWaitingStatus(true);
@@ -47,18 +60,24 @@ export const Inner = () => {
   }, [modal, project, fileIds, backToDM]);
 
   const onFinish = useCallback(async () => {
-    if (sample) {
-      await uploadSample(
-        sample,
-        () => setWaitingStatus(true),
-        () => setWaitingStatus(false),
-      );
+    try {
+      if (sample) {
+        await uploadSample(
+          sample,
+          () => setWaitingStatus(true),
+          () => setWaitingStatus(false),
+        );
+      }
+
+      const imported = await finishUpload();
+
+      if (!imported) return;
+      backToDM();
+    } catch (error) {
+      console.error("Import failed:", error);
+      setWaitingStatus(false);
+      // TODO: Show error message to user
     }
-
-    const imported = await finishUpload();
-
-    if (!imported) return;
-    backToDM();
   }, [backToDM, finishUpload, sample]);
 
   return (
@@ -95,6 +114,7 @@ export const Inner = () => {
         }}
         {...pageProps}
       />
+
     </Modal>
   );
 };

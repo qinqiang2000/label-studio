@@ -7,6 +7,7 @@ from core.utils.common import conditional_atomic, db_is_not_sqlite, load_func
 from django.conf import settings
 from django.db import transaction
 from projects.models import ProjectImport, ProjectReimport, ProjectSummary
+from tasks.models import Task, Annotation, Prediction
 from users.models import User
 from webhooks.models import WebhookAction
 from webhooks.utils import emit_webhooks_for_instance
@@ -52,7 +53,15 @@ def async_import_background(
             summary = ProjectSummary.objects.select_for_update().get(project=project)
 
             # Immediately create project tasks and update project states and counters
-            serializer = ImportApiSerializer(data=tasks, many=True, context={'project': project})
+            serializer = ImportApiSerializer(
+                data=tasks,
+                many=True,
+                context={
+                    'project': project,
+                    'user': user,
+                    'merge_strategy': project_import.merge_strategy
+                }
+            )
             serializer.is_valid(raise_exception=True)
             tasks = serializer.save(project_id=project.id)
             emit_webhooks_for_instance(user.active_organization, project, WebhookAction.TASKS_CREATED, tasks)
@@ -194,3 +203,166 @@ def async_reimport_background(reimport_id, organization_id, user, **kwargs):
     reimport.save()
 
     post_process_reimport(reimport)
+
+
+def check_task_conflicts(project, task_data_list):
+    """
+    Check which tasks from import data already exist in the project
+
+    Args:
+        project: Project instance
+        task_data_list: List of task dictionaries to import
+
+    Returns:
+        dict: {
+            'conflicts': [list of conflicting task IDs],
+            'conflict_details': {task_id: existing_task_data},
+            'new_tasks': [list of new task data]
+        }
+    """
+    # Extract task IDs from import data
+    import_task_ids = []
+    tasks_with_ids = []
+    tasks_without_ids = []
+
+    for task_data in task_data_list:
+        if 'id' in task_data:
+            import_task_ids.append(task_data['id'])
+            tasks_with_ids.append(task_data)
+        else:
+            tasks_without_ids.append(task_data)
+
+    # Find existing tasks with matching IDs
+    existing_tasks = Task.objects.filter(
+        project=project,
+        id__in=import_task_ids
+    ).values('id', 'data', 'meta')
+
+    existing_task_ids = {task['id'] for task in existing_tasks}
+    conflict_details = {task['id']: task for task in existing_tasks}
+
+    # Separate conflicting and new tasks
+    conflicting_tasks = [task for task in tasks_with_ids if task['id'] in existing_task_ids]
+    new_tasks_with_ids = [task for task in tasks_with_ids if task['id'] not in existing_task_ids]
+
+    return {
+        'conflicts': [task['id'] for task in conflicting_tasks],
+        'conflict_details': conflict_details,
+        'conflicting_tasks': conflicting_tasks,
+        'new_tasks': new_tasks_with_ids + tasks_without_ids
+    }
+
+
+def merge_predictions(existing_predictions, new_predictions):
+    """
+    Merge predictions, replacing existing ones with same ID or appending new ones
+
+    Args:
+        existing_predictions: List of existing prediction dicts
+        new_predictions: List of new prediction dicts to merge
+
+    Returns:
+        list: Merged predictions
+    """
+    # Create a dict of existing predictions by ID
+    existing_by_id = {}
+    predictions_without_id = []
+
+    for pred in existing_predictions:
+        if 'id' in pred:
+            existing_by_id[pred['id']] = pred
+        else:
+            predictions_without_id.append(pred)
+
+    # Process new predictions
+    for new_pred in new_predictions:
+        if 'id' in new_pred:
+            # Replace existing prediction with same ID
+            existing_by_id[new_pred['id']] = new_pred
+        else:
+            # Append prediction without ID
+            predictions_without_id.append(new_pred)
+
+    # Combine all predictions
+    merged = list(existing_by_id.values()) + predictions_without_id
+    return merged
+
+
+def merge_annotations(existing_annotations, new_annotations):
+    """
+    Merge annotations, replacing existing ones with same ID or appending new ones
+
+    Args:
+        existing_annotations: List of existing annotation dicts
+        new_annotations: List of new annotation dicts to merge
+
+    Returns:
+        list: Merged annotations
+    """
+    # Create a dict of existing annotations by ID
+    existing_by_id = {}
+    annotations_without_id = []
+
+    for ann in existing_annotations:
+        if 'id' in ann:
+            existing_by_id[ann['id']] = ann
+        else:
+            annotations_without_id.append(ann)
+
+    # Process new annotations
+    for new_ann in new_annotations:
+        if 'id' in new_ann:
+            # Replace existing annotation with same ID
+            existing_by_id[new_ann['id']] = new_ann
+        else:
+            # Append annotation without ID
+            annotations_without_id.append(new_ann)
+
+    # Combine all annotations
+    merged = list(existing_by_id.values()) + annotations_without_id
+    return merged
+
+
+def merge_task_data(existing_task, new_task_data):
+    """
+    Merge task data, predictions, and annotations
+
+    Args:
+        existing_task: Task model instance
+        new_task_data: Dict with new task data to merge
+
+    Returns:
+        dict: Merged task data ready for serializer
+    """
+    # Get existing predictions and annotations
+    existing_predictions = list(
+        existing_task.predictions.values(
+            'id', 'result', 'score', 'model_version', 'prompt_name', 'created_at', 'updated_at'
+        )
+    )
+    existing_annotations = list(
+        existing_task.annotations.values(
+            'id', 'result', 'completed_by_id', 'created_at', 'updated_at', 'was_cancelled'
+        )
+    )
+
+    # Merge predictions and annotations
+    merged_predictions = merge_predictions(
+        existing_predictions,
+        new_task_data.get('predictions', [])
+    )
+    merged_annotations = merge_annotations(
+        existing_annotations,
+        new_task_data.get('annotations', [])
+    )
+
+    # Create merged task data
+    merged_task = {
+        'id': existing_task.id,
+        'data': new_task_data.get('data', existing_task.data),
+        'meta': {**existing_task.meta, **new_task_data.get('meta', {})},
+        'predictions': merged_predictions,
+        'annotations': merged_annotations
+    }
+
+    return merged_task
