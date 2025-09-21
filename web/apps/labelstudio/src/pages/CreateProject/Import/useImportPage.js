@@ -54,14 +54,18 @@ export const useImportPage = (project, sample, onImportComplete) => {
         const conflictResult = await checkForConflicts();
 
         if (conflictResult.conflict_count > 0) {
+          const conflictIds = conflictResult.conflicts.slice(0, 10).join(', ');
+          const moreCount = conflictResult.conflicts.length > 10 ? `\n(+${conflictResult.conflicts.length - 10} more tasks)` : '';
+
           const userChoice = window.confirm(
-            `Found ${conflictResult.conflict_count} task(s) with matching IDs that already exist in this project.\n\n` +
-            `Conflicting task IDs: ${conflictResult.conflicts.join(', ')}\n\n` +
-            `MERGE (OK): Updates existing tasks. For predictions/annotations:\n` +
-            `  • Same ID: Updates the existing record\n` +
-            `  • New/Different ID: Creates new record\n` +
-            `  • Note: Duplicates blocked by (task+model_version+prompt_name) constraint\n\n` +
-            `CREATE NEW (Cancel): Imports as new tasks with auto-generated IDs`
+            `🔄 Import Conflict Detected\n` +
+            `Found ${conflictResult.conflict_count} duplicate task ID(s): ${conflictIds}${moreCount}\n\n` +
+            `✅ MERGE (OK):\n` +
+            `   • Updates existing tasks\n` +
+            `   • Same prediction/annotation ID → Updates record\n` +
+            `   • New prediction/annotation ID → Creates new record\n• Note: Duplicates blocked by (task+model version+prompt name) constraint` +
+            `🆕 CREATE NEW (Cancel):\n` +
+            `   • Imports as new tasks with auto-generated IDs\n` 
           );
 
           const strategy = userChoice ? "merge" : "create_new";

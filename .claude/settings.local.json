@@ -38,7 +38,9 @@
       "Bash(curl:*)",
       "Bash(yarn ls:*)",
       "mcp__playwright__browser_network_requests",
-      "WebFetch(domain:docs.djangoproject.com)"
+      "WebFetch(domain:docs.djangoproject.com)",
+      "Read(//Users/qinqiang02/Desktop/**)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }
