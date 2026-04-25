@@ -74,6 +74,8 @@ docker-compose.override.yml
 .bash_history
 
 .pdm-python
+.claude/settings.local.json
+.playwright-mcp/
 
 # actions-hub
 .github/actions-hub
