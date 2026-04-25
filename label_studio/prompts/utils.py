@@ -1,43 +1,26 @@
-"""
-Utility functions for prompts management
-"""
+"""Utility functions for prompts management."""
 import logging
-from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
 
 def get_user_accessible_prompts(user, limit=None):
-    """
-    获取用户可访问的prompts（按workspace过滤）
-    
-    :param user: User instance
-    :param limit: Optional limit for number of prompts to return
-    :return: QuerySet of accessible prompts
-    """
+    """获取用户可访问的 prompts（按 workspace 隔离，超管可见全部）。"""
     from .models import Prompt
-    
+
     if not user or not user.is_authenticated:
         return Prompt.objects.none()
-    
-    # 基础查询：同一组织的prompts
-    prompts_query = Prompt.objects.filter(created_by__active_organization=user.active_organization)
-    
-    # 如果不是超级用户，则按workspace过滤
+
+    qs = Prompt.objects.select_related('workspace', 'created_by')
     if not user.is_superuser:
-        prompts_query = prompts_query.filter(
-            Q(workspaces__isnull=True) |  # 组织级别的prompts（没有关联workspace的）
-            Q(workspaces__members=user)   # 用户所属workspace的prompts
-        ).distinct()
-    
-    # 按更新时间排序
-    prompts_query = prompts_query.order_by('-updated_at')
-    
-    # 应用限制
+        qs = qs.filter(workspace__members=user).distinct()
+
+    qs = qs.order_by('-updated_at')
+
     if limit and limit > 0:
-        prompts_query = prompts_query[:limit]
-    
-    return prompts_query
+        qs = qs[:limit]
+
+    return qs
 
 
 def get_user_accessible_prompts_list(user, limit=None):

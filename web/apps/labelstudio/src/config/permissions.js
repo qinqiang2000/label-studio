@@ -58,7 +58,7 @@ export const PERMISSION_GROUPS = {
   // 基础用户权限组
   basic_user: {
     displayName: "基础用户权限",
-    permissions: ["view_home", "view_projects", "view_workspaces", "view_account_settings"],
+    permissions: ["view_home", "view_projects", "view_workspaces", "view_prompts", "view_account_settings"],
   },
 
   // 标注操作权限组
@@ -121,7 +121,6 @@ export const PERMISSION_GROUPS = {
       "manage_organization",
       "manage_users",
       "manage_roles",
-      "view_prompts",
       "view_permission_management",
     ],
   },
@@ -356,7 +355,7 @@ export const PERMISSION_DEFINITIONS = {
     displayName: "Prompts菜单查看",
     description: "查看提示词菜单",
     hookMethod: "canViewPrompts",
-    group: "organization_management",
+    group: "basic_user",
   },
 
   view_organization: {

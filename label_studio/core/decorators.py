@@ -55,22 +55,16 @@ def module_permission_required(module_name):
     def decorator(view_func):
         @wraps(view_func)
         def _wrapped_view(request, *args, **kwargs):
-            # 构造权限名称：view_{module}_module 或 view_{module}
-            permission_names = [
-                f'view_{module_name}_module',
-                f'view_{module_name}',
-            ]
-            
-            # 检查用户是否具有任一权限
-            has_permission = False
-            for permission_name in permission_names:
-                if request.user.has_perm(permission_name):
-                    has_permission = True
-                    break
-            
-            if not has_permission:
-                raise PermissionDenied(f'访问 {module_name} 模块需要相应权限')
-            
-            return view_func(request, *args, **kwargs)
+            user = request.user
+            if user.is_superuser:
+                return view_func(request, *args, **kwargs)
+
+            # 走自定义 RBAC（htx_role_permission），而非 Django 的 has_perm
+            check = getattr(user, 'has_permission', None)
+            permission_names = (f'view_{module_name}_module', f'view_{module_name}')
+            if check and any(check(name) for name in permission_names):
+                return view_func(request, *args, **kwargs)
+
+            raise PermissionDenied(f'访问 {module_name} 模块需要相应权限')
         return _wrapped_view
     return decorator

@@ -63,8 +63,9 @@ ACTION_PERMISSIONS = {
 PERMISSION_GROUPS = {
     'basic_user': [
         'view_home',
-        'view_projects', 
+        'view_projects',
         'view_workspaces',
+        'view_prompts',
         'view_account_settings',
     ],
     
@@ -109,7 +110,6 @@ PERMISSION_GROUPS = {
         'manage_organization',
         'manage_users',
         'manage_roles',
-        'view_prompts',
         'view_permission_management',
     ],
     
