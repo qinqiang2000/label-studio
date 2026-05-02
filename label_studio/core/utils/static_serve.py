@@ -68,6 +68,11 @@ def serve(request, path, document_root=None, show_indexes=False, manifest_asset_
 
     response = RangedFileResponse(request, fullpath.open('rb'), content_type=content_type)
     response['Last-Modified'] = http_date(statobj.st_mtime)
+    # RangedFileResponse wraps the file in an iterator without `.read()`, so
+    # FileResponse.set_headers() never runs and Content-Length is missing
+    # except for actual Range requests. Set it from the stat we already have
+    # so HTTP/1.1 keep-alive proxies (e.g. Clash) can frame the response.
+    response['Content-Length'] = str(statobj.st_size)
     if encoding:
         response['Content-Encoding'] = encoding
     return response

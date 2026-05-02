@@ -13,6 +13,7 @@ from django.core.exceptions import MiddlewareNotUsed
 from django.core.handlers.base import BaseHandler
 from django.http import HttpResponsePermanentRedirect
 from django.middleware.common import CommonMiddleware
+from django.middleware.gzip import GZipMiddleware
 from django.utils.deprecation import MiddlewareMixin
 from django.utils.http import escape_leading_slashes
 from rest_framework.permissions import SAFE_METHODS
@@ -232,6 +233,24 @@ class InactivitySessionTimeoutMiddleWare(CommonMiddleware):
         request.session.set_expiry(
             settings.MAX_TIME_BETWEEN_ACTIVITY if request.session.get('keep_me_logged_in', True) else 0
         )
+
+
+class StreamingPreservingGZipMiddleware(GZipMiddleware):
+    """Skip gzip for streaming responses so FileResponse keeps its Content-Length.
+
+    Django's GZipMiddleware compresses streaming bodies on the fly and deletes
+    Content-Length. With Django's wsgiref dev server this means responses lack
+    both Content-Length and Transfer-Encoding: chunked. The server still adds
+    Connection: close, but HTTP-aware proxies (e.g. Clash Verge) inject their
+    own Connection: keep-alive when forwarding, and clients then hang waiting
+    for bytes that never come. Skipping gzip on streaming responses preserves
+    the file's Content-Length so keep-alive forwarding works.
+    """
+
+    def process_response(self, request, response):
+        if getattr(response, 'streaming', False):
+            return response
+        return super().process_response(request, response)
 
 
 class HumanSignalCspMiddleware(CSPMiddleware):

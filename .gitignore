@@ -99,3 +99,6 @@ label_studio/core/static/js/*.js.map
 
 # Claude AI assistant documentation
 CLAUDE.md
+
+# Hermes local config
+.hermes/
