@@ -207,7 +207,11 @@ def localfiles_data(request):
         if user_has_permissions and os.path.exists(full_path):
             content_type, encoding = mimetypes.guess_type(str(full_path))
             content_type = content_type or 'application/octet-stream'
-            return RangedFileResponse(request, open(full_path, mode='rb'), content_type)
+            response = RangedFileResponse(request, open(full_path, mode='rb'), content_type)
+            response['Accept-Ranges'] = 'bytes'
+            if 'Content-Length' not in response:
+                response['Content-Length'] = os.path.getsize(full_path)
+            return response
         else:
             return HttpResponseNotFound()
 
