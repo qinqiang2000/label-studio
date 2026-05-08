@@ -16,6 +16,7 @@ const WorkspaceSelector = forwardRef(
       required,
       skip,
       multiple = false,
+      hideEmpty = false,
       ...props
     },
     ref,
@@ -65,14 +66,18 @@ const WorkspaceSelector = forwardRef(
           })),
         ]
       : [
-          {
-            value: "",
-            label: (
-              <Tooltip title="[Notice] This project will be visible to all users in the organization!">
-                <span>No workspace (visible to all users!)</span>
-              </Tooltip>
-            ),
-          },
+          ...(hideEmpty
+            ? []
+            : [
+                {
+                  value: "",
+                  label: (
+                    <Tooltip title="[Notice] This project will be visible to all users in the organization!">
+                      <span>No workspace (visible to all users!)</span>
+                    </Tooltip>
+                  ),
+                },
+              ]),
           ...workspaces.map((workspace) => ({
             value: workspace.id,
             label: workspace.name,

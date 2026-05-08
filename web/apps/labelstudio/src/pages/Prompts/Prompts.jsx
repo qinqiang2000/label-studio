@@ -443,10 +443,7 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
     temperature: prompt?.temperature || "",
     thinking_budget: prompt?.thinking_budget || "",
     response_schema: prompt?.response_schema ? JSON.stringify(prompt.response_schema, null, 2) : "",
-    // Legacy single workspace support (for backward compatibility)
     workspace: prompt?.workspace?.id || prompt?.workspace_id || "",
-    // New multi-workspace support
-    workspaces: prompt?.workspaces ? prompt.workspaces.map((w) => w.id) : prompt?.workspace_ids || [],
   });
 
   const [errors, setErrors] = useState({});
@@ -477,6 +474,11 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
       } catch (e) {
         newErrors.response_schema = "Response schema must be valid JSON";
       }
+    }
+
+    // Workspace is required (single FK, tenant boundary)
+    if (formData.workspace === "" || formData.workspace == null) {
+      newErrors.workspace = "Workspace is required";
     }
 
     setErrors(newErrors);
@@ -517,19 +519,9 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
       }
     }
 
-    // Add workspaces if provided (new multi-workspace approach)
-    if (Array.isArray(formData.workspaces) && formData.workspaces.length > 0) {
-      // Ensure we only send workspace IDs
-      submitData.workspace_ids = formData.workspaces.map((w) => (typeof w === "object" ? w.id : w));
-    }
-
-    // Legacy single workspace support (for backward compatibility)
-    // Only use this if no workspaces are provided
-    if ((!Array.isArray(formData.workspaces) || formData.workspaces.length === 0) && formData.workspace !== "") {
-      // Ensure we only send the workspace ID, not the full object
-      const workspaceId = typeof formData.workspace === "object" ? formData.workspace.id : formData.workspace;
-      submitData.workspace_id = workspaceId;
-    }
+    // Single required workspace (tenant boundary)
+    submitData.workspace_id =
+      typeof formData.workspace === "object" ? formData.workspace.id : formData.workspace;
 
     onSave(submitData);
   };
@@ -632,21 +624,32 @@ const PromptForm = ({ prompt, onSave, onCancel, isLoading }) => {
       </div>
 
       <div className={Block.elem("form-field")}>
-        <label htmlFor="workspaces">
-          Workspaces
-          <small style={{ color: "#666", fontWeight: "normal" }}>
-            {" "}
-            (Optional: Select workspaces or leave empty for organization-wide visibility)
-          </small>
+        <label htmlFor="workspace">
+          Workspace
+          <small style={{ color: "#666", fontWeight: "normal" }}> (Required: tenant boundary)</small>
         </label>
         <WorkspaceSelector
-          value={formData.workspaces}
-          onChange={(value) => setFormData((prev) => ({ ...prev, workspaces: value || [] }))}
+          value={formData.workspace}
+          onChange={(value) => {
+            setFormData((prev) => ({ ...prev, workspace: value ?? "" }));
+            if (errors.workspace) {
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next.workspace;
+                return next;
+              });
+            }
+          }}
           disabled={isLoading}
-          multiple={true}
-          placeholder="Select workspaces (organization-wide if none selected)"
+          hideEmpty
+          placeholder="Select a workspace"
           getPopupContainer={() => document.body}
         />
+        {errors.workspace && (
+          <div className={Block.elem("field-error")} style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+            {errors.workspace}
+          </div>
+        )}
       </div>
 
       <div className={Block.elem("form-field")}>
@@ -696,30 +699,16 @@ const PromptCard = ({ prompt, onEdit, onDelete }) => {
   };
 
   const getWorkspaceDisplay = (prompt) => {
-    // Check if prompt has multiple workspaces (new structure)
-    if (prompt.workspaces && Array.isArray(prompt.workspaces) && prompt.workspaces.length > 0) {
-      if (prompt.workspaces.length === 1) {
-        return prompt.workspaces[0].name || `Workspace #${prompt.workspaces[0].id}`;
-      } else {
-        return `${prompt.workspaces.length} workspaces: ${prompt.workspaces.map((w) => w.name || `#${w.id}`).join(", ")}`;
-      }
-    }
-
-    // Fallback to legacy single workspace (for backward compatibility)
     if (prompt.workspace) {
-      // Handle different workspace data formats
       if (typeof prompt.workspace === "object") {
-        if (prompt.workspace.name) {
-          return prompt.workspace.name;
-        } else if (prompt.workspace.id) {
-          return `Workspace #${prompt.workspace.id}`;
-        }
-      } else if (typeof prompt.workspace === "string" || typeof prompt.workspace === "number") {
-        return `Workspace #${prompt.workspace}`;
+        return prompt.workspace.name || `Workspace #${prompt.workspace.id}`;
       }
+      return `Workspace #${prompt.workspace}`;
     }
-
-    return "Organization-wide (visible to all users)";
+    if (prompt.workspace_id) {
+      return `Workspace #${prompt.workspace_id}`;
+    }
+    return "—";
   };
 
   const handleCardClick = (e) => {
