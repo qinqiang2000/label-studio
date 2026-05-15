@@ -102,3 +102,6 @@ CLAUDE.md
 
 # Hermes local config
 .hermes/
+
+# Local remote deployment config
+deploy/remote/
