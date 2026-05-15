@@ -134,16 +134,29 @@ def serve(request, path, document_root=None, show_indexes=False, manifest_asset_
     # Respect the If-Modified-Since header.
     statobj = fullpath.stat()
     if not was_modified_since(request.META.get('HTTP_IF_MODIFIED_SINCE'), statobj.st_mtime):
-        return HttpResponseNotModified()
+        # Django's HttpResponseNotModified omits both Content-Length and
+        # Transfer-Encoding. Under wsgiref (`runserver`) the server then
+        # leaves the HTTP/1.1 keep-alive connection open with no way for the
+        # client to frame the response end, so browsers hang for the full
+        # Keep-Alive timeout (~4 s, often longer over slow links). Explicitly
+        # set Content-Length: 0 so the connection can be reused immediately.
+        not_modified = HttpResponseNotModified()
+        not_modified['Content-Length'] = '0'
+        return not_modified
     content_type, encoding = mimetypes.guess_type(str(fullpath))
     content_type = content_type or 'application/octet-stream'
 
-    # Cache headers: immutable for hashed/versioned assets (e.g. ?v=abc123 or
-    # bundle filenames embedding a content hash); short revalidation otherwise.
-    is_versioned = bool(_VERSION_QUERY_RE.search(request.META.get('QUERY_STRING', ''))) or bool(
-        re.search(r'\.[0-9a-f]{8,}\.', fullpath.name)
+    # Cache headers: immutable for build artifacts (assets served from a
+    # manifest-aware location like react-app/, ?v=… versioned URLs, or bundle
+    # filenames embedding a content hash). Anything else gets a one-day cache
+    # since changing it requires a server-side re-deploy that the user can
+    # invalidate by hard-refreshing.
+    is_versioned = (
+        manifest_asset_prefix is not None
+        or bool(_VERSION_QUERY_RE.search(request.META.get('QUERY_STRING', '')))
+        or bool(re.search(r'\.[0-9a-f]{8,}\.', fullpath.name))
     )
-    cache_control = 'public, max-age=31536000, immutable' if is_versioned else 'public, max-age=300'
+    cache_control = 'public, max-age=31536000, immutable' if is_versioned else 'public, max-age=86400'
 
     # Fast path: gzip-compressed in-memory response for compressible text assets.
     # Skip when the client sends a Range header (Range over Content-Encoding is

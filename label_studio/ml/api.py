@@ -1,6 +1,8 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
 """
 import logging
+import threading
+import time
 
 import drf_yasg.openapi as openapi
 from core.feature_flags import flag_set
@@ -18,6 +20,71 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
+
+# update_state() does a synchronous healthcheck + setup against the ML backend
+# (~1.5–3 s server-side, and worse when amplified by HTTP keep-alive queuing on
+# slow client links). Opening a project page used to block on this every time,
+# stalling every subsequent /api/dm/* call the SPA fires right after. We now
+# refresh in a background thread and let GET return the DB state immediately;
+# mutating endpoints (POST/PATCH/DELETE) and ?force=1 still refresh synchronously.
+_ML_STATE_TTL_SECONDS = 30
+_ml_state_last_refresh: dict = {}
+_ml_state_inflight: set = set()
+_ml_state_lock = threading.Lock()
+
+
+def _claim_ml_refresh(ml_backend_id: int) -> bool:
+    """Return True if the caller should refresh this ml_backend now.
+
+    Coalesces concurrent callers: only one wins, others see a recent timestamp
+    or an in-flight marker and skip.
+    """
+    now = time.monotonic()
+    with _ml_state_lock:
+        if ml_backend_id in _ml_state_inflight:
+            return False
+        last = _ml_state_last_refresh.get(ml_backend_id, 0.0)
+        if now - last < _ML_STATE_TTL_SECONDS:
+            return False
+        _ml_state_inflight.add(ml_backend_id)
+    return True
+
+
+def _finish_ml_refresh(ml_backend_id: int) -> None:
+    with _ml_state_lock:
+        _ml_state_inflight.discard(ml_backend_id)
+        _ml_state_last_refresh[ml_backend_id] = time.monotonic()
+
+
+def _invalidate_ml_state_cache(ml_backend_id: int) -> None:
+    with _ml_state_lock:
+        _ml_state_last_refresh.pop(ml_backend_id, None)
+        _ml_state_inflight.discard(ml_backend_id)
+
+
+def _force_refresh_requested(request) -> bool:
+    return request.query_params.get('force') in ('1', 'true', 'True')
+
+
+def _refresh_ml_state_async(ml_backend: MLBackend) -> None:
+    """Fire-and-forget background refresh; never raise into the request thread."""
+    if not _claim_ml_refresh(ml_backend.id):
+        return
+
+    def _runner(mlb_id: int):
+        try:
+            mlb = MLBackend.objects.filter(pk=mlb_id).first()
+            if mlb is not None:
+                mlb.update_state()
+        except Exception:
+            logger.exception('Background ML state refresh failed for backend %s', mlb_id)
+        finally:
+            _finish_ml_refresh(mlb_id)
+            from django.db import connection
+            connection.close()
+
+    t = threading.Thread(target=_runner, args=(ml_backend.id,), daemon=True, name=f'ml-refresh-{ml_backend.id}')
+    t.start()
 
 _ml_backend_schema = openapi.Schema(
     type=openapi.TYPE_OBJECT,
@@ -99,13 +166,21 @@ class MLBackendListAPI(generics.ListCreateAPIView):
 
         self.check_object_permissions(self.request, project)
 
-        ml_backends = project.update_ml_backends_state()
-
+        force = _force_refresh_requested(self.request)
+        ml_backends = project.get_ml_backends()
+        for mlb in ml_backends:
+            if force:
+                mlb.update_state()
+                _invalidate_ml_state_cache(mlb.id)
+            else:
+                # Non-blocking: kick a background refresh and serve the DB row.
+                _refresh_ml_state_async(mlb)
         return ml_backends
 
     def perform_create(self, serializer):
         ml_backend = serializer.save()
         ml_backend.update_state()
+        _invalidate_ml_state_cache(ml_backend.id)
 
         project = ml_backend.project
 
@@ -183,12 +258,23 @@ class MLBackendDetailAPI(generics.RetrieveUpdateDestroyAPIView):
 
     def get_object(self):
         ml_backend = super(MLBackendDetailAPI, self).get_object()
-        ml_backend.update_state()
+        if self.request.method == 'GET':
+            if _force_refresh_requested(self.request):
+                ml_backend.update_state()
+                _invalidate_ml_state_cache(ml_backend.id)
+            else:
+                _refresh_ml_state_async(ml_backend)
+        else:
+            # Mutating verbs (PATCH/PUT/DELETE) refresh synchronously so the
+            # response reflects the change.
+            ml_backend.update_state()
+            _invalidate_ml_state_cache(ml_backend.id)
         return ml_backend
 
     def perform_update(self, serializer):
         ml_backend = serializer.save()
         ml_backend.update_state()
+        _invalidate_ml_state_cache(ml_backend.id)
 
 
 @method_decorator(
