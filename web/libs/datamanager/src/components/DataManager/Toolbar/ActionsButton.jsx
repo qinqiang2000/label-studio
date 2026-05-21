@@ -163,6 +163,11 @@ export const ActionsButton = injector(
               .map(([type, count]) => `${type}: ${count}`)
               .join(", ");
 
+            // 取首条错误的可读消息作为示例（截断长 traceback）
+            const firstMsg = result.ml_errors[0]?.error_message || "";
+            const sample = firstMsg.split(" | 原始:")[0].split("\n")[0];
+            const truncatedSample = sample.length > 180 ? `${sample.slice(0, 180)}...` : sample;
+
             // 显示详细错误信息
             const errorMessages = result.ml_errors.map((error) => {
               const taskInfo = error.task_id ? ` (Task: ${error.task_id})` : "";
@@ -170,9 +175,11 @@ export const ActionsButton = injector(
             });
 
             store.SDK.invoke("toast", {
-              message: `预测完成但有错误: ${summaryText}`,
+              message: truncatedSample
+                ? `预测完成但有错误 (${summaryText}) — ${truncatedSample}`
+                : `预测完成但有错误: ${summaryText}`,
               type: "warning",
-              duration: 8000,
+              duration: 10000,
             });
 
             // 在控制台显示详细错误
@@ -326,21 +333,35 @@ export const ActionsButton = injector(
             .map(([type, count]) => `${type}: ${count}`)
             .join(", ");
 
+          const firstMsg = batchErrors[0]?.error_message || "";
+          const sample = firstMsg.split(" | 原始:")[0].split("\n")[0];
+          const truncatedSample = sample.length > 180 ? `${sample.slice(0, 180)}...` : sample;
+
           store.SDK.invoke("toast", {
-            message: `批量预测完成: ${successCount} 个成功，${failureCount} 个有错误 (${summaryText})`,
+            message: truncatedSample
+              ? `批量预测完成: ${successCount} 成功 / ${failureCount} 失败 (${summaryText}) — 示例: ${truncatedSample}`
+              : `批量预测完成: ${successCount} 个成功，${failureCount} 个有错误 (${summaryText})`,
             type: "warning",
-            duration: 10000,
+            duration: 12000,
           });
 
           // 在控制台显示详细错误信息
           console.error("[ML ERRORS] 批量处理详细错误信息:", batchErrors);
         } else {
           // 全部失败
+          const firstMsg = batchErrors[0]?.error_message || "";
+          const sample = firstMsg.split(" | 原始:")[0].split("\n")[0];
+          const truncatedSample = sample.length > 180 ? `${sample.slice(0, 180)}...` : sample;
+
           store.SDK.invoke("toast", {
-            message: `批量预测失败: ${failureCount} 个任务处理失败`,
+            message: truncatedSample
+              ? `批量预测失败 (${failureCount} 个) — ${truncatedSample}`
+              : `批量预测失败: ${failureCount} 个任务处理失败`,
             type: "error",
-            duration: 8000,
+            duration: 10000,
           });
+
+          console.error("[ML ERRORS] 批量处理详细错误信息:", batchErrors);
         }
       } catch (error) {
         console.error("[DEBUG] 批量处理失败:", error);
