@@ -7,6 +7,7 @@ import mimetypes
 import os
 import posixpath
 from pathlib import Path
+from urllib.parse import quote
 from wsgiref.util import FileWrapper
 
 import pandas as pd
@@ -207,6 +208,18 @@ def localfiles_data(request):
         if user_has_permissions and os.path.exists(full_path):
             content_type, encoding = mimetypes.guess_type(str(full_path))
             content_type = content_type or 'application/octet-stream'
+
+            # When fronted by nginx, offload the actual byte transfer via
+            # X-Accel-Redirect: nginx serves the file from an internal location
+            # using sendfile (native Range/ETag/conditional support), so a slow
+            # client never holds a gunicorn worker thread. Disabled by default;
+            # enable by setting LOCAL_FILES_X_ACCEL_PREFIX (e.g. /internal-local-files/).
+            x_accel_prefix = settings.LOCAL_FILES_SERVING_X_ACCEL_PREFIX
+            if x_accel_prefix:
+                response = HttpResponse(content_type=content_type)
+                response['X-Accel-Redirect'] = x_accel_prefix + quote(path)
+                return response
+
             response = RangedFileResponse(request, open(full_path, mode='rb'), content_type)
             response['Accept-Ranges'] = 'bytes'
             if 'Content-Length' not in response:

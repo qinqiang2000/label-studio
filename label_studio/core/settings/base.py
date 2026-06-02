@@ -544,6 +544,9 @@ EMAIL_BACKEND = get_env('EMAIL_BACKEND', 'django.core.mail.backends.dummy.EmailB
 ENABLE_LOCAL_FILES_STORAGE = get_bool_env('ENABLE_LOCAL_FILES_STORAGE', default=True)
 LOCAL_FILES_SERVING_ENABLED = get_bool_env('LOCAL_FILES_SERVING_ENABLED', default=False)
 LOCAL_FILES_DOCUMENT_ROOT = get_env('LOCAL_FILES_DOCUMENT_ROOT', default=os.path.abspath(os.sep))
+# When set (e.g. "/internal-local-files/"), localfiles_data offloads file
+# transfer to nginx via X-Accel-Redirect instead of streaming through gunicorn.
+LOCAL_FILES_SERVING_X_ACCEL_PREFIX = get_env('LOCAL_FILES_X_ACCEL_PREFIX', default=None)
 
 SYNC_ON_TARGET_STORAGE_CREATION = get_bool_env('SYNC_ON_TARGET_STORAGE_CREATION', default=True)
 
